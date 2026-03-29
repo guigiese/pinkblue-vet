@@ -1,0 +1,4 @@
+.secrets
+estado_exames.json
+__pycache__/
+*.pyc
