@@ -144,14 +144,16 @@ def monitorar():
             estado   = carregar_estado()
             anterior = estado.get("snapshot", {})
 
-            novidades = detectar_novidades(anterior, atual)
-
-            if novidades:
-                for msg in novidades:
-                    print(f"  -> {msg[:80]}")
-                    enviar_whatsapp(msg)
+            if not anterior:
+                print(f"[{datetime.now():%H:%M:%S}] Primeira execução — estado salvo, sem notificações.")
             else:
-                print(f"[{datetime.now():%H:%M:%S}] Sem novidades.")
+                novidades = detectar_novidades(anterior, atual)
+                if novidades:
+                    for msg in novidades:
+                        print(f"  -> {msg[:80]}")
+                        enviar_whatsapp(msg)
+                else:
+                    print(f"[{datetime.now():%H:%M:%S}] Sem novidades.")
 
             salvar_estado(atual)
 
