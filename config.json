@@ -1,0 +1,29 @@
+{
+  "interval_minutes": 5,
+  "labs": [
+    {
+      "id": "bitlab",
+      "name": "BioAnálises (BitLab)",
+      "connector": "bitlab",
+      "enabled": true
+    },
+    {
+      "id": "nexio",
+      "name": "Nexio Patologia",
+      "connector": "nexio",
+      "enabled": true
+    }
+  ],
+  "notifiers": [
+    {
+      "id": "telegram",
+      "type": "telegram",
+      "enabled": true
+    },
+    {
+      "id": "whatsapp",
+      "type": "whatsapp",
+      "enabled": false
+    }
+  ]
+}

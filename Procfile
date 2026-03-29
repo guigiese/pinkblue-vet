@@ -1,1 +1,1 @@
-worker: python monitor_exames.py
+worker: python monitor.py
