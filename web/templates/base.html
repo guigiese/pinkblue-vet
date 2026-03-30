@@ -8,18 +8,46 @@
   <script src="https://unpkg.com/htmx.org@1.9.10"></script>
 </head>
 <body class="bg-gray-50 text-gray-900">
+
+<!-- ── Mobile top bar ──────────────────────────────────────────────────────── -->
+<div class="md:hidden fixed top-0 left-0 right-0 h-14 bg-white border-b border-gray-200 flex items-center px-4 z-50">
+  <button onclick="openSidebar()" class="p-2 rounded-lg hover:bg-gray-100 text-gray-600" aria-label="Menu">
+    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+    </svg>
+  </button>
+  <span class="ml-3 text-lg font-bold text-indigo-600">🔬 Lab Monitor</span>
+</div>
+
+<!-- ── Sidebar overlay (mobile) ───────────────────────────────────────────── -->
+<div id="sidebar-overlay"
+     class="hidden fixed inset-0 bg-black/40 z-40 md:hidden"
+     onclick="closeSidebar()"></div>
+
 <div class="flex min-h-screen">
 
-  <!-- Sidebar -->
-  <aside class="w-56 bg-white border-r border-gray-200 fixed h-full flex flex-col z-10">
-    <div class="p-5 border-b border-gray-100">
+  <!-- ── Sidebar ──────────────────────────────────────────────────────────── -->
+  <aside id="sidebar"
+         class="w-64 bg-white border-r border-gray-200 fixed h-full flex flex-col z-50
+                -translate-x-full md:translate-x-0 transition-transform duration-200 ease-in-out">
+    <!-- Logo (desktop) -->
+    <div class="hidden md:flex p-5 border-b border-gray-100">
       <span class="text-lg font-bold text-indigo-600">🔬 Lab Monitor</span>
     </div>
-    <nav class="flex-1 p-3 space-y-1 text-sm">
+    <!-- Close button (mobile only) -->
+    <div class="md:hidden flex items-center justify-between px-4 py-3 border-b border-gray-100">
+      <span class="text-lg font-bold text-indigo-600">🔬 Lab Monitor</span>
+      <button onclick="closeSidebar()" class="p-1 rounded-lg hover:bg-gray-100 text-gray-500">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
+    <nav class="flex-1 p-3 space-y-1 text-sm overflow-y-auto">
       {% set nav = [("/","📊","Dashboard"),("/exames","🧪","Exames"),("/labs","🏥","Laboratórios"),("/canais","📨","Canais"),("/settings","⚙️","Configurações")] %}
       {% for href, icon, label in nav %}
-      <a href="{{ href }}"
-         class="flex items-center gap-2 px-3 py-2 rounded-lg font-medium
+      <a href="{{ href }}" onclick="closeSidebar()"
+         class="flex items-center gap-2 px-3 py-2.5 rounded-lg font-medium
                 {% if request.url.path == href %}bg-indigo-50 text-indigo-700{% else %}text-gray-600 hover:bg-gray-100{% endif %}">
         {{ icon }} {{ label }}
       </a>
@@ -27,12 +55,26 @@
     </nav>
   </aside>
 
-  <!-- Content -->
-  <main class="ml-56 flex-1 p-6 max-w-6xl">
-    <h1 class="text-2xl font-bold text-gray-800 mb-6">{% block header %}{% endblock %}</h1>
+  <!-- ── Main content ──────────────────────────────────────────────────────── -->
+  <main class="w-full md:ml-64 flex-1 p-4 md:p-6 pt-18 md:pt-6 min-w-0">
+    <h1 class="text-xl md:text-2xl font-bold text-gray-800 mb-4 md:mb-6">{% block header %}{% endblock %}</h1>
     {% block content %}{% endblock %}
   </main>
 
 </div>
+
+<script>
+  function openSidebar() {
+    document.getElementById('sidebar').classList.remove('-translate-x-full');
+    document.getElementById('sidebar-overlay').classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+  }
+  function closeSidebar() {
+    document.getElementById('sidebar').classList.add('-translate-x-full');
+    document.getElementById('sidebar-overlay').classList.add('hidden');
+    document.body.style.overflow = '';
+  }
+</script>
+
 </body>
 </html>

@@ -1,3 +1,4 @@
+import os
 import threading
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -10,6 +11,8 @@ from web.state import state
 from core import run_monitor_loop
 from labs import CONNECTORS
 from notifiers import NOTIFIERS
+from notifiers.telegram import get_users, remove_user
+from notifiers.telegram_polling import run_bot_polling
 
 TEMPLATES_DIR = Path(__file__).parent / "templates"
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
@@ -17,8 +20,15 @@ templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 @asynccontextmanager
 async def lifespan(app):
-    thread = threading.Thread(target=run_monitor_loop, args=(state,), daemon=True)
-    thread.start()
+    # Monitor loop
+    monitor_thread = threading.Thread(target=run_monitor_loop, args=(state,), daemon=True)
+    monitor_thread.start()
+
+    # Telegram bot polling
+    token = os.environ.get("TELEGRAM_TOKEN", "8704375512:AAFs8ICnxKAphbFscOK9NKNbpzWwyYTB4tA")
+    bot_thread = threading.Thread(target=run_bot_polling, args=(token,), daemon=True)
+    bot_thread.start()
+
     yield
 
 
@@ -66,7 +76,8 @@ async def labs_page(request: Request):
 @app.get("/canais", response_class=HTMLResponse)
 async def canais_page(request: Request):
     return _render(request, "canais.html",
-                   notifiers=state.config["notifiers"])
+                   notifiers=state.config["notifiers"],
+                   telegram_users=get_users())
 
 
 @app.get("/settings", response_class=HTMLResponse)
@@ -93,6 +104,12 @@ async def partial_lab_counts(request: Request):
 async def partial_exames(request: Request, lab: str = "", status: str = ""):
     return _render(request, "partials/exames_table.html",
                    rows=state.get_exames(lab, status))
+
+
+@app.get("/partials/telegram-users", response_class=HTMLResponse)
+async def partial_telegram_users(request: Request):
+    return _render(request, "partials/telegram_users.html",
+                   telegram_users=get_users())
 
 
 # ── Actions ───────────────────────────────────────────────────────────────────
@@ -135,6 +152,13 @@ async def test_notifier(notifier_id: str):
         return HTMLResponse('<span class="text-green-600 text-sm">✓ Mensagem enviada</span>')
     except Exception as e:
         return HTMLResponse(f'<span class="text-red-600 text-sm">✗ Erro: {e}</span>')
+
+
+@app.post("/canais/telegram/users/{chat_id}/remove", response_class=HTMLResponse)
+async def remove_telegram_user(request: Request, chat_id: str):
+    remove_user(chat_id)
+    return _render(request, "partials/telegram_users.html",
+                   telegram_users=get_users())
 
 
 @app.post("/settings/interval", response_class=HTMLResponse)

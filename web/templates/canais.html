@@ -5,7 +5,7 @@
 <div class="space-y-4">
   {% for n in notifiers %}
   <div class="bg-white rounded-xl border shadow-sm p-5">
-    <div class="flex items-center justify-between flex-wrap gap-4">
+    <div class="flex items-start justify-between flex-wrap gap-4">
       <div>
         <h3 class="font-semibold text-gray-800 text-lg capitalize">{{ n.id }}</h3>
         <p class="text-sm text-gray-500 mt-1">Tipo: <code class="bg-gray-100 px-1 rounded">{{ n.type }}</code></p>
@@ -38,6 +38,29 @@
       </div>
     </div>
     <div id="test-result-{{ n.id }}" class="mt-2 min-h-[20px]"></div>
+
+    <!-- Seção de usuários Telegram -->
+    {% if n.type == "telegram" %}
+    <div class="mt-5 pt-4 border-t border-gray-100">
+      <div class="flex items-center justify-between mb-3">
+        <h4 class="text-sm font-semibold text-gray-700">Usuários inscritos</h4>
+        <span class="text-xs text-gray-400"
+              hx-get="/partials/telegram-users"
+              hx-trigger="every 10s"
+              hx-target="#telegram-users-list"
+              hx-swap="outerHTML"></span>
+      </div>
+
+      <!-- Lista de usuários (carregada inicialmente pelo servidor) -->
+      {% include "partials/telegram_users.html" %}
+
+      <!-- Instrução de inscrição -->
+      <div class="mt-4 p-3 bg-indigo-50 rounded-lg text-sm text-indigo-700">
+        💡 Para se inscrever, envie <code class="bg-indigo-100 px-1 rounded font-mono">/start</code> para o bot no Telegram.
+        Novos usuários aparecerão aqui automaticamente.
+      </div>
+    </div>
+    {% endif %}
   </div>
   {% endfor %}
 </div>
