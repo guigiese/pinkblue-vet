@@ -89,10 +89,15 @@ class TelegramNotifier(Notifier):
     def enviar(self, mensagem: str) -> None:
         for chat_id in get_user_ids():
             try:
-                requests.post(
+                r = requests.post(
                     f"https://api.telegram.org/bot{self._token}/sendMessage",
                     json={"chat_id": chat_id, "text": mensagem, "parse_mode": "HTML"},
                     timeout=15,
                 )
+                resp = r.json()
+                if not resp.get("ok"):
+                    print(f"[Telegram] Falha ao enviar para {chat_id}: {resp.get('description')}")
+                else:
+                    print(f"[Telegram] Enviado para {chat_id} (msg_id={resp['result']['message_id']})")
             except Exception as e:
                 print(f"[Telegram] Erro ao enviar para {chat_id}: {e}")
