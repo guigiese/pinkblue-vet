@@ -4,34 +4,52 @@
 
 <!-- Filtros -->
 <form class="flex flex-wrap gap-2 mb-5" method="get">
-  <select name="lab" class="border rounded-lg px-3 py-2 text-sm bg-white min-w-0">
+  <!-- Busca por nome -->
+  <div class="relative flex-1 min-w-[180px]">
+    <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none"
+         fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"/>
+    </svg>
+    <input type="text" name="q" value="{{ q }}" placeholder="Buscar paciente..."
+           class="w-full border rounded-lg pl-9 pr-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300">
+  </div>
+
+  <select name="lab" class="border rounded-lg px-3 py-2 text-sm bg-white">
     <option value="">Todos os labs</option>
     {% for l in labs_cfg %}
     <option value="{{ l.id }}" {% if lab_filter == l.id %}selected{% endif %}>{{ l.name }}</option>
     {% endfor %}
   </select>
-  <select name="status" class="border rounded-lg px-3 py-2 text-sm bg-white min-w-0">
+
+  <select name="status" class="border rounded-lg px-3 py-2 text-sm bg-white">
     <option value="">Todos os status</option>
     {% for s in statuses %}
     <option value="{{ s }}" {% if status_filter == s %}selected{% endif %}>{{ s }}</option>
     {% endfor %}
   </select>
-  <button type="submit" class="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-indigo-700">
+
+  <button type="submit"
+          class="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-indigo-700">
     Filtrar
   </button>
-  {% if lab_filter or status_filter %}
-  <a href="/labmonitor/exames" class="px-4 py-2 rounded-lg text-sm border hover:bg-gray-50 text-gray-600">Limpar</a>
+  {% if lab_filter or status_filter or q %}
+  <a href="/labmonitor/exames"
+     class="px-4 py-2 rounded-lg text-sm border hover:bg-gray-50 text-gray-600">Limpar</a>
   {% endif %}
 </form>
 
 <!-- Contagem -->
 {% if groups %}
-<p class="text-xs text-gray-400 mb-3">{{ groups | length }} requisição{% if groups | length != 1 %}ões{% endif %}</p>
+<p class="text-xs text-gray-400 mb-3">
+  {{ groups | length }} requisição{% if groups | length != 1 %}ões{% endif %}
+  {% if q %} para "<span class="font-medium text-gray-600">{{ q }}</span>"{% endif %}
+</p>
 {% endif %}
 
-<!-- Lista de grupos (atualiza a cada 15min) -->
+<!-- Lista de grupos (atualiza a cada 15min preservando filtros) -->
 <div id="exames-table"
-     hx-get="/labmonitor/partials/exames?lab={{ lab_filter }}&status={{ status_filter }}"
+     hx-get="/labmonitor/partials/exames?lab={{ lab_filter }}&status={{ status_filter }}&q={{ q }}"
      hx-trigger="every 15m"
      hx-swap="innerHTML">
   {% include "partials/exames_table.html" %}

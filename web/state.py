@@ -105,7 +105,7 @@ class AppState:
         cutoff = datetime.now() - timedelta(days=3)
         self.notifications = [n for n in self.notifications if n["datetime"] >= cutoff]
 
-    def get_exames(self, lab_filter: str = "", status_filter: str = "") -> list[dict]:
+    def get_exames(self, lab_filter: str = "", status_filter: str = "", q: str = "") -> list[dict]:
         """
         Returns exames grouped by record_id (one entry per request/patient).
         Each group has: lab, record_id, paciente, data (dd/mm/aaaa), status_geral, itens.
@@ -150,21 +150,31 @@ class AppState:
                 if status_filter and status_geral != status_filter:
                     continue
 
-                # Format date for display
+                # Format date for display + compute days in progress
                 try:
-                    data_fmt = datetime.strptime(record["data"], "%Y-%m-%d").strftime("%d/%m/%Y")
+                    data_dt  = datetime.strptime(record["data"], "%Y-%m-%d")
+                    data_fmt = data_dt.strftime("%d/%m/%Y")
+                    dias_em_aberto = (datetime.now() - data_dt).days if status_geral != "Pronto" else None
                 except Exception:
-                    data_fmt = record["data"]
+                    data_fmt       = record["data"]
+                    dias_em_aberto = None
+
+                paciente = record["label"]
+
+                # Name search filter (case-insensitive, strips accents-agnostic)
+                if q and q.lower() not in paciente.lower():
+                    continue
 
                 groups.append({
-                    "lab_id":       lab_id,
-                    "lab":          lab_name,
-                    "record_id":    record_id,
-                    "paciente":     record["label"],
-                    "data":         data_fmt,
-                    "data_raw":     record["data"],
-                    "status_geral": status_geral,
-                    "itens":        sorted(itens, key=lambda x: x["nome"]),
+                    "lab_id":         lab_id,
+                    "lab":            lab_name,
+                    "record_id":      record_id,
+                    "paciente":       paciente,
+                    "data":           data_fmt,
+                    "data_raw":       record["data"],
+                    "status_geral":   status_geral,
+                    "dias_em_aberto": dias_em_aberto,
+                    "itens":          sorted(itens, key=lambda x: x["nome"]),
                 })
 
         return sorted(groups, key=lambda x: x["data_raw"], reverse=True)
