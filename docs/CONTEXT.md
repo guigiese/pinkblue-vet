@@ -1,13 +1,13 @@
 # CONTEXT.md — Lab Monitor (SimplesVet)
 > Documento técnico para onboarding de IAs e desenvolvedores.
 > Descreve o estado atual do projeto, arquitetura, contratos de dados e regras de extensão.
-> Atualizado em: 2026-03-29
+> Atualizado em: 2026-03-30
 
 ---
 
 ## O que é este projeto
 
-Monitor automatizado de exames laboratoriais para uma clínica veterinária.
+Monitor automatizado de exames laboratoriais para uma clínica veterinária (PinkBlue Vet).
 Faz scraping/API-calls em laboratórios parceiros, detecta novos exames e mudanças de status,
 e envia notificações via Telegram (e opcionalmente WhatsApp).
 
@@ -15,7 +15,10 @@ Roda 24/7 na nuvem (Railway) como um único serviço Python que combina:
 - um loop de monitoramento em background thread
 - uma interface web (FastAPI + Jinja2 + HTMX) acessível em tempo real
 
-**URL de produção:** https://ideal-communication-production.up.railway.app
+**URL de produção:** https://pinkblue-vet-production.up.railway.app
+
+A aplicação é servida sob o prefixo `/labmonitor`. A raiz `/` exibe uma landing page
+com os apps disponíveis. Atualmente apenas o Lab Monitor está ativo.
 
 ---
 
@@ -43,6 +46,7 @@ Isso é intencional: o custo zero de infra exige zero serviços adicionais.
 ├── config.json              # Configuração runtime (labs ativos, notifiers, intervalo)
 ├── core.py                  # Loop de monitoramento + detecção de novidades
 ├── monitor.py               # Entrypoint standalone (sem web, para testes locais)
+├── deploy.py                # Script de deploy canônico — usa serviceInstanceDeploy(commitSha=...)
 ├── requirements.txt
 ├── nixpacks.toml            # Instrui o Railpack a usar pip e o comando de start correto
 ├── Procfile                 # Fallback de start command
@@ -56,23 +60,26 @@ Isso é intencional: o custo zero de infra exige zero serviços adicionais.
 ├── notifiers/
 │   ├── base.py              # ABC Notifier — método enviar(msg: str)
 │   ├── __init__.py          # Registry: NOTIFIERS = {"telegram": ..., "whatsapp": ...}
-│   ├── telegram.py          # Telegram Bot API
+│   ├── telegram.py          # Telegram Bot API — multi-usuário via telegram_users.json
+│   ├── telegram_polling.py  # Thread de polling do bot: /assinar, /sair, /status, /start
 │   └── whatsapp.py          # Callmebot API (desabilitado por padrão)
 │
 ├── web/
-│   ├── app.py               # FastAPI: rotas, partials HTMX, ações
+│   ├── app.py               # FastAPI: landing /, APIRouter prefix=/labmonitor
 │   ├── state.py             # AppState singleton compartilhado entre thread e web
 │   └── templates/
-│       ├── base.html        # Layout sidebar (Tailwind CDN + HTMX CDN)
+│       ├── index.html       # Landing page standalone (sem base.html)
+│       ├── base.html        # Layout sidebar responsivo (Tailwind CDN + HTMX CDN)
 │       ├── dashboard.html   # Contadores por lab + feed de notificações
 │       ├── exames.html      # Tabela de exames com filtros
 │       ├── labs.html        # Gerenciar labs (toggle, test connection)
-│       ├── canais.html      # Gerenciar canais de notificação (toggle, test send)
+│       ├── canais.html      # Gerenciar canais + lista de usuários Telegram
 │       ├── settings.html    # Intervalo de verificação
 │       └── partials/        # Fragmentos HTMX (atualizados sem reload de página)
 │           ├── notifications.html
 │           ├── lab_counts.html
-│           └── exames_table.html
+│           ├── exames_table.html   # Mobile cards + desktop table
+│           └── telegram_users.html # Lista de usuários inscritos no bot
 │
 └── docs/
     ├── CONTEXT.md           # Este arquivo
@@ -177,6 +184,27 @@ o próximo ciclo do loop pega o valor atualizado automaticamente.
 
 ---
 
+## Telegram Bot — multi-usuário
+
+O bot (`notifiers/telegram_polling.py`) roda em thread daemon separada.
+Usuários se inscrevem pelo próprio Telegram — sem necessidade de configurar chat IDs manualmente.
+
+| Comando | Comportamento |
+|---|---|
+| `/start` | Boas-vindas neutras, lista os comandos disponíveis |
+| `/assinar` | Inscreve o usuário para receber notificações |
+| `/sair` | Cancela a inscrição |
+| `/status` | Informa se está inscrito ou não |
+
+Os chat IDs inscritos são salvos em `telegram_users.json` (gitignored).
+**Limitação:** o arquivo não sobrevive ao redeploy (sem volume persistente no Railway).
+Após cada deploy, os usuários precisam enviar `/assinar` novamente.
+
+A UI em `/labmonitor/canais` exibe a lista de usuários inscritos com botão de remoção.
+A lista atualiza automaticamente a cada 10 segundos via HTMX polling.
+
+---
+
 ## Variáveis de ambiente (Railway)
 
 Todas as credenciais vivem como env vars no Railway — nunca no repositório.
@@ -206,9 +234,50 @@ Para desenvolvimento local, as credenciais ficam em `.secrets` (formato INI, git
 - O comando de start **deve** ser `python -m uvicorn web.app:app --host 0.0.0.0 --port $PORT`
 - Usar `uvicorn` diretamente (sem `python -m`) falha porque o PATH do container não inclui o venv bin
 
-**Atenção:** Railpack pode ignorar `nixpacks.toml` e auto-detectar `monitor.py` como entrypoint
-se o `startCommand` no Railway for deixado vazio. A solução é setar o `startCommand` via API
-ou deixar o nixpacks.toml com o `[start]` correto e garantir que o Railway não sobrescreva.
+### deploy.py — script canônico
+
+**Nunca usar `githubRepoDeploy`** — essa mutation SEMPRE cria um novo serviço.
+O script `deploy.py` usa `serviceInstanceDeploy(commitSha=...)` que deploya no serviço existente.
+
+```
+Workflow correto:
+1. git add + git commit
+2. git push origin main
+3. python deploy.py  ← lê .secrets, aciona deploy no serviço correto, aguarda SUCCESS
+```
+
+### IDs do serviço Railway
+
+| Campo | Valor |
+|---|---|
+| service_id | 215d2612-2f33-475c-8a4f-3c8588089164 |
+| env_id | f95eb850-1680-4d28-95ce-6dc77b5d7653 |
+| URL | https://pinkblue-vet-production.up.railway.app |
+
+---
+
+## Arquitetura de rotas
+
+```
+GET  /                              → Landing page (index.html, standalone)
+GET  /labmonitor                    → Dashboard
+GET  /labmonitor/exames             → Tabela de exames com filtros
+GET  /labmonitor/labs               → Gerenciar laboratórios
+GET  /labmonitor/canais             → Gerenciar canais de notificação
+GET  /labmonitor/settings           → Configurações gerais
+GET  /labmonitor/partials/notifications     → Fragmento HTMX
+GET  /labmonitor/partials/lab_counts        → Fragmento HTMX
+GET  /labmonitor/partials/exames            → Fragmento HTMX
+GET  /labmonitor/partials/telegram-users    → Fragmento HTMX
+POST /labmonitor/labs/{id}/toggle           → Toggle lab
+POST /labmonitor/labs/{id}/test             → Testar conexão com lab
+POST /labmonitor/canais/{id}/toggle         → Toggle canal
+POST /labmonitor/canais/{id}/test           → Enviar mensagem de teste
+POST /labmonitor/canais/telegram/users/{chat_id}/remove  → Remover usuário Telegram
+POST /labmonitor/settings/interval          → Atualizar intervalo
+```
+
+Implementado via `APIRouter(prefix="/labmonitor")` em `web/app.py`.
 
 ---
 
@@ -238,31 +307,13 @@ Nenhuma outra mudança é necessária — o loop, a UI e as notificações já s
 
 ---
 
-## Rotas da web
-
-| Método | Rota | Descrição |
-|---|---|---|
-| GET | `/` | Dashboard: contadores + notificações |
-| GET | `/exames` | Tabela de exames com filtros |
-| GET | `/labs` | Gerenciar laboratórios |
-| GET | `/canais` | Gerenciar canais de notificação |
-| GET | `/settings` | Configurações gerais |
-| GET | `/partials/notifications` | Fragmento HTMX: lista de notificações |
-| GET | `/partials/lab_counts` | Fragmento HTMX: contadores por lab |
-| GET | `/partials/exames` | Fragmento HTMX: tabela de exames |
-| POST | `/labs/{id}/toggle` | Habilitar/desabilitar lab |
-| POST | `/labs/{id}/test` | Testar conexão com lab |
-| POST | `/canais/{id}/toggle` | Habilitar/desabilitar canal |
-| POST | `/canais/{id}/test` | Enviar mensagem de teste |
-| POST | `/settings/interval` | Atualizar intervalo de verificação |
-
----
-
 ## Limitações conhecidas (v1)
 
 - **Estado em memória:** restart apaga histórico de notificações e snapshots anteriores.
   Na prática isso significa que o primeiro ciclo pós-restart nunca notifica (comportamento intencional).
+- **telegram_users.json perdido no redeploy:** sem volume persistente, usuários precisam re-assinar após cada deploy.
 - **Sem autenticação na web:** qualquer um com a URL pode ver e controlar o monitor.
 - **Callmebot limitado:** 16 mensagens por 240 minutos. Desabilitado por padrão.
 - **Nexio:** o parsing é frágil (depende de posição de colunas HTML). Uma mudança de layout no Pathoweb quebra o conector.
 - **Config no container:** `config.json` é versionado e fica dentro da imagem. Mudanças via UI são salvas no disco do container — sobrevivem enquanto o container está vivo, mas são perdidas no redeploy.
+- **BitLab timeout:** o servidor `bitlabenterprise.com.br` pode apresentar timeouts intermitentes (connect timeout=15s). Erro capturado em `last_error` e exibido na UI de labs.

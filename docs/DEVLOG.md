@@ -188,6 +188,28 @@ A mutation `githubRepoDeploy` do Railway só funciona com repositórios público
 **Solução:** tornar o repositório público e mover todas as credenciais para env vars do Railway.
 O `.secrets` local permanece para desenvolvimento, mas **nunca** é commitado (está no .gitignore).
 
+### CRÍTICO: githubRepoDeploy sempre cria um novo serviço
+Descoberto após múltiplos serviços órfãos aparecerem no projeto Railway.
+A mutation `githubRepoDeploy` **sempre** cria um novo serviço — não atualiza o existente.
+
+**Isso causou:**
+- URL mudando a cada deploy
+- Histórico de deploys fragmentado
+- Custos acumulados de serviços não utilizados
+- Perda de env vars configuradas no serviço original
+
+**Solução definitiva:** `serviceInstanceDeploy(serviceId, environmentId, commitSha)`.
+Essa mutation deploya no serviço existente, pegando o commit exato do GitHub.
+Criado `deploy.py` para encapsular este workflow e nunca mais errar.
+
+```python
+# CORRETO — atualiza serviço existente
+serviceInstanceDeploy(serviceId="...", environmentId="...", commitSha="abc123")
+
+# ERRADO — sempre cria novo serviço
+githubRepoDeploy(projectId="...", branch="main")
+```
+
 ### Problema: startCommand sobrescrevendo o Procfile
 Ao setar `startCommand` via API para testar, esse valor teve prioridade sobre o Procfile.
 O Procfile foi ignorado silenciosamente.
@@ -229,6 +251,81 @@ O `serviceInstanceRedeploy` pode reutilizar a imagem anterior.
 
 ---
 
+## Fase 7 — Telegram multi-usuário e layout mobile
+
+### Motivação
+O usuário queria poder usar o sistema pelo celular com qualidade, e que mais de uma pessoa
+pudesse receber as notificações do Telegram sem precisar de intervenção técnica.
+
+### Design: bot com auto-inscrição
+Em vez de configurar chat IDs manualmente em variáveis de ambiente, implementamos um
+sistema de inscrição por comando no próprio bot.
+
+```python
+# telegram_polling.py — thread daemon rodando em paralelo ao uvicorn
+/start    → boas-vindas neutras, sem mencionar a clínica
+/assinar  → adiciona chat_id ao telegram_users.json
+/sair     → remove chat_id do telegram_users.json
+/status   → informa se está inscrito
+```
+
+**Decisão de design:** `/start` propositalmente neutro (sem mencionar clínica ou labs).
+O bot é público — qualquer usuário do Telegram pode interagir com ele pelo username.
+O comando para entrar na lista é `/assinar`, não `/start`, evitando inscrições acidentais.
+
+**Persistência:** os chat IDs ficam em `telegram_users.json` (gitignored).
+**Limitação conhecida:** arquivo perdido a cada redeploy. Usuários precisam re-assinar.
+Sem impacto operacional relevante — o processo leva 5 segundos.
+
+### Layout mobile responsivo
+A interface foi desenhada mobile-first:
+- Desktop: sidebar fixa à esquerda, conteúdo à direita
+- Mobile: barra superior com hamburger menu, sidebar deslizante com overlay
+
+Tabela de exames com duas renderizações:
+- Mobile (`md:hidden`): cards empilhados com paciente, status, lab, número e data
+- Desktop (`hidden md:block`): tabela tradicional com colunas
+
+TailwindCSS CDN suporta isso nativamente com os prefixos `md:` sem nenhum build step.
+
+---
+
+## Fase 8 — Arquitetura escalável: prefix /labmonitor e landing page
+
+### Motivação
+O usuário queria uma estrutura que suportasse múltiplos apps no futuro sob o mesmo domínio.
+Exemplo: `/labmonitor`, `/financeiro`, `/agenda`, etc.
+
+### Design adotado
+**FastAPI APIRouter com prefix:**
+```python
+router = APIRouter(prefix="/labmonitor")
+# app.include_router(router)
+
+# A landing page fica em app diretamente:
+@app.get("/")
+async def landing(): ...
+```
+
+A raiz `/` exibe `index.html` — landing page standalone listando os apps disponíveis.
+Cada app fica completamente encapsulado sob seu prefix.
+
+**Sem nenhum custo adicional** — é apenas organização de código. A infra Railway não muda.
+
+### Renomeação do serviço Railway
+O serviço foi renomeado para `pinkblue-vet` para refletir a identidade real da clínica.
+A URL gerada pelo Railway passou a ser `https://pinkblue-vet-production.up.railway.app`.
+
+**ATENÇÃO:** renomear o serviço no Railway muda a URL automaticamente gerada.
+Se houver um domínio customizado configurado, ele permanece. Sem domínio customizado,
+a URL muda junto com o nome.
+
+### Limpeza de serviços órfãos
+O projeto Railway acumulou 4+ serviços órfãos de deploys incorretos com `githubRepoDeploy`.
+Todos foram deletados. O único serviço ativo é `215d2612`.
+
+---
+
 ## Decisões de design que vale registrar
 
 ### Por que não SQLite ou Redis?
@@ -264,3 +361,7 @@ não para alarmes em tempo real). Mais simples, mais fácil de debugar.
 | startCommand sobrescreve Procfile | Valor não vazio tem prioridade absoluta | Checar `startCommand` via API antes de debugar o Procfile |
 | Nexio retornando 0 exames | Coluna 0 do HTML é checkbox vazio | Sempre mapear colunas com print antes de assumir índices |
 | Callmebot rate limit | 16 msg/240min — fácil de estourar | Manter desabilitado por padrão; usar Telegram para produção |
+| githubRepoDeploy cria novo serviço | Bug/comportamento da mutation Railway | SEMPRE usar serviceInstanceDeploy(commitSha=...) via deploy.py |
+| URL muda após renomear serviço | Railway regenera URL baseada no nome | Configurar domínio customizado ou avisar usuários após renomear |
+| telegram_users.json perdido | Sem volume persistente no Railway | Usuários enviam /assinar novamente após deploy — processo simples |
+| BitLab connect timeout | Servidor lento ou instável | Erro capturado em last_error e exibido na UI; monitor continua os outros labs |
