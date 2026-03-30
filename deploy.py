@@ -44,12 +44,14 @@ def get_latest_commit():
     return sha, msg
 
 
-def trigger_redeploy():
-    r = gql(f"""mutation {{ serviceInstanceRedeploy(
+def trigger_redeploy(commit_sha: str):
+    """Deploy latest commit by SHA (not a redeploy of old image)."""
+    r = gql(f"""mutation {{ serviceInstanceDeploy(
       serviceId: "{SERVICE_ID}"
       environmentId: "{ENV_ID}"
+      commitSha: "{commit_sha}"
     ) }}""")
-    return r.get("data", {}).get("serviceInstanceRedeploy", False)
+    return r.get("data", {}).get("serviceInstanceDeploy", False)
 
 
 def wait_for_deploy(timeout=180):
@@ -82,7 +84,7 @@ if __name__ == "__main__":
     print(f"Commit: {sha[:8]} | {msg}")
 
     print("Disparando redeploy...")
-    ok = trigger_redeploy()
+    ok = trigger_redeploy(sha)
     if not ok:
         print("Erro ao disparar redeploy")
         sys.exit(1)
