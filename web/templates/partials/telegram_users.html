@@ -1,0 +1,20 @@
+<div id="telegram-users-list">
+  {% if telegram_users %}
+  <ul class="divide-y divide-gray-100">
+    {% for uid in telegram_users %}
+    <li class="flex items-center justify-between py-2 text-sm">
+      <span class="font-mono text-gray-700">{{ uid }}</span>
+      <button hx-post="/canais/telegram/users/{{ uid }}/remove"
+              hx-target="#telegram-users-list"
+              hx-swap="outerHTML"
+              hx-confirm="Remover este usuário da lista de notificações?"
+              class="text-xs px-2 py-1 rounded border border-red-200 text-red-500 hover:bg-red-50">
+        Remover
+      </button>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="text-sm text-gray-400 italic">Nenhum usuário inscrito ainda.</p>
+  {% endif %}
+</div>
