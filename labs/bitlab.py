@@ -289,10 +289,11 @@ class BitlabConnector(LabConnector):
                 if normalize_status(item["status"]) != "Pronto":
                     continue
                 ant_item = ant_rec.get("itens", {}).get(iid, {})
-                if "alerta" in ant_item:
-                    # Carry forward cached result
+                # Only carry forward if we actually have parsed rows (non-empty resultado).
+                # alerta=None + resultado=[] means old parse failed → re-fetch.
+                if "alerta" in ant_item and ant_item.get("resultado"):
                     item["alerta"]    = ant_item["alerta"]
-                    item["resultado"] = ant_item.get("resultado", [])
+                    item["resultado"] = ant_item["resultado"]
                 elif item.get("item_id"):
                     to_fetch.append((rid, iid, item["item_id"]))
 
