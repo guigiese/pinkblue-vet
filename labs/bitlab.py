@@ -12,8 +12,37 @@ from datetime import datetime, timedelta
 from bs4 import BeautifulSoup
 from .base import LabConnector
 
-_REF_PAT = re.compile(r"[\d.,]+\s+a\s+[\d.,]+")
+_REF_PAT    = re.compile(r"[\d.,]+\s+a\s+[\d.,]+")
 _ALERT_RANK = {None: 0, "yellow": 1, "red": 2}
+
+
+def _try_float(text: str) -> float | None:
+    try:
+        return float(text.strip().replace(".", "").replace(",", "."))
+    except (ValueError, AttributeError):
+        return None
+
+
+def _parse_num(text: str) -> float:
+    return float(text.strip().replace(".", "").replace(",", "."))
+
+
+def _calc_alert_single(value_str: str, ref_str: str) -> str | None:
+    """Alert for Layout A: single numeric range on same row."""
+    try:
+        numeric = _parse_num(value_str)
+        ref_m = _REF_PAT.search(ref_str)
+        if ref_m:
+            parts = ref_m.group().split(" a ")
+            rmin = _parse_num(parts[0])
+            rmax = _parse_num(parts[1])
+            if numeric < rmin or numeric > rmax:
+                boundary = rmin if numeric < rmin else rmax
+                dev = abs(numeric - boundary) / boundary if boundary else 1.0
+                return "red" if dev > 0.20 else "yellow"
+    except (ValueError, ZeroDivisionError):
+        pass
+    return None
 
 
 class BitlabConnector(LabConnector):
@@ -80,6 +109,9 @@ class BitlabConnector(LabConnector):
     def parse_resultado(raw_bytes: bytes) -> list[dict]:
         """
         Parse BitLab zlib-compressed HTML result into structured rows.
+        Handles two layouts:
+          Layout A (hemograma): name + bold value + reference all on same row.
+          Layout B (biochemistry): name + value on top row; species refs on subsequent rows.
         Returns list of {nome, valor, referencia, alerta} dicts.
         alerta: None | "yellow" (<=20% out of range) | "red" (>20% out of range)
         """
@@ -105,61 +137,139 @@ class BitlabConnector(LabConnector):
                     {"left": left, "text": text, "bold": bool(div.find("b"))}
                 )
 
+        sorted_tops = sorted(rows_by_top)
+        skip_tops: set[int] = set()
         results = []
-        for top in sorted(rows_by_top):
-            cols = sorted(rows_by_top[top], key=lambda c: c["left"])
 
-            # Name: leftmost column
-            name_col = next((c for c in cols if c["left"] < 240), None)
-            if not name_col:
+        for i, top in enumerate(sorted_tops):
+            if top in skip_tops:
                 continue
 
-            # Reference: rightmost column containing a "X a Y" range
+            cols = sorted(rows_by_top[top], key=lambda c: c["left"])
+
+            # Name: one or more leftmost columns (left < 250)
+            name_parts = [c["text"] for c in cols if c["left"] < 250]
+            if not name_parts:
+                continue
+
+            raw_name = " ".join(name_parts)
+            name = re.sub(r"\.{3,}:?\s*$", "", raw_name).rstrip(":").strip()
+            if len(name) < 3:
+                continue
+
+            # Layout A: same-row reference "X a Y"
             ref_col = next(
                 (c for c in sorted(cols, key=lambda c: -c["left"])
                  if _REF_PAT.search(c["text"])),
                 None,
             )
-            if not ref_col:
-                continue
 
-            # Value: first bold column ≥240 that isn't ref; fallback to any non-name column
-            val_candidates = [c for c in cols if c["left"] >= 240 and c is not ref_col]
-            val_col = (
-                next((c for c in val_candidates if c["bold"]), None)
-                or next((c for c in val_candidates), None)
-            )
-            if not val_col:
-                continue
+            if ref_col:
+                # Layout A — value + reference on same row
+                val_candidates = [c for c in cols if c["left"] >= 250 and c is not ref_col]
+                val_col = (
+                    next((c for c in val_candidates if c["bold"]), None)
+                    or next((c for c in val_candidates), None)
+                )
+                if not val_col:
+                    continue
+                value_str = val_col["text"].strip()
+                ref_str   = ref_col["text"].strip()
+                results.append({
+                    "nome":       name,
+                    "valor":      value_str,
+                    "referencia": ref_str,
+                    "alerta":     _calc_alert_single(value_str, ref_str),
+                })
 
-            name = re.sub(r"\.{2,}:?\s*$", "", name_col["text"]).rstrip(":").strip()
-            if len(name) < 3:
-                continue
+            else:
+                # Layout B — value on current row, species refs on look-ahead rows
+                non_name_cols = [c for c in cols if c["left"] >= 250]
+                value_str: str | None = None
+                unit_str:  str | None = None
+                for c in non_name_cols:
+                    txt = c["text"].strip()
+                    if value_str is None and _try_float(txt) is not None:
+                        value_str = txt
+                    elif value_str is not None and unit_str is None and not _REF_PAT.search(txt):
+                        unit_str = txt
 
-            value_str = val_col["text"].strip()
-            ref_str   = re.sub(r"\s{2,}", " / ", ref_col["text"].strip())
+                if value_str is None:
+                    continue  # no numeric value → not a parameter row
 
-            alert = None
-            try:
-                numeric = float(value_str.replace(".", "").replace(",", "."))
-                ref_m = _REF_PAT.search(ref_col["text"])
-                if ref_m:
-                    parts = ref_m.group().split(" a ")
-                    rmin = float(parts[0].strip().replace(".", "").replace(",", "."))
-                    rmax = float(parts[1].strip().replace(".", "").replace(",", "."))
-                    if numeric < rmin or numeric > rmax:
-                        boundary = rmin if numeric < rmin else rmax
-                        dev = abs(numeric - boundary) / boundary if boundary else 1
-                        alert = "red" if dev > 0.20 else "yellow"
-            except (ValueError, ZeroDivisionError):
-                pass
+                # Look ahead for species reference rows
+                species_refs: list[tuple[float, float]] = []
+                ref_texts: list[str] = []
 
-            results.append({
-                "nome":       name,
-                "valor":      value_str,
-                "referencia": ref_str,
-                "alerta":     alert,
-            })
+                for j in range(i + 1, len(sorted_tops)):
+                    next_top = sorted_tops[j]
+                    next_cols = sorted(rows_by_top[next_top], key=lambda c: c["left"])
+
+                    # Stop if this row is a new parameter (name on left + numeric on right)
+                    next_name_cols  = [c for c in next_cols if c["left"] < 250]
+                    next_right_cols = [c for c in next_cols if c["left"] >= 250]
+                    if next_name_cols and next_right_cols:
+                        if any(_try_float(c["text"]) is not None for c in next_right_cols):
+                            break
+
+                    # Stop on section headers
+                    all_text = " ".join(c["text"] for c in next_cols)
+                    if "Resultados Anteriores" in all_text:
+                        break
+
+                    # Collect species refs from right-side columns
+                    for c in next_cols:
+                        if c["left"] < 300:
+                            continue
+                        ref_m = _REF_PAT.search(c["text"])
+                        if ref_m:
+                            skip_tops.add(next_top)
+                            ref_texts.append(c["text"].strip())
+                            parts = ref_m.group().split(" a ")
+                            try:
+                                species_refs.append(
+                                    (_parse_num(parts[0]), _parse_num(parts[1]))
+                                )
+                            except Exception:
+                                pass
+
+                valor_display = value_str + (f" {unit_str}" if unit_str else "")
+
+                if not species_refs:
+                    results.append({
+                        "nome":       name,
+                        "valor":      valor_display,
+                        "referencia": "—",
+                        "alerta":     None,
+                    })
+                    continue
+
+                # Alert: outside ALL ranges → red/yellow; outside SOME → yellow; none → None
+                alert: str | None = None
+                numeric = _try_float(value_str)
+                if numeric is not None:
+                    outside_count = sum(
+                        1 for rmin, rmax in species_refs
+                        if numeric < rmin or numeric > rmax
+                    )
+                    if outside_count == len(species_refs) and outside_count > 0:
+                        max_dev = 0.0
+                        for rmin, rmax in species_refs:
+                            if numeric < rmin:
+                                dev = abs(numeric - rmin) / rmin if rmin else 1.0
+                            else:
+                                dev = abs(numeric - rmax) / rmax if rmax else 1.0
+                            max_dev = max(max_dev, dev)
+                        alert = "red" if max_dev > 0.20 else "yellow"
+                    elif outside_count > 0:
+                        alert = "yellow"
+
+                results.append({
+                    "nome":       name,
+                    "valor":      valor_display,
+                    "referencia": "; ".join(ref_texts),
+                    "alerta":     alert,
+                })
 
         return results
 
