@@ -67,13 +67,18 @@ class BitlabConnector(LabConnector):
         for req in self._buscar_requisicoes(token):
             itens_raw = self._buscar_itens(token, req["cdRequisicao"])
             itens = {
-                e["cdExame"]: {"nome": e["deExame"], "status": e["deStatusWeb"]}
+                e["cdExame"]: {
+                    "nome":     e["deExame"],
+                    "status":   e["deStatusWeb"],
+                    "dtColeta": e.get("dtColeta", ""),
+                }
                 for e in itens_raw
             }
             resultado[req["requisicao"]] = {
-                "label": req["nmPaciente"],
-                "data":  req["dtRequisicao"][:10],
-                "itens": itens,
+                "label":     req["nmPaciente"],
+                "data":      req["dtRequisicao"][:10],
+                "portal_id": req["id"],
+                "itens":     itens,
             }
             time.sleep(0.2)
 

@@ -123,12 +123,15 @@ Todos os conectores devem retornar exatamente este formato:
 ```python
 {
     "RECORD_ID": {
-        "label": "NOME PACIENTE - NOME PROPRIETÁRIO",  # str legível
-        "data":  "YYYY-MM-DD",                          # data do exame
+        "label":     "NOME PACIENTE - NOME PROPRIETÁRIO",  # str legível
+        "data":      "YYYY-MM-DD",                          # data do exame
+        "portal_id": "ID_INTERNO_DO_LAB",                   # usado para construir deep link
         "itens": {
             "ITEM_ID": {
-                "nome":   "Nome do exame",
-                "status": "Em Andamento"   # string livre, vinda do lab
+                "nome":       "Nome do exame",
+                "status":     "Em Andamento",  # string livre, vinda do lab
+                "liberado_em": "2026-03-30T14:32:00",  # ISO, injetado por core.py ao detectar Pronto
+                # BitLab adiciona: "dtColeta": "2026-03-30T16:08:44.873"
             }
         }
     }
@@ -137,6 +140,8 @@ Todos os conectores devem retornar exatamente este formato:
 
 `RECORD_ID` é a chave primária de comparação entre snapshots (detecta novas entradas).
 `ITEM_ID` + `status` é o que detecta mudanças de resultado.
+`portal_id` é usado por `state.py` para construir deep links diretos ao laudo de cada lab.
+`liberado_em` é injetado por `core._stamp_liberados()` no momento em que o status transita para Pronto.
 
 ---
 
@@ -156,6 +161,10 @@ para cada lab:
             senão:
                 para cada item_id:
                     se status mudou → notificar "Resultado disponível"
+
+        _stamp_liberados(anterior, atual, now.isoformat())
+        ← injeta liberado_em nos itens que acabaram de virar Pronto
+        ← preserva liberado_em de ciclos anteriores
 ```
 
 **Regra do primeiro boot:** na primeira execução após um restart, o estado está vazio.
@@ -304,6 +313,17 @@ Nenhuma outra mudança é necessária — o loop, a UI e as notificações já s
    {"id": "novocanal", "type": "novocanal", "enabled": true}
    ```
 4. Adicionar as env vars no Railway
+
+---
+
+## Deep links por laboratório
+
+| Lab | URL do laudo | Campo usado |
+|---|---|---|
+| BitLab | `https://bitlabenterprise.com.br/bioanalises/laudos/{portal_id}` | `req["id"]` (encoded string da API) |
+| Nexio | `https://www.pathoweb.com.br/moduloProcedencia/visualizarLaudoAjax?id={portal_id}` | ID interno do BD (radio input `value`) — **requer sessão ativa** |
+
+O Nexio não tem URL pública estável por exame. O link abre o visualizador do portal (requer login). O PDF em si é gerado dinamicamente com path temporário não-reutilizável.
 
 ---
 

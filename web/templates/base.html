@@ -44,6 +44,18 @@
       </button>
     </div>
     <nav class="flex-1 p-3 space-y-1 text-sm overflow-y-auto">
+      <!-- Home link -->
+      <a href="/" onclick="closeSidebar()"
+         class="flex items-center gap-2 px-3 py-2.5 rounded-lg font-medium
+                {% if request.url.path == '/' or request.url.path == '' %}bg-indigo-50 text-indigo-700{% else %}text-gray-600 hover:bg-gray-100{% endif %}">
+        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M3 12l2-2m0 0l7-7 7 7m-9 5v6h4v-6m2 6h2a2 2 0 002-2v-7"/>
+        </svg>
+        Início
+      </a>
+      <div class="border-t border-gray-100 my-1"></div>
+      <!-- Lab monitor nav -->
       {% set nav = [("/labmonitor","📊","Dashboard"),("/labmonitor/exames","🧪","Exames"),("/labmonitor/labs","🏥","Laboratórios"),("/labmonitor/canais","📨","Canais"),("/labmonitor/settings","⚙️","Configurações")] %}
       {% for href, icon, label in nav %}
       <a href="{{ href }}" onclick="closeSidebar()"

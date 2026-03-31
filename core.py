@@ -10,6 +10,26 @@ from notifiers import NOTIFIERS
 from web.state import normalize_status
 
 
+def _stamp_liberados(anterior: dict, atual: dict, ts: str) -> None:
+    """
+    Stamps 'liberado_em' ISO timestamp on items that just transitioned to Pronto.
+    Preserves existing timestamps for items already Pronto in the previous snapshot.
+    Mutates 'atual' in place.
+    """
+    for rid, rec in atual.items():
+        ant_rec = anterior.get(rid, {})
+        for iid, item in rec["itens"].items():
+            s_new = normalize_status(item["status"])
+            ant_item = ant_rec.get("itens", {}).get(iid, {})
+            s_old = normalize_status(ant_item.get("status", ""))
+
+            if s_new == "Pronto":
+                if ant_item.get("liberado_em"):
+                    item["liberado_em"] = ant_item["liberado_em"]
+                elif s_old and s_old != "Pronto":
+                    item["liberado_em"] = ts
+
+
 def detectar_novidades(lab_name: str, anterior: dict, atual: dict) -> list[str]:
     msgs = []
     for rid, rec in atual.items():
@@ -70,6 +90,7 @@ def run_monitor_loop(state=None):
                     print(f"  Primeira execução — estado salvo.")
                 else:
                     novidades = detectar_novidades(lab.lab_name, anterior, atual)
+                    _stamp_liberados(anterior, atual, datetime.now().isoformat())
                     if novidades:
                         for msg in novidades:
                             print(f"  -> {msg[:80]}")

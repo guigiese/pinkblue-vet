@@ -60,6 +60,7 @@ class NexioConnector(LabConnector):
                 continue
             # Colunas: [0]checkbox | [1]Exame | [2]Senha | [3]Nome | [4]Proprietário
             #          [5]Prontuário | [6]D.Prometido | [7]D.Liberação | [8]Situação
+            radio = row.find("input", {"name": "exameId"})
             exames.append({
                 "numero":         cols[1],
                 "paciente":       cols[3],
@@ -67,6 +68,7 @@ class NexioConnector(LabConnector):
                 "data_prometida": cols[6],
                 "data_liberacao": cols[7],
                 "status":         cols[8],
+                "exame_id":       radio["value"] if radio else "",
             })
 
         return exames
@@ -93,10 +95,11 @@ class NexioConnector(LabConnector):
                 except ValueError:
                     continue
             resultado[num] = {
-                "label": label,
-                "data":  data_iso,
+                "label":     label,
+                "data":      data_iso,
+                "portal_id": exame["exame_id"],
                 "itens": {
-                    num: {"nome": f"Patologia Nº {num}", "status": exame["status"]}
+                    num: {"nome": f"Patologia {num}", "status": exame["status"]}
                 },
             }
 

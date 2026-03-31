@@ -4,9 +4,18 @@ from pathlib import Path
 
 CONFIG_FILE = Path(__file__).parent.parent / "config.json"
 
+# Fallback portal URLs (used when no portal_id is available)
 PORTAL_URLS: dict[str, str] = {
     "bitlab": "https://bitlabenterprise.com.br/bioanalises/resultados",
     "nexio":  "https://www.pathoweb.com.br",
+}
+
+# Deep link patterns per lab — use {portal_id} placeholder
+# BitLab: req["id"] is the encoded ID for the laudo SPA route
+# Nexio: internal DB id (radio input value) for the laudo viewer (requires active session)
+PORTAL_URL_PATTERN: dict[str, str] = {
+    "bitlab": "https://bitlabenterprise.com.br/bioanalises/laudos/{portal_id}",
+    "nexio":  "https://www.pathoweb.com.br/moduloProcedencia/visualizarLaudoAjax?id={portal_id}",
 }
 
 # ── Status normalization ──────────────────────────────────────────────────────
@@ -139,6 +148,23 @@ class AppState:
                 if not itens:
                     continue
 
+                # Find liberation timestamp from items that transitioned to Pronto
+                liberado_em_raw = next(
+                    (
+                        v.get("liberado_em")
+                        for v in record["itens"].values()
+                        if v.get("liberado_em") and normalize_status(v.get("status", "")) == "Pronto"
+                    ),
+                    None,
+                )
+                try:
+                    liberado_em = (
+                        datetime.fromisoformat(liberado_em_raw).strftime("%d/%m %H:%M")
+                        if liberado_em_raw else None
+                    )
+                except Exception:
+                    liberado_em = None
+
                 # Compute group overall status
                 n_pronto = sum(1 for i in itens if i["status"] in _STATUS_PRONTO)
                 if n_pronto == len(itens):
@@ -170,6 +196,14 @@ class AppState:
                 if q and q.lower() not in paciente.lower():
                     continue
 
+                portal_id = record.get("portal_id", "")
+                pattern   = PORTAL_URL_PATTERN.get(lab_id, "")
+                portal_url = (
+                    pattern.format(portal_id=portal_id)
+                    if portal_id and pattern
+                    else PORTAL_URLS.get(lab_id, "")
+                )
+
                 groups.append({
                     "lab_id":         lab_id,
                     "lab":            lab_name,
@@ -179,8 +213,9 @@ class AppState:
                     "data_raw":       record["data"],
                     "status_geral":   status_geral,
                     "dias_em_aberto": dias_em_aberto,
+                    "liberado_em":    liberado_em,
                     "itens":          sorted(itens, key=lambda x: x["nome"]),
-                    "portal_url":     PORTAL_URLS.get(lab_id, ""),
+                    "portal_url":     portal_url,
                 })
 
         return sorted(groups, key=lambda x: x["data_raw"], reverse=True)

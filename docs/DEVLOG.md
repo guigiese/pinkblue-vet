@@ -351,6 +351,40 @@ não para alarmes em tempo real). Mais simples, mais fácil de debugar.
 
 ---
 
+## Fase 9 — Deep links, horário de liberação, limpeza e link Home
+
+### Contexto
+Sessão de refinamento do Lab Monitor. Objetivo: melhorar qualidade dos dados exibidos e limpar arquivos legados.
+
+### Limpeza de arquivos legados
+`monitor_exames.py` e `monitor_telegram.py` eram scripts monolíticos da v1 (WhatsApp/Telegram) completamente supersedados pela arquitetura multi-lab. Tinham credenciais hardcoded no código. Removidos.
+`Conciliador/teste_api.py` era um script de exploração sem propósito atual. Removido junto com o diretório.
+`monitor.py` foi simplificado para um thin wrapper de 3 linhas que chama `run_monitor_loop(state=None)` — mantido apenas como runner local sem web server.
+
+### Link Home na sidebar
+`base.html` recebeu link "Início" para `/` no topo da nav, com ícone SVG de casa e divisor visual separando do menu do Lab Monitor.
+
+### Investigação de APIs (resultados)
+- **BitLab `/ItemRequisicao`**: retorna apenas status/metadata. Sem valores numéricos, sem referências, sem unidades. Resultados só existem no PDF do laudo.
+- **BitLab deep link**: a SPA usa a rota `/bioanalises/laudos/{req["id"]}` onde `req["id"]` é o campo `id` da resposta da API (string encoded como `ugaz4HXboGHZ5PsvFyFJuA@3D@3D`). URL testada e funcional.
+- **Nexio deep link**: não há URL pública e estável por exame. O visualizador `visualizarLaudoAjax?id={exame_id}` requer sessão ativa. O PDF é gerado com path temporário e não-reutilizável. Link mantido para o portal raiz como fallback.
+- **Nexio `exame_id`**: o ID interno (campo `value` do radio input na tabela HTML) foi adicionado ao snapshot via `"portal_id"`.
+
+### Horário de liberação
+Nenhum lab expõe timestamp de liberação na API de status. Solução: `core._stamp_liberados()` injeta `liberado_em` (ISO) no item no momento exato em que o monitor detecta a transição para Pronto. O timestamp sobrevive nos ciclos seguintes via carry-over do snapshot anterior.
+
+Exibição na UI: `✓ DD/MM HH:MM` em verde no desktop; `Lib. DD/MM HH:MM` no mobile. Substitui a data do exame quando disponível.
+
+### Contrato do snapshot — campos adicionados
+- `record["portal_id"]`: ID do exame no sistema do lab, usado por `state.py` para construir deep links.
+- `item["liberado_em"]`: timestamp ISO injetado por `core._stamp_liberados()`, preservado entre ciclos.
+- `item["dtColeta"]`: timestamp de coleta do BitLab (disponível na API, armazenado para uso futuro).
+
+### Jira — investigação
+Token existente no `.secrets` está expirado (HTTP 401 na API). Workspace `guigiese.atlassian.net` existe e está acessível, mas sem projetos criados. Necessário gerar novo token em `id.atlassian.com/manage-profile/security/api-tokens` para estruturar o Jira.
+
+---
+
 ## Erros que não devem se repetir
 
 | Erro | Causa | Como evitar |
