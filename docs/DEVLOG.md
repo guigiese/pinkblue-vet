@@ -385,6 +385,38 @@ Token existente no `.secrets` está expirado (HTTP 401 na API). Workspace `guigi
 
 ---
 
+## Fase 10 — Refinamentos de UI, busca, bug de duplicação e dashboard por protocolo
+
+### Bug: duplicação de notificações Nexio + "Arquivo morto" ghost
+O `normalize_status()` era case-sensitive. "Arquivo morto" → "Arquivado" funcionava, mas "Arquivo Morto" (M maiúsculo) passava como desconhecido. No ciclo seguinte, o raw armazenado era "Arquivado", o novo era "Arquivo Morto" → normalized comparavam diferente → nova notificação disparada.
+
+**Fix:** `normalize_status` faz `.strip().lower()` antes do lookup. STATUS_MAP agora tem todas as chaves em lowercase.
+
+**Regra:** sempre que adicionar novos mapeamentos ao STATUS_MAP, usar chaves em lowercase.
+
+### Arquivado/Cancelado não contam mais pra dias em aberto
+`_STATUS_DONE = {"Pronto", "Arquivado", "Cancelado"}` — qualquer status nesse set zera `dias_em_aberto`.
+
+### Dashboard redesenhado — contagem por protocolo
+`get_lab_counts()` agora conta GRUPOS (protocolos) em vez de itens individuais. Categorias: Pronto, Parcial, Em Andamento, Total. Barra de progresso visual por lab. Filtros de lab por tab.
+
+### BitLab pageSize
+Aumentado de 200 para 500 para capturar mais histórico.
+
+### BitLab deep links
+Links `laudos/{portal_id}` tecnicamente corretos mas requerem sessão ativa no portal BitLab (SPA com JWT em localStorage). Link abre a SPA mas se o usuário não estiver logado naquela aba, vai para login. Limitação conhecida — sem solução cross-origin sem armazenar token do usuário. Link mantido pois usuários logados conseguem acessar.
+
+### Busca melhorada
+`_search_match(q, text)`: accent-insensitive (unicodedata NFD), case-insensitive, multi-word sequencial. Cada palavra do query deve aparecer em ordem no texto, com qualquer conteúdo entre elas.
+
+### Visual
+- Sidebar: logo com ícone clicável como home. Link "Início" isolado removido.
+- Toggle switches: CSS animados (cinza → índigo) em Labs e Canais.
+- SVG icons na sidebar em vez de emojis.
+- Dashboard com cards individuais por indicador + progress bar.
+
+---
+
 ## Erros que não devem se repetir
 
 | Erro | Causa | Como evitar |

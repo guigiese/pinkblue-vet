@@ -199,15 +199,21 @@ async def save_interval(minutes: int = Form(...)):
 # ── Helper ────────────────────────────────────────────────────────────────────
 
 def _toggle_html(route: str, id: str, enabled: bool, label: str) -> str:
-    color = "bg-green-100 text-green-800" if enabled else "bg-gray-100 text-gray-500"
-    text  = "Habilitado" if enabled else "Desabilitado"
+    checked = "checked" if enabled else ""
+    status_text  = "Habilitado" if enabled else "Desabilitado"
+    status_color = "text-green-600" if enabled else "text-gray-400"
     return f'''
     <div id="toggle-{id}" class="flex items-center gap-3">
-      <span class="text-sm px-2 py-1 rounded-full {color}">{text}</span>
-      <button hx-post="/labmonitor/{route}/{id}/toggle" hx-target="#toggle-{id}" hx-swap="outerHTML"
-              class="text-sm px-3 py-1 rounded border border-gray-300 hover:bg-gray-50">
-        {"Desabilitar" if enabled else "Habilitar"}
-      </button>
+      <label class="toggle-switch" title="{status_text}">
+        <input type="checkbox" {checked}
+               hx-post="/labmonitor/{route}/{id}/toggle"
+               hx-target="#toggle-{id}"
+               hx-swap="outerHTML"
+               hx-trigger="change">
+        <span class="toggle-track"></span>
+        <span class="toggle-thumb"></span>
+      </label>
+      <span class="text-sm font-medium {status_color}">{status_text}</span>
     </div>'''
 
 

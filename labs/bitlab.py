@@ -40,7 +40,7 @@ class BitlabConnector(LabConnector):
         hoje   = datetime.now().strftime("%Y-%m-%d")
         inicio = (datetime.now() - timedelta(days=self._dias_atras)).strftime("%Y-%m-%d")
         r = requests.post(
-            f"{self.BASE}/Requisicao?pageNumber=1&pageSize=200",
+            f"{self.BASE}/Requisicao?pageNumber=1&pageSize=500",
             headers={"Authorization": f"Bearer {token}"},
             json={"dataInicial": inicio, "dataFinal": hoje},
             timeout=15,

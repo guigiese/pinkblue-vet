@@ -1,18 +1,19 @@
 import json
+import unicodedata
 from datetime import datetime, timedelta
 from pathlib import Path
 
 CONFIG_FILE = Path(__file__).parent.parent / "config.json"
 
-# Fallback portal URLs (used when no portal_id is available)
+# Fallback portal URLs (when no portal_id is available)
 PORTAL_URLS: dict[str, str] = {
     "bitlab": "https://bitlabenterprise.com.br/bioanalises/resultados",
     "nexio":  "https://www.pathoweb.com.br",
 }
 
-# Deep link patterns per lab — use {portal_id} placeholder
-# BitLab: req["id"] is the encoded ID for the laudo SPA route
-# Nexio: internal DB id (radio input value) for the laudo viewer (requires active session)
+# Deep link patterns per lab — {portal_id} placeholder
+# BitLab: SPA route /laudos/{id} — requires active browser session (JWT in localStorage)
+# Nexio: visualizarLaudoAjax — requires active session cookie
 PORTAL_URL_PATTERN: dict[str, str] = {
     "bitlab": "https://bitlabenterprise.com.br/bioanalises/laudos/{portal_id}",
     "nexio":  "https://www.pathoweb.com.br/moduloProcedencia/visualizarLaudoAjax?id={portal_id}",
@@ -20,33 +21,70 @@ PORTAL_URL_PATTERN: dict[str, str] = {
 
 # ── Status normalization ──────────────────────────────────────────────────────
 # Maps raw lab status strings → standardized display values.
-# Add new mappings here as new status strings are discovered.
+# Lookup is case-insensitive (keys stored lowercase below via _STATUS_MAP_LOWER).
 STATUS_MAP: dict[str, str] = {
-    # Already standard
-    "Pronto":          "Pronto",
-    "Em Andamento":    "Em Andamento",
-    "Recebido":        "Recebido",
-    "Analisando":      "Analisando",
-    "Arquivo morto": "Arquivado",
-    "Arquivado":     "Arquivado",
-    "Cancelado":       "Cancelado",
-    # Variations / lab-specific aliases
-    "Entrega":         "Pronto",
-    "Entregue":        "Pronto",
-    "Liberado":        "Pronto",
-    "Resultado Liberado": "Pronto",
+    # Standard
+    "pronto":             "Pronto",
+    "em andamento":       "Em Andamento",
+    "recebido":           "Recebido",
+    "analisando":         "Analisando",
+    "arquivo morto":      "Arquivado",
+    "arquivado":          "Arquivado",
+    "cancelado":          "Cancelado",
+    # Aliases
+    "entrega":            "Pronto",
+    "entregue":           "Pronto",
+    "liberado":           "Pronto",
     "resultado liberado": "Pronto",
-    "Disponível":      "Pronto",
-    "Concluído":       "Pronto",
-    "em andamento":    "Em Andamento",
-    "Em Análise":      "Analisando",
-    "em análise":      "Analisando",
-    "Análise":         "Analisando",
-    "Em analise":      "Analisando",
-    "Aguardando":      "Recebido",
-    "Aguardando análise": "Recebido",
-    "Coletado":        "Recebido",
+    "disponível":         "Pronto",
+    "disponivel":         "Pronto",
+    "concluído":          "Pronto",
+    "concluido":          "Pronto",
+    "em análise":         "Analisando",
+    "em analise":         "Analisando",
+    "análise":            "Analisando",
+    "analise":            "Analisando",
+    "aguardando":         "Recebido",
+    "aguardando análise": "Recebido",
+    "aguardando analise": "Recebido",
+    "coletado":           "Recebido",
 }
+
+
+def normalize_status(raw: str) -> str:
+    """Map raw lab status to standardized value. Case-insensitive. Unknown values pass through."""
+    return STATUS_MAP.get(raw.strip().lower(), raw)
+
+
+def _strip_accents(text: str) -> str:
+    """Remove diacritics from text for accent-insensitive comparison."""
+    return "".join(
+        c for c in unicodedata.normalize("NFD", text)
+        if unicodedata.category(c) != "Mn"
+    )
+
+
+def _search_match(q: str, text: str) -> bool:
+    """
+    Multi-word sequential search:
+    - Case-insensitive
+    - Accent-insensitive
+    - Each word must appear in the text in order (with any chars between them)
+    - Words are split by whitespace in the query
+    """
+    if not q:
+        return True
+    q_norm   = _strip_accents(q.lower())
+    txt_norm = _strip_accents(text.lower())
+    words = q_norm.split()
+    pos = 0
+    for word in words:
+        idx = txt_norm.find(word, pos)
+        if idx == -1:
+            return False
+        pos = idx + len(word)
+    return True
+
 
 # Exames a excluir (ruído operacional dos labs)
 EXCLUDE_EXAMES: set[str] = {
@@ -54,18 +92,16 @@ EXCLUDE_EXAMES: set[str] = {
     "OBS BIOQUÍMICA",
 }
 
-# Statuses considered "done" for group status computation
+# Statuses considered "done" — no dias_em_aberto tracking
+_STATUS_DONE: set[str] = {"Pronto", "Arquivado", "Cancelado"}
+
+# Statuses considered "fully ready" for group completion
 _STATUS_PRONTO: set[str] = {"Pronto"}
 
-# Ordered priority for overall group status (when no items are done)
+# Ordered priority for overall group status (when no items are Pronto)
 _STATUS_PRIORITY: list[str] = [
     "Analisando", "Em Andamento", "Recebido", "Arquivado", "Cancelado"
 ]
-
-
-def normalize_status(raw: str) -> str:
-    """Map raw lab status to standardized value. Unknown values pass through."""
-    return STATUS_MAP.get(raw, raw)
 
 
 class AppState:
@@ -115,45 +151,45 @@ class AppState:
             "lab":      lab_name,
             "msg":      msg,
         })
-        # Keep only notifications from the last 3 days
         cutoff = datetime.now() - timedelta(days=3)
         self.notifications = [n for n in self.notifications if n["datetime"] >= cutoff]
 
     def get_exames(self, lab_filter: str = "", status_filter: str = "", q: str = "") -> list[dict]:
         """
         Returns exames grouped by record_id (one entry per request/patient).
-        Each group has: lab, record_id, paciente, data (dd/mm/aaaa), status_geral, itens.
-        status_geral: Pronto | Parcial | Em Andamento | Analisando | Recebido | ...
-        Excludes items in EXCLUDE_EXAMES. Normalizes statuses via STATUS_MAP.
+        Each group: lab, record_id, paciente, data, status_geral, itens, liberado_em, portal_url.
+        status_geral: Pronto | Parcial | Em Andamento | Analisando | Recebido | Arquivado | Cancelado
+        dias_em_aberto: None for done statuses (Pronto, Arquivado, Cancelado).
+        Search: multi-word, accent-insensitive, case-insensitive, sequential.
         Sorted by date descending.
         """
         groups = []
         for lab_id, snapshot in self.snapshots.items():
-            lab_cfg = next((l for l in self.config["labs"] if l["id"] == lab_id), {})
+            lab_cfg  = next((l for l in self.config["labs"] if l["id"] == lab_id), {})
             lab_name = lab_cfg.get("name", lab_id)
             if lab_filter and lab_id != lab_filter:
                 continue
 
             for record_id, record in snapshot.items():
-                # Build filtered + normalized item list
                 itens = []
                 for item in record["itens"].values():
                     if item["nome"] in EXCLUDE_EXAMES:
                         continue
                     itens.append({
-                        "nome":   item["nome"],
-                        "status": normalize_status(item["status"]),
+                        "nome":       item["nome"],
+                        "status":     normalize_status(item["status"]),
+                        "liberado_em": item.get("liberado_em"),
                     })
 
                 if not itens:
                     continue
 
-                # Find liberation timestamp from items that transitioned to Pronto
+                # Liberation timestamp: first item with liberado_em that is Pronto
                 liberado_em_raw = next(
                     (
-                        v.get("liberado_em")
-                        for v in record["itens"].values()
-                        if v.get("liberado_em") and normalize_status(v.get("status", "")) == "Pronto"
+                        i["liberado_em"]
+                        for i in itens
+                        if i.get("liberado_em") and i["status"] in _STATUS_PRONTO
                     ),
                     None,
                 )
@@ -181,28 +217,33 @@ class AppState:
                 if status_filter and status_geral != status_filter:
                     continue
 
-                # Format date for display + compute days in progress
+                # Date formatting + dias_em_aberto (None for done statuses)
                 try:
                     data_dt  = datetime.strptime(record["data"], "%Y-%m-%d")
                     data_fmt = data_dt.strftime("%d/%m/%Y")
-                    dias_em_aberto = (datetime.now() - data_dt).days if status_geral != "Pronto" else None
+                    dias_em_aberto = (
+                        (datetime.now() - data_dt).days
+                        if status_geral not in _STATUS_DONE else None
+                    )
                 except Exception:
                     data_fmt       = record["data"]
                     dias_em_aberto = None
 
                 paciente = record["label"]
 
-                # Name search filter (case-insensitive, strips accents-agnostic)
-                if q and q.lower() not in paciente.lower():
+                if not _search_match(q, paciente):
                     continue
 
-                portal_id = record.get("portal_id", "")
-                pattern   = PORTAL_URL_PATTERN.get(lab_id, "")
+                portal_id  = record.get("portal_id", "")
+                pattern    = PORTAL_URL_PATTERN.get(lab_id, "")
                 portal_url = (
                     pattern.format(portal_id=portal_id)
                     if portal_id and pattern
                     else PORTAL_URLS.get(lab_id, "")
                 )
+
+                # Strip liberado_em from itens before storing (it's on the group already)
+                itens_clean = [{"nome": i["nome"], "status": i["status"]} for i in itens]
 
                 groups.append({
                     "lab_id":         lab_id,
@@ -214,30 +255,52 @@ class AppState:
                     "status_geral":   status_geral,
                     "dias_em_aberto": dias_em_aberto,
                     "liberado_em":    liberado_em,
-                    "itens":          sorted(itens, key=lambda x: x["nome"]),
+                    "itens":          sorted(itens_clean, key=lambda x: x["nome"]),
                     "portal_url":     portal_url,
+                    "portal_id":      record_id,  # requisition number for display
                 })
 
         return sorted(groups, key=lambda x: x["data_raw"], reverse=True)
 
     def get_lab_counts(self) -> dict:
+        """
+        Returns counts per lab measured by GROUPS (protocols), not individual items.
+        status_geral per group: Pronto | Parcial | Em Andamento | Analisando | Recebido | Arquivado | Cancelado
+        """
         result = {}
         for lab_cfg in self.config["labs"]:
             lid  = lab_cfg["id"]
             snap = self.snapshots.get(lid, {})
-            itens = [
-                item
-                for rec in snap.values()
-                for item in rec["itens"].values()
-                if item["nome"] not in EXCLUDE_EXAMES
-            ]
-            normalized = [normalize_status(i["status"]) for i in itens]
+
+            pronto = parcial = andamento = arquivado = total = 0
+
+            for record in snap.values():
+                itens = [
+                    normalize_status(item["status"])
+                    for item in record["itens"].values()
+                    if item["nome"] not in EXCLUDE_EXAMES
+                ]
+                if not itens:
+                    continue
+                total += 1
+                n_p = sum(1 for s in itens if s in _STATUS_PRONTO)
+                if n_p == len(itens):
+                    pronto += 1
+                elif n_p > 0:
+                    parcial += 1
+                elif any(s in {"Arquivado", "Cancelado"} for s in itens):
+                    arquivado += 1
+                else:
+                    andamento += 1
+
             result[lid] = {
-                "name":       lab_cfg["name"],
-                "enabled":    lab_cfg.get("enabled", True),
-                "pronto":     sum(1 for s in normalized if s in _STATUS_PRONTO),
-                "andamento":  sum(1 for s in normalized if s in {"Em Andamento", "Analisando", "Recebido"}),
-                "total":      len(normalized),
+                "name":      lab_cfg["name"],
+                "enabled":   lab_cfg.get("enabled", True),
+                "pronto":    pronto,
+                "parcial":   parcial,
+                "andamento": andamento,
+                "arquivado": arquivado,
+                "total":     total,
                 "last_check": self.last_check.get(lid, "—"),
                 "error":      self.last_error.get(lid, ""),
                 "checking":   self.is_checking.get(lid, False),
