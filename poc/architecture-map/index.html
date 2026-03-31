@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PinkBlue Architecture Map</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="hero">
+      <div>
+        <p class="eyebrow">PinkBlue / Localhost PoC</p>
+        <h1>Mapa Operacional</h1>
+        <p class="hero-copy">
+          Visual interativo dos sistemas, plataformas, IAs, canais e integrações em torno
+          do Lab Monitor. Esta trilha continua local, paralela e sem tocar no deploy ativo.
+        </p>
+        <div id="hero-notes" class="hero-notes"></div>
+      </div>
+      <div class="hero-meta">
+        <div class="meta-card">
+          <span class="meta-label">Modo</span>
+          <strong id="meta-mode">Local-only</strong>
+          <p id="meta-refresh">Snapshot local com refresh manual.</p>
+        </div>
+        <div class="meta-card">
+          <span class="meta-label">Cobertura</span>
+          <strong id="meta-coverage">Carregando…</strong>
+          <p id="meta-watch">Mapeando sinais ao vivo e itens em atenção.</p>
+        </div>
+        <div class="meta-card">
+          <span class="meta-label">Railway</span>
+          <strong id="meta-railway">Carregando…</strong>
+          <p id="meta-railway-note">Validando deploy, memória e tráfego.</p>
+        </div>
+      </div>
+    </header>
+
+    <section class="toolbar">
+      <label class="search-field">
+        <span>Buscar</span>
+        <input id="search-input" type="search" placeholder="Encontre sistema, plataforma, IA, tag ou sinal">
+      </label>
+      <div class="filter-block">
+        <span class="filter-title">Tipos</span>
+        <div id="kind-filters" class="chip-row"></div>
+      </div>
+      <div class="filter-block">
+        <span class="filter-title">Saúde</span>
+        <div id="health-filters" class="chip-row"></div>
+      </div>
+    </section>
+
+    <section id="overview" class="overview"></section>
+    <section id="watchlist" class="watchlist"></section>
+
+    <main class="workspace">
+      <section class="canvas-card">
+        <div class="canvas-header">
+          <div>
+            <p class="section-kicker">Camada visual</p>
+            <h2>Mapa interativo</h2>
+            <p>Arraste, filtre, clique nos nós e veja por que cada artefato está saudável, em atenção ou dormente.</p>
+          </div>
+          <div class="canvas-actions">
+            <button type="button" class="ghost-button" data-action="fit">Encaixar mapa</button>
+            <button type="button" class="ghost-button" data-action="reset">Limpar filtros</button>
+            <button type="button" class="ghost-button" data-action="reload">Recarregar página</button>
+          </div>
+        </div>
+        <div id="graph" class="graph-surface" aria-label="Architecture graph"></div>
+        <div class="legend">
+          <div class="legend-group">
+            <span class="legend-title">Saúde</span>
+            <span class="legend-chip is-healthy">Saudável</span>
+            <span class="legend-chip is-warning">Atenção</span>
+            <span class="legend-chip is-problem">Problema</span>
+            <span class="legend-chip is-dormant">Dormente</span>
+          </div>
+          <div class="legend-group">
+            <span class="legend-title">Leitura</span>
+            <span class="legend-dot kind-system">Sistema</span>
+            <span class="legend-dot kind-platform">Plataforma</span>
+            <span class="legend-dot kind-site">Site</span>
+            <span class="legend-dot kind-ai">IA</span>
+            <span class="legend-dot kind-external">Externo</span>
+          </div>
+        </div>
+      </section>
+
+      <aside id="detail-panel" class="detail-card" aria-live="polite"></aside>
+    </main>
+  </div>
+
+  <script src="https://unpkg.com/cytoscape@3.29.2/dist/cytoscape.min.js"></script>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

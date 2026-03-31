@@ -1,7 +1,7 @@
 # CONTEXT.md — Lab Monitor (SimplesVet)
 > Documento técnico para onboarding de IAs e desenvolvedores.
 > Descreve o estado atual do projeto, arquitetura, contratos de dados e regras de extensão.
-> Atualizado em: 2026-03-30
+> Atualizado em: 2026-03-31
 
 ---
 
@@ -76,14 +76,25 @@ Isso é intencional: o custo zero de infra exige zero serviços adicionais.
 │       ├── canais.html      # Gerenciar canais + lista de usuários Telegram
 │       ├── settings.html    # Intervalo de verificação
 │       └── partials/        # Fragmentos HTMX (atualizados sem reload de página)
-│           ├── notifications.html
 │           ├── lab_counts.html
-│           ├── exames_table.html   # Mobile cards + desktop table
-│           └── telegram_users.html # Lista de usuários inscritos no bot
+│           ├── exames_table.html      # Mobile cards + desktop table; alertas por item e grupo
+│           ├── ultimos_liberados.html # Feed de exames Pronto/Parcial recentes com alertas
+│           ├── resultado_bitlab.html  # Tabela inline de resultados BitLab (valor + referência + alerta)
+│           └── telegram_users.html   # Lista de usuários inscritos no bot
 │
-└── docs/
-    ├── CONTEXT.md           # Este arquivo
-    └── DEVLOG.md            # Log narrativo de decisões e lições aprendidas
+├── docs/
+│   ├── CONTEXT.md           # Este arquivo
+│   └── DEVLOG.md            # Log narrativo de decisões e lições aprendidas
+│
+└── poc/
+    └── architecture-map/    # PoC local: grafo interativo de artefatos PinkBlue (Codex)
+        ├── index.html
+        ├── app.js
+        ├── styles.css
+        ├── README.md
+        └── data/
+            ├── pinkblue-map.v1.json       # grafo base estático
+            └── pinkblue-map.runtime.json  # snapshot ao vivo (gerado por scripts/refresh_*)
 ```
 
 ---
@@ -92,7 +103,7 @@ Isso é intencional: o custo zero de infra exige zero serviços adicionais.
 
 ```json
 {
-  "interval_minutes": 5,
+  "interval_minutes": 15,
   "labs": [
     {
       "id": "bitlab",          // chave usada em snapshots e rotas

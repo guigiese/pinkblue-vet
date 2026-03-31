@@ -417,6 +417,68 @@ Links `laudos/{portal_id}` tecnicamente corretos mas requerem sessão ativa no p
 
 ---
 
+## Fase 11 — Resultados inline, alertas em cascata e parser bioquímica BitLab
+
+### Objetivo
+Trazer resultados numéricos do BitLab diretamente na interface, com alertas visuais por exame e por grupo, sem custo financeiro adicional.
+
+### Descoberta do endpoint de resultados
+A API `/ItemRequisicao` não retorna valores numéricos — apenas status e metadata.
+Engenharia reversa da SPA BitLab revelou: `GET /api/v1/ItemRequisicao/{item_id}?type=Html`
+retorna os resultados como HTML absoluto-posicionado comprimido com zlib (magic bytes `78 da`).
+
+**Erro inicial:** tentativa com `gzip.decompress()` → falhou. Correto é `zlib.decompress()` com decode `latin-1`.
+
+### Dois layouts HTML distintos no mesmo endpoint
+O parse inicial funcionava só para hemogramas (Layout A). Bioquímica (CREATININA, TGP etc.) retornava vazio.
+
+**Layout A (hemograma):** nome + valor bold + referência `X a Y` todos na mesma linha.
+**Layout B (bioquímica):** valor não-bold na linha do parâmetro; referências por espécie (Canino/Felino/Ovino/Bovino) em linhas subsequentes à direita.
+
+**Solução:** parser com detecção automática de layout e look-ahead por espécie. Alert logic para Layout B: fora de TODOS os ranges → red/yellow; fora de ALGUNS → yellow; dentro de todos → None.
+
+### Cache stale após parser quebrado
+O `enrich_resultados()` carregava `alerta=None + resultado=[]` do ciclo anterior como cache válido, impedindo re-fetch mesmo após fix do parser.
+
+**Fix:** só carry-forward quando `resultado` (rows) é não-vazio. Cache vazio = falha anterior = refetch obrigatório.
+
+### Design do ciclo de enriquecimento (zero custo extra)
+`enrich_resultados()` é chamado por `core.py` após `_stamp_liberados()`.
+- Items já com `resultado` não-vazio → carry-forward (zero HTTP).
+- Items recém-Pronto sem cache → fetch + parse + store.
+- Próximos ciclos: zero HTTP adicional para exames estáveis.
+
+### Alertas em cascata
+- `alerta` por item: calculado no `parse_resultado()`.
+- `alerta_geral` por grupo: `max()` dos alertas dos itens Pronto (em `get_exames()`).
+- Template propaga badge no header do grupo e dot colorido por linha de exame.
+- Feed "Últimos Liberados" no dashboard colorido pelo `alerta_geral`.
+
+---
+
+## Fase 12 — Estrutura Jira e governança com Codex em paralelo
+
+### Contexto
+O Codex atuou em paralelo ao Claude Code mapeando artefatos do Lab Monitor sem alterar código de produção (guideline respeitada: apenas docs, scripts e PoC local).
+
+### Trabalho do Codex
+- Criou 3 projetos Jira: PBEXM, PBCORE, PBINC com workflows corretos via `apply_pb_jira_workflow.ps1`.
+- Estruturou backlog inicial com ~30 cards distribuídos entre os projetos.
+- Expandiu `AI_START_HERE.md` (guardrail de trabalho paralelo, seção 5A) e `WORKING_MODEL.md` (PBCORE scope policy, seção 1A).
+- Criou `poc/architecture-map/`: grafo interativo local de artefatos PinkBlue com health checks ao vivo.
+
+### Verificação de integridade (2026-03-31)
+Commits no branch main entre as sessões: zero. Os arquivos do Codex estavam como untracked/unstaged, confirmando que nenhuma alteração de produção foi feita. Todos os arquivos foram commitados com atribuição clara.
+
+### Lição aprendida: modelo de colaboração
+Para trabalho paralelo entre IAs com artefatos compartilhados:
+- IAs devem trabalhar em branches separadas ou diretórios isolados.
+- Somente um AI é "deploy owner" a cada momento — o outro trabalha em descoberta/docs.
+- Jira como ponto de coordenação: cada AI comenta no card antes de iniciar e ao finalizar.
+- Ver seção "Modelo de Colaboração Claude + Codex" em `docs/WORKING_MODEL.md`.
+
+---
+
 ## Erros que não devem se repetir
 
 | Erro | Causa | Como evitar |

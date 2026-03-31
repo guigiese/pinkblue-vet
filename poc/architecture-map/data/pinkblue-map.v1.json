@@ -1,0 +1,366 @@
+{
+  "title": "PinkBlue Architecture Map PoC",
+  "version": "v1",
+  "mode": "local-manual",
+  "nodes": [
+    {
+      "id": "local-workspace",
+      "name": "Local Workspace",
+      "subtitle": "Repo + localhost experiments",
+      "kind": "system",
+      "health": "healthy",
+      "statusLine": "Parallel safe workspace",
+      "owner": "PinkBlue",
+      "usage": {
+        "kind": "local",
+        "value": "Localhost-first"
+      },
+      "limit": null,
+      "tags": ["repo", "localhost", "parallel-safe"],
+      "notes": "Safe area for local experiments, docs, and PoCs that should not touch the active deploy line.",
+      "issues": ["PBCORE-35"],
+      "position": { "x": 330, "y": 400 }
+    },
+    {
+      "id": "codex",
+      "name": "Codex",
+      "subtitle": "Active coding and Jira ops agent",
+      "kind": "ai",
+      "health": "healthy",
+      "statusLine": "Active session",
+      "owner": "PinkBlue",
+      "usage": {
+        "kind": "session",
+        "value": "Running now"
+      },
+      "limit": null,
+      "tags": ["ai", "coding", "jira"],
+      "notes": "Used for planning, Jira operations, docs, and now the isolated architecture-map PoC.",
+      "issues": ["PBCORE-26", "PBCORE-35"],
+      "position": { "x": 170, "y": 620 }
+    },
+    {
+      "id": "claude",
+      "name": "Claude",
+      "subtitle": "Paused feature work line",
+      "kind": "ai",
+      "health": "warning",
+      "statusLine": "Paused before deploy",
+      "owner": "PinkBlue",
+      "usage": {
+        "kind": "credits",
+        "value": "Credits exhausted"
+      },
+      "limit": {
+        "kind": "session",
+        "value": "Do not disturb active scope"
+      },
+      "tags": ["ai", "paused", "delivery-line"],
+      "notes": "The active Lab Monitor delivery line paused before deploy. This PoC must stay outside that scope.",
+      "issues": [],
+      "position": { "x": 505, "y": 640 }
+    },
+    {
+      "id": "github",
+      "name": "GitHub",
+      "subtitle": "Primary code host",
+      "kind": "platform",
+      "health": "healthy",
+      "statusLine": "Source control",
+      "owner": "GitHub",
+      "usage": {
+        "kind": "platform",
+        "value": "Main remote repo"
+      },
+      "limit": null,
+      "tags": ["repo", "versioning"],
+      "notes": "Holds the main repository used by the Lab Monitor line and supporting platform work.",
+      "issues": [],
+      "position": { "x": 350, "y": 150 }
+    },
+    {
+      "id": "jira",
+      "name": "Jira",
+      "subtitle": "Backlog and flow control",
+      "kind": "platform",
+      "health": "healthy",
+      "statusLine": "Boards active",
+      "owner": "Atlassian",
+      "usage": {
+        "kind": "platform",
+        "value": "PBEXM / PBCORE / PBINC"
+      },
+      "limit": null,
+      "tags": ["planning", "tracking", "boards"],
+      "notes": "Operational source of truth for planning, triage, and card history.",
+      "issues": ["PBCORE-33", "PBCORE-34"],
+      "position": { "x": 1160, "y": 170 }
+    },
+    {
+      "id": "railway",
+      "name": "Railway",
+      "subtitle": "Current hosting platform",
+      "kind": "platform",
+      "health": "warning",
+      "statusLine": "Free / low-cost watch",
+      "owner": "Railway",
+      "usage": {
+        "kind": "free-tier",
+        "value": "Monitor service behavior"
+      },
+      "limit": {
+        "kind": "free-tier",
+        "value": "Watch quotas and deploy behavior"
+      },
+      "tags": ["hosting", "deploy", "runtime"],
+      "notes": "Current platform for the production Lab Monitor service. Worth watching for quotas, deploy behavior, and operational limits.",
+      "issues": ["PBCORE-24"],
+      "position": { "x": 770, "y": 115 }
+    },
+    {
+      "id": "pinkblue-site",
+      "name": "PinkBlue Vet Site",
+      "subtitle": "Public entry point",
+      "kind": "site",
+      "health": "healthy",
+      "statusLine": "Live route",
+      "owner": "PinkBlue",
+      "usage": {
+        "kind": "site",
+        "value": "/labmonitor entry"
+      },
+      "limit": null,
+      "tags": ["public", "site", "entry-point"],
+      "notes": "Landing and entry point that routes users to the Lab Monitor experience.",
+      "issues": [],
+      "position": { "x": 980, "y": 290 }
+    },
+    {
+      "id": "lab-monitor",
+      "name": "Lab Monitor",
+      "subtitle": "Monitoring core",
+      "kind": "system",
+      "health": "healthy",
+      "statusLine": "Active module",
+      "owner": "PinkBlue",
+      "usage": {
+        "kind": "system",
+        "value": "Main active delivery line"
+      },
+      "limit": null,
+      "tags": ["fastapi", "monitoring", "notifications"],
+      "notes": "Main exam monitoring system. Pulls lab data, tracks status changes, and dispatches notifications.",
+      "issues": ["PBEXM-2", "PBEXM-8"],
+      "position": { "x": 770, "y": 430 }
+    },
+    {
+      "id": "telegram",
+      "name": "Telegram",
+      "subtitle": "Active notification channel",
+      "kind": "platform",
+      "health": "healthy",
+      "statusLine": "Enabled notifier",
+      "owner": "Telegram",
+      "usage": {
+        "kind": "channel",
+        "value": "Primary notification path"
+      },
+      "limit": null,
+      "tags": ["notifications", "bot"],
+      "notes": "Main live notification channel for the system.",
+      "issues": [],
+      "position": { "x": 1220, "y": 450 }
+    },
+    {
+      "id": "whatsapp-callmebot",
+      "name": "WhatsApp / Callmebot",
+      "subtitle": "Optional dormant channel",
+      "kind": "platform",
+      "health": "dormant",
+      "statusLine": "Disabled by default",
+      "owner": "Callmebot",
+      "usage": {
+        "kind": "channel",
+        "value": "Optional fallback path"
+      },
+      "limit": {
+        "kind": "rate-limit",
+        "value": "16 msgs / 240 min"
+      },
+      "tags": ["whatsapp", "callmebot", "optional"],
+      "notes": "Kept mapped even though disabled by default. It may return in the future or be retired explicitly after review.",
+      "issues": [],
+      "position": { "x": 1200, "y": 675 }
+    },
+    {
+      "id": "bitlab",
+      "name": "BitLab",
+      "subtitle": "Bioanalises API source",
+      "kind": "external",
+      "health": "healthy",
+      "statusLine": "Connector active",
+      "owner": "BitLab",
+      "usage": {
+        "kind": "data-source",
+        "value": "REST + JWT"
+      },
+      "limit": null,
+      "tags": ["lab", "connector", "api"],
+      "notes": "Structured lab data source consumed by the monitoring core.",
+      "issues": [],
+      "position": { "x": 610, "y": 725 }
+    },
+    {
+      "id": "nexio",
+      "name": "Nexio",
+      "subtitle": "Pathology portal source",
+      "kind": "external",
+      "health": "healthy",
+      "statusLine": "Connector active",
+      "owner": "Nexio / Pathoweb",
+      "usage": {
+        "kind": "data-source",
+        "value": "Session + HTML parsing"
+      },
+      "limit": null,
+      "tags": ["lab", "connector", "html"],
+      "notes": "Pathology partner source used by the current multi-lab flow.",
+      "issues": ["PBEXM-5"],
+      "position": { "x": 935, "y": 730 }
+    }
+  ],
+  "edges": [
+    {
+      "id": "codex-workspace",
+      "source": "codex",
+      "target": "local-workspace",
+      "kind": "implementation",
+      "label": "local edits and PoC work",
+      "health": "healthy",
+      "check": "active session",
+      "notes": "Current session is using the local workspace for docs, Jira, and the architecture-map PoC.",
+      "issues": ["PBCORE-35"]
+    },
+    {
+      "id": "claude-workspace",
+      "source": "claude",
+      "target": "local-workspace",
+      "kind": "implementation",
+      "label": "paused feature work",
+      "health": "warning",
+      "check": "credits exhausted",
+      "notes": "Existing Lab Monitor work paused before deploy. Shared scope should remain untouched.",
+      "issues": []
+    },
+    {
+      "id": "workspace-github",
+      "source": "local-workspace",
+      "target": "github",
+      "kind": "versioning",
+      "label": "commit and sync",
+      "health": "healthy",
+      "check": "manual workflow",
+      "notes": "Local changes move to GitHub through the regular commit and push flow.",
+      "issues": []
+    },
+    {
+      "id": "codex-jira",
+      "source": "codex",
+      "target": "jira",
+      "kind": "planning",
+      "label": "backlog ops and updates",
+      "health": "healthy",
+      "check": "active MCP + direct API",
+      "notes": "Current session can create, update, and organize the Jira structure.",
+      "issues": ["PBCORE-33", "PBCORE-34"]
+    },
+    {
+      "id": "github-railway",
+      "source": "github",
+      "target": "railway",
+      "kind": "deploy",
+      "label": "deploy source",
+      "health": "healthy",
+      "check": "commit-based deploy",
+      "notes": "Railway deploys are driven from the GitHub source history.",
+      "issues": ["PBCORE-24"]
+    },
+    {
+      "id": "railway-lab-monitor",
+      "source": "railway",
+      "target": "lab-monitor",
+      "kind": "hosting",
+      "label": "hosts runtime",
+      "health": "healthy",
+      "check": "service alive",
+      "notes": "Current production runtime for the monitoring application.",
+      "issues": ["PBCORE-24"]
+    },
+    {
+      "id": "site-lab-monitor",
+      "source": "pinkblue-site",
+      "target": "lab-monitor",
+      "kind": "routing",
+      "label": "routes users to /labmonitor",
+      "health": "healthy",
+      "check": "live path",
+      "notes": "Public site entry that exposes the monitoring experience.",
+      "issues": []
+    },
+    {
+      "id": "workspace-lab-monitor",
+      "source": "local-workspace",
+      "target": "lab-monitor",
+      "kind": "development",
+      "label": "local implementation path",
+      "health": "healthy",
+      "check": "parallel-safe PoC",
+      "notes": "The architecture-map PoC should remain isolated from the active delivery line.",
+      "issues": ["PBCORE-35"]
+    },
+    {
+      "id": "lab-monitor-telegram",
+      "source": "lab-monitor",
+      "target": "telegram",
+      "kind": "notification",
+      "label": "active notifier",
+      "health": "healthy",
+      "check": "bot operational",
+      "notes": "Primary notification path currently in use.",
+      "issues": []
+    },
+    {
+      "id": "lab-monitor-whatsapp",
+      "source": "lab-monitor",
+      "target": "whatsapp-callmebot",
+      "kind": "notification",
+      "label": "optional notifier",
+      "health": "dormant",
+      "check": "disabled in config",
+      "notes": "Mapped for visibility even though it is disabled by default right now.",
+      "issues": []
+    },
+    {
+      "id": "lab-monitor-bitlab",
+      "source": "lab-monitor",
+      "target": "bitlab",
+      "kind": "data-intake",
+      "label": "requests lab data",
+      "health": "healthy",
+      "check": "connector active",
+      "notes": "REST-based lab intake path for Bioanalises.",
+      "issues": []
+    },
+    {
+      "id": "lab-monitor-nexio",
+      "source": "lab-monitor",
+      "target": "nexio",
+      "kind": "data-intake",
+      "label": "requests lab data",
+      "health": "healthy",
+      "check": "connector active",
+      "notes": "Session and HTML parsing path for the pathology partner.",
+      "issues": ["PBEXM-5"]
+    }
+  ]
+}

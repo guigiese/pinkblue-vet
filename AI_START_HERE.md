@@ -76,6 +76,20 @@ Expected working behavior:
 - progress comment: meaningful milestone or blocker;
 - close-out comment: result, validation, changed docs, open follow-ups.
 
+## 5A. Parallel Work Guardrail
+
+If another AI or developer has active work in progress, especially near validation or deploy,
+do not assume it is safe to edit the same scope.
+
+Default behavior in that situation:
+- prefer Jira, docs, discovery, and planning work first;
+- prefer isolated files, routes, modules, or artifacts that do not affect the active delivery line;
+- do not change deploy-critical paths, release steps, or shared implementation files without explicit need;
+- if overlap is unavoidable, document the risk clearly in Jira and in the final handoff.
+
+When there is an active paused deploy or unfinished implementation by another AI,
+the safest default is to work in parallel, not in-place.
+
 ## 6. Before Finishing
 
 Before closing a task, the AI must check:
@@ -110,6 +124,30 @@ Current Jira structure:
 - `PBEXM`: exam module work
 - `PBCORE`: platform, process, docs, security, data, infra
 - `PBINC`: incubator for future modules
+
+Cross-project board:
+- `PB Triage`: transversal board for cards with ambiguous scope or re-home decisions
+- it is a view, not a project
+- cards shown there still belong to one real project: `PBEXM`, `PBCORE`, or `PBINC`
+
+Working meaning of each project:
+- `PBEXM`: work that belongs to the exam module itself, including product behavior, data, UI, lab connectors, validation, and delivery of the Lab Monitor line.
+- `PBCORE`: governance plus shared platform capabilities. This is the home for workflow rules, docs, AI operating model, naming, auth, secrets, persistence, infra, observability, and any capability meant to serve more than one module.
+- `PBINC`: discovery for future business modules that are not yet committed as active delivery lines.
+
+Quick routing rule:
+- if the work changes one module only, it probably does not belong in `PBCORE`;
+- if the work creates or explores a new business module, it belongs in `PBINC`;
+- if the work defines rules, tooling, or technical capabilities that sit above modules or can be reused across modules, it belongs in `PBCORE`.
+
+`PBCORE` is not a generic overflow bucket.
+If a task is only a local feature or page for the exam module, prefer `PBEXM` unless there is a clear cross-platform reason not to.
+If scope is still ambiguous, the discovery can start in `PBCORE`, but the downstream implementation should move to the module project as soon as the work proves to be module-local.
+
+Board routing rule:
+- use label `scope-ambiguous` when the card still needs a home decision
+- use label `needs-rehome` when the correct home is already known but the card still carries old project history
+- no card with one of those labels should move to `Pronto pra dev` without a clear home decision
 
 Jira project keys cannot use an internal hyphen such as `PB-EXM`.
 Because of that platform limitation, the actual keys stay `PBEXM`, `PBCORE`, and `PBINC`,
