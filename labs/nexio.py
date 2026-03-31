@@ -61,11 +61,12 @@ class NexioConnector(LabConnector):
             # Colunas: [0]checkbox | [1]Exame | [2]Senha | [3]Nome | [4]Proprietário
             #          [5]Prontuário | [6]D.Prometido | [7]D.Liberação | [8]Situação
             exames.append({
-                "numero":        cols[1],
-                "paciente":      cols[3],
-                "proprietario":  cols[4],
+                "numero":         cols[1],
+                "paciente":       cols[3],
+                "proprietario":   cols[4],
                 "data_prometida": cols[6],
-                "status":        cols[8],
+                "data_liberacao": cols[7],
+                "status":         cols[8],
             })
 
         return exames
@@ -80,9 +81,10 @@ class NexioConnector(LabConnector):
                 continue
             label = f"{exame['paciente']} - {exame['proprietario']}".strip(" -")
             # Normaliza data para YYYY-MM-DD.
+            # Usa D.Liberação se preenchida, senão D.Prometido.
             # Pathoweb pode retornar DD/MM/YY (2 dígitos) ou DD/MM/YYYY (4 dígitos).
-            raw_date = exame["data_prometida"]
             from datetime import datetime
+            raw_date = exame["data_liberacao"] or exame["data_prometida"]
             data_iso = raw_date
             for fmt in ("%d/%m/%Y", "%d/%m/%y"):
                 try:
@@ -94,7 +96,7 @@ class NexioConnector(LabConnector):
                 "label": label,
                 "data":  data_iso,
                 "itens": {
-                    num: {"nome": f"Exame {num}", "status": exame["status"]}
+                    num: {"nome": f"Patologia Nº {num}", "status": exame["status"]}
                 },
             }
 

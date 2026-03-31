@@ -4,6 +4,11 @@ from pathlib import Path
 
 CONFIG_FILE = Path(__file__).parent.parent / "config.json"
 
+PORTAL_URLS: dict[str, str] = {
+    "bitlab": "https://bitlabenterprise.com.br/bioanalises/resultados",
+    "nexio":  "https://www.pathoweb.com.br",
+}
+
 # ── Status normalization ──────────────────────────────────────────────────────
 # Maps raw lab status strings → standardized display values.
 # Add new mappings here as new status strings are discovered.
@@ -175,6 +180,7 @@ class AppState:
                     "status_geral":   status_geral,
                     "dias_em_aberto": dias_em_aberto,
                     "itens":          sorted(itens, key=lambda x: x["nome"]),
+                    "portal_url":     PORTAL_URLS.get(lab_id, ""),
                 })
 
         return sorted(groups, key=lambda x: x["data_raw"], reverse=True)

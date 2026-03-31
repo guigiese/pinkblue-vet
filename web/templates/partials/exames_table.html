@@ -71,6 +71,10 @@
             · {{ g.dias_em_aberto }}d em aberto
           </span>
           {% endif %}
+          {% if g.portal_url %}
+          <a href="{{ g.portal_url }}" target="_blank" rel="noopener"
+             class="ml-1 text-indigo-500 hover:text-indigo-700 underline">Portal</a>
+          {% endif %}
         </div>
       </div>
       <svg class="w-4 h-4 text-gray-400 shrink-0 mt-1 transition-transform group-open:rotate-180"
@@ -110,6 +114,10 @@
                        {% if g.dias_em_aberto > 7 %}text-amber-500 font-semibold{% else %}text-gray-400{% endif %}">
             {{ g.dias_em_aberto }}d em aberto
           </span>
+          {% endif %}
+          {% if g.portal_url %}
+          <a href="{{ g.portal_url }}" target="_blank" rel="noopener"
+             class="block text-xs text-indigo-500 hover:text-indigo-700 underline whitespace-nowrap mt-0.5">Portal ↗</a>
           {% endif %}
         </div>
         <div class="flex items-center gap-1.5">

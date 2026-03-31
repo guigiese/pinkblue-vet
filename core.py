@@ -7,6 +7,7 @@ import time
 from datetime import datetime
 from labs import CONNECTORS
 from notifiers import NOTIFIERS
+from web.state import normalize_status
 
 
 def detectar_novidades(lab_name: str, anterior: dict, atual: dict) -> list[str]:
@@ -22,8 +23,8 @@ def detectar_novidades(lab_name: str, anterior: dict, atual: dict) -> list[str]:
             )
         else:
             for iid, item in rec["itens"].items():
-                s_new = item["status"]
-                s_old = anterior[rid]["itens"].get(iid, {}).get("status", "")
+                s_new = normalize_status(item["status"])
+                s_old = normalize_status(anterior[rid]["itens"].get(iid, {}).get("status", ""))
                 if s_old and s_new != s_old:
                     msgs.append(
                         f"✅ <b>Resultado disponível — {lab_name}</b>\n"
@@ -69,12 +70,15 @@ def run_monitor_loop(state=None):
                     print(f"  Primeira execução — estado salvo.")
                 else:
                     novidades = detectar_novidades(lab.lab_name, anterior, atual)
-                    for msg in novidades:
-                        print(f"  -> {msg[:80]}")
+                    if novidades:
+                        for msg in novidades:
+                            print(f"  -> {msg[:80]}")
+                            if state:
+                                state.add_notification(lab.lab_name, msg)
+                        # Um único envio por lab por ciclo — evita spam de notificações
+                        batch_msg = "\n\n".join(novidades)
                         for n in notifiers:
-                            n.enviar(msg)
-                        if state:
-                            state.add_notification(lab.lab_name, msg)
+                            n.enviar(batch_msg)
 
                 if state:
                     state.snapshots[lab.lab_id]  = atual
