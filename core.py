@@ -91,6 +91,8 @@ def run_monitor_loop(state=None):
                 else:
                     novidades = detectar_novidades(lab.lab_name, anterior, atual)
                     _stamp_liberados(anterior, atual, datetime.now().isoformat())
+                    if hasattr(lab, "enrich_resultados"):
+                        lab.enrich_resultados(anterior, atual)
                     if novidades:
                         for msg in novidades:
                             print(f"  -> {msg[:80]}")

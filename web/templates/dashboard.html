@@ -14,21 +14,21 @@
   {% include "partials/lab_counts.html" %}
 </div>
 
-<!-- Notifications feed -->
+<!-- Últimos liberados -->
 <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5 mt-6">
   <div class="flex items-center justify-between mb-4">
     <div class="flex items-center gap-2">
       <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-              d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0"/>
+              d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
       </svg>
-      <h2 class="font-semibold text-gray-700 text-sm">Últimas Notificações</h2>
+      <h2 class="font-semibold text-gray-700 text-sm">Últimos Liberados</h2>
     </div>
-    <span class="text-xs text-gray-400">últimos 3 dias · atualiza a cada 30s</span>
+    <span class="text-xs text-gray-400">prontos e parciais · atualiza a cada 60s</span>
   </div>
-  <div id="notif-feed"
-       hx-get="/labmonitor/partials/notifications" hx-trigger="every 30s" hx-swap="innerHTML">
-    {% include "partials/notifications.html" %}
+  <div id="liberados-feed"
+       hx-get="/labmonitor/partials/ultimos_liberados" hx-trigger="every 60s" hx-swap="innerHTML">
+    {% include "partials/ultimos_liberados.html" %}
   </div>
 </div>
 

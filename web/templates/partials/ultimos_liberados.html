@@ -1,0 +1,74 @@
+{% if groups %}
+<div class="space-y-2">
+  {% for g in groups %}
+  <a href="/labmonitor/exames?q={{ g.paciente | urlencode }}" class="block">
+  <div class="flex items-center gap-3 px-4 py-3 rounded-lg border transition-colors
+              {% if g.alerta_geral == 'red' %}bg-red-50 border-red-200 hover:bg-red-100
+              {% elif g.alerta_geral == 'yellow' %}bg-yellow-50 border-yellow-200 hover:bg-yellow-100
+              {% else %}bg-gray-50 border-gray-100 hover:bg-gray-100{% endif %}">
+
+    <!-- Alert / status icon -->
+    <div class="shrink-0">
+      {% if g.alerta_geral == 'red' %}
+        <div class="w-8 h-8 rounded-full bg-red-500 flex items-center justify-center">
+          <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+                  d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+          </svg>
+        </div>
+      {% elif g.alerta_geral == 'yellow' %}
+        <div class="w-8 h-8 rounded-full bg-yellow-400 flex items-center justify-center">
+          <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+                  d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+          </svg>
+        </div>
+      {% elif g.status_geral == "Parcial" %}
+        <div class="w-8 h-8 rounded-full bg-blue-400 flex items-center justify-center">
+          <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-3-3v6"/>
+          </svg>
+        </div>
+      {% else %}
+        <div class="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center">
+          <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
+          </svg>
+        </div>
+      {% endif %}
+    </div>
+
+    <!-- Info -->
+    <div class="min-w-0 flex-1">
+      <div class="flex items-center gap-2 flex-wrap">
+        <span class="font-semibold text-gray-800 text-sm truncate">{{ g.paciente }}</span>
+        {% if g.alerta_geral == 'red' %}
+          <span class="px-1.5 py-0.5 rounded text-xs font-bold bg-red-100 text-red-700">crítico</span>
+        {% elif g.alerta_geral == 'yellow' %}
+          <span class="px-1.5 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-700">atenção</span>
+        {% endif %}
+      </div>
+      <div class="flex items-center gap-2 mt-0.5 text-xs text-gray-400 flex-wrap">
+        <span class="bg-gray-200 rounded px-1.5 py-0.5 font-medium text-gray-600">{{ g.lab }}</span>
+        <span>Nº {{ g.record_id }}</span>
+        {% if g.liberado_em %}
+          <span class="text-green-600 font-medium">Lib. {{ g.liberado_em }}</span>
+        {% else %}
+          <span>{{ g.data }}</span>
+        {% endif %}
+        {% if g.status_geral == "Parcial" %}
+          <span class="text-blue-500">parcial</span>
+        {% endif %}
+      </div>
+    </div>
+
+    <svg class="w-4 h-4 text-gray-300 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+    </svg>
+  </div>
+  </a>
+  {% endfor %}
+</div>
+{% else %}
+<p class="text-gray-400 text-sm text-center py-6">Nenhum exame liberado ainda.</p>
+{% endif %}

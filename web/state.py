@@ -157,12 +157,11 @@ class AppState:
     def get_exames(self, lab_filter: str = "", status_filter: str = "", q: str = "") -> list[dict]:
         """
         Returns exames grouped by record_id (one entry per request/patient).
-        Each group: lab, record_id, paciente, data, status_geral, itens, liberado_em, portal_url.
-        status_geral: Pronto | Parcial | Em Andamento | Analisando | Recebido | Arquivado | Cancelado
-        dias_em_aberto: None for done statuses (Pronto, Arquivado, Cancelado).
-        Search: multi-word, accent-insensitive, case-insensitive, sequential.
+        Each group: lab, record_id, paciente, data, status_geral, itens, liberado_em, portal_url,
+                    alerta_geral (None | "yellow" | "red").
         Sorted by date descending.
         """
+        _alert_rank = {None: 0, "yellow": 1, "red": 2}
         groups = []
         for lab_id, snapshot in self.snapshots.items():
             lab_cfg  = next((l for l in self.config["labs"] if l["id"] == lab_id), {})
@@ -176,9 +175,11 @@ class AppState:
                     if item["nome"] in EXCLUDE_EXAMES:
                         continue
                     itens.append({
-                        "nome":       item["nome"],
-                        "status":     normalize_status(item["status"]),
+                        "nome":        item["nome"],
+                        "status":      normalize_status(item["status"]),
                         "liberado_em": item.get("liberado_em"),
+                        "item_id":     item.get("item_id"),
+                        "alerta":      item.get("alerta"),
                     })
 
                 if not itens:
@@ -242,28 +243,53 @@ class AppState:
                     else PORTAL_URLS.get(lab_id, "")
                 )
 
-                # Strip liberado_em from itens before storing (it's on the group already)
+                # Worst alert across all Pronto items
+                alerta_geral = max(
+                    (i["alerta"] for i in itens if i["alerta"] in _alert_rank),
+                    key=lambda a: _alert_rank[a],
+                    default=None,
+                )
+
                 itens_clean = [
-                    {"nome": i["nome"], "status": i["status"], "item_id": i.get("item_id")}
+                    {
+                        "nome":    i["nome"],
+                        "status":  i["status"],
+                        "item_id": i["item_id"],
+                        "alerta":  i["alerta"],
+                    }
                     for i in itens
                 ]
 
                 groups.append({
-                    "lab_id":         lab_id,
-                    "lab":            lab_name,
-                    "record_id":      record_id,
-                    "paciente":       paciente,
-                    "data":           data_fmt,
-                    "data_raw":       record["data"],
-                    "status_geral":   status_geral,
-                    "dias_em_aberto": dias_em_aberto,
-                    "liberado_em":    liberado_em,
-                    "itens":          sorted(itens_clean, key=lambda x: x["nome"]),
-                    "portal_url":     portal_url,
-                    "portal_id":      record_id,  # requisition number for display
+                    "lab_id":          lab_id,
+                    "lab":             lab_name,
+                    "record_id":       record_id,
+                    "paciente":        paciente,
+                    "data":            data_fmt,
+                    "data_raw":        record["data"],
+                    "status_geral":    status_geral,
+                    "dias_em_aberto":  dias_em_aberto,
+                    "liberado_em":     liberado_em,
+                    "liberado_em_iso": liberado_em_raw,
+                    "itens":           sorted(itens_clean, key=lambda x: x["nome"]),
+                    "portal_url":      portal_url,
+                    "portal_id":       record_id,
+                    "alerta_geral":    alerta_geral,
                 })
 
         return sorted(groups, key=lambda x: x["data_raw"], reverse=True)
+
+    def get_ultimos_liberados(self, n: int = 12) -> list[dict]:
+        """Returns the n most recently liberated (Pronto/Parcial) exam groups."""
+        groups = [
+            g for g in self.get_exames()
+            if g["status_geral"] in {"Pronto", "Parcial"}
+        ]
+        groups.sort(
+            key=lambda g: g["liberado_em_iso"] or g["data_raw"],
+            reverse=True,
+        )
+        return groups[:n]
 
     def get_lab_counts(self) -> dict:
         """

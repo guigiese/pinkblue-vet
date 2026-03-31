@@ -1,6 +1,4 @@
 import os
-import re
-import zlib
 import threading
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -8,7 +6,6 @@ from pathlib import Path
 from fastapi import FastAPI, Request, Form, APIRouter
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
-from bs4 import BeautifulSoup
 
 from web.state import state
 from core import run_monitor_loop
@@ -76,14 +73,14 @@ async def landing(request: Request):
 async def dashboard(request: Request):
     return _render(request, "dashboard.html",
                    lab_counts=state.get_lab_counts(),
-                   notifications=state.notifications)
+                   groups=state.get_ultimos_liberados())
 
 
 @router.get("/", response_class=HTMLResponse)
 async def dashboard_slash(request: Request):
     return _render(request, "dashboard.html",
                    lab_counts=state.get_lab_counts(),
-                   notifications=state.notifications)
+                   groups=state.get_ultimos_liberados())
 
 
 @router.get("/exames", response_class=HTMLResponse)
@@ -222,109 +219,41 @@ def _toggle_html(route: str, id: str, enabled: bool, label: str) -> str:
 
 @router.get("/partials/resultado/{item_id:path}", response_class=HTMLResponse)
 async def partial_resultado(request: Request, item_id: str):
-    """Fetches and parses a BitLab exam result HTML for inline display."""
-    try:
-        import requests as req_lib
-        from labs.bitlab import BitlabConnector
-        connector = BitlabConnector()
-        token = connector._login()
-        url = f"{connector.BASE}/ItemRequisicao/{item_id}?type=Html"
-        resp = req_lib.get(url, headers={"Authorization": f"Bearer {token}"}, timeout=15)
-        resp.raise_for_status()
-        rows = _parse_bitlab_resultado(resp.content)
-    except Exception as e:
-        rows = []
-        return HTMLResponse(
-            f'<p class="text-red-500 text-xs p-3">Erro ao carregar resultado: {e}</p>'
-        )
+    """Fetches and renders a BitLab exam result for inline display."""
+    from labs.bitlab import BitlabConnector
+    connector = BitlabConnector()
+
+    # Check if result is already cached in the snapshot
+    rows = _find_cached_resultado(item_id)
+
+    if rows is None:
+        # Not cached — fetch fresh from BitLab
+        try:
+            token = connector._login()
+            raw   = connector.buscar_resultado_html(token, item_id)
+            rows  = connector.parse_resultado(raw)
+        except Exception as e:
+            return HTMLResponse(
+                f'<p class="text-red-500 text-xs p-3">Erro ao carregar resultado: {e}</p>'
+            )
+
     return _render(request, "partials/resultado_bitlab.html", rows=rows)
 
 
-def _parse_bitlab_resultado(raw_bytes: bytes) -> list[dict]:
-    """Parse BitLab zlib-compressed HTML into structured result rows with alert levels."""
-    try:
-        html = zlib.decompress(raw_bytes).decode("latin-1")
-    except Exception:
-        return []
+def _find_cached_resultado(item_id: str) -> list[dict] | None:
+    """Look up cached resultado rows from the current snapshot, if available."""
+    for snap in state.snapshots.values():
+        for record in snap.values():
+            for item in record["itens"].values():
+                if item.get("item_id") == item_id and "resultado" in item:
+                    return item["resultado"]
+    return None
 
-    soup = BeautifulSoup(html, "html.parser")
-    rows_by_top: dict[int, list[dict]] = {}
 
-    for div in soup.find_all("div", style=True):
-        style = div.get("style", "")
-        lm = re.search(r"left:(\d+)px", style)
-        tm = re.search(r"top:(\d+)px", style)
-        if not lm or not tm or div.find("img"):
-            continue
-        left = int(lm.group(1))
-        top = int(tm.group(1))
-        text = div.get_text().strip()
-        is_bold = bool(div.find("b"))
-        if text:
-            rows_by_top.setdefault(top, []).append(
-                {"left": left, "text": text, "bold": is_bold}
-            )
-
-    # Reference range pattern (e.g. "5,0 a 10,0" or "200.000 a 630.000")
-    _ref_pat = re.compile(r"[\d.,]+\s+a\s+[\d.,]+")
-
-    results = []
-    for top in sorted(rows_by_top):
-        cols = sorted(rows_by_top[top], key=lambda c: c["left"])
-
-        # Name: leftmost column to the left of 240
-        name_col = next((c for c in cols if c["left"] < 240), None)
-        if not name_col:
-            continue
-
-        # Reference: rightmost column that contains a "X a Y" range pattern
-        ref_col = next(
-            (c for c in sorted(cols, key=lambda c: -c["left"])
-             if _ref_pat.search(c["text"])),
-            None,
-        )
-        if not ref_col:
-            continue
-
-        # Value: first bold column ≥240 that is not ref_col; fallback to any non-name column
-        val_candidates = [c for c in cols if c["left"] >= 240 and c is not ref_col]
-        val_col = (
-            next((c for c in val_candidates if c["bold"]), None)
-            or next((c for c in val_candidates), None)
-        )
-        if not val_col:
-            continue
-
-        name = re.sub(r"\.{2,}:?\s*$", "", name_col["text"]).rstrip(":").strip()
-        if len(name) < 3:
-            continue
-
-        value_str = val_col["text"].strip()
-        ref_str   = re.sub(r"\s{2,}", " / ", ref_col["text"].strip())
-
-        alert = None
-        try:
-            numeric = float(value_str.replace(".", "").replace(",", "."))
-            ref_m = _ref_pat.search(ref_col["text"])
-            if ref_m:
-                parts = ref_m.group().split(" a ")
-                rmin = float(parts[0].strip().replace(".", "").replace(",", "."))
-                rmax = float(parts[1].strip().replace(".", "").replace(",", "."))
-                if numeric < rmin or numeric > rmax:
-                    boundary = rmin if numeric < rmin else rmax
-                    deviation = abs(numeric - boundary) / boundary if boundary else 1
-                    alert = "red" if deviation > 0.20 else "yellow"
-        except (ValueError, ZeroDivisionError):
-            pass
-
-        results.append({
-            "nome":       name,
-            "valor":      value_str,
-            "referencia": ref_str,
-            "alerta":     alert,
-        })
-
-    return results
+@router.get("/partials/ultimos_liberados", response_class=HTMLResponse)
+async def partial_ultimos_liberados(request: Request):
+    return _render(request, "partials/ultimos_liberados.html",
+                   groups=state.get_ultimos_liberados())
 
 
 app.include_router(router)

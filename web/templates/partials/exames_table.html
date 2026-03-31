@@ -29,6 +29,20 @@
   {% endif %}
 {% endmacro %}
 
+{% macro badge_alerta(alerta) %}
+  {% if alerta == 'red' %}
+    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-700">
+      <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
+      Crítico
+    </span>
+  {% elif alerta == 'yellow' %}
+    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700">
+      <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
+      Atenção
+    </span>
+  {% endif %}
+{% endmacro %}
+
 {% macro badge_item(status) %}
   {% if status == "Pronto" %}
     <span class="px-2 py-0.5 rounded text-xs bg-green-50 text-green-700 font-medium">{{ status }}</span>
@@ -43,18 +57,44 @@
   {% endif %}
 {% endmacro %}
 
+{% macro resultado_btn(item) %}
+{% if item.item_id and item.status == "Pronto" %}
+<details class="resultado-detail mt-1.5">
+  <summary class="cursor-pointer text-xs text-indigo-500 hover:text-indigo-700 select-none
+                  inline-flex items-center gap-1 py-0.5"
+           hx-get="/labmonitor/partials/resultado/{{ item.item_id }}"
+           hx-target="next .resultado-body"
+           hx-swap="innerHTML"
+           hx-trigger="click once">
+    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+    </svg>
+    Ver resultado
+  </summary>
+  <div class="resultado-body mt-1.5 rounded-lg border border-gray-100 bg-white overflow-hidden">
+    <p class="text-gray-400 text-xs p-3 text-center">Carregando…</p>
+  </div>
+</details>
+{% endif %}
+{% endmacro %}
+
 {% if groups %}
 
 <!-- ── Mobile: cards ─────────────────────────────────────────────────────── -->
 <div class="md:hidden space-y-3">
   {% for g in groups %}
-  <details class="group bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden
+  <details class="group bg-white border rounded-xl shadow-sm overflow-hidden
+                  {% if g.alerta_geral == 'red' %}border-red-200
+                  {% elif g.alerta_geral == 'yellow' %}border-yellow-200
+                  {% else %}border-gray-100{% endif %}
                   {% if g.status_geral != 'Pronto' %}open{% endif %}">
     <summary class="flex items-start justify-between gap-3 p-4 cursor-pointer list-none select-none
                     hover:bg-gray-50 active:bg-gray-100">
       <div class="min-w-0 flex-1">
         <div class="flex items-center gap-2 flex-wrap mb-1">
           {{ badge_geral(g.status_geral) }}
+          {{ badge_alerta(g.alerta_geral) }}
           <span class="text-xs text-gray-400">{{ g.itens | length }} exame{{ 's' if g.itens | length != 1 }}</span>
         </div>
         <p class="font-semibold text-gray-800 text-sm leading-snug truncate">{{ g.paciente }}</p>
@@ -84,9 +124,20 @@
     </summary>
     <div class="border-t border-gray-100 divide-y divide-gray-50">
       {% for item in g.itens %}
-      <div class="flex items-center justify-between px-4 py-2.5 text-sm">
-        <span class="text-gray-700 truncate pr-3">{{ item.nome }}</span>
-        {{ badge_item(item.status) }}
+      <div class="px-4 py-2.5 text-sm
+                  {% if item.alerta == 'red' %}bg-red-50{% elif item.alerta == 'yellow' %}bg-yellow-50{% endif %}">
+        <div class="flex items-center justify-between">
+          <span class="text-gray-700 flex items-center gap-1.5">
+            {% if item.alerta == 'red' %}
+              <span class="w-2 h-2 rounded-full bg-red-500 shrink-0"></span>
+            {% elif item.alerta == 'yellow' %}
+              <span class="w-2 h-2 rounded-full bg-yellow-400 shrink-0"></span>
+            {% endif %}
+            {{ item.nome }}
+          </span>
+          {{ badge_item(item.status) }}
+        </div>
+        {% if g.lab_id == "bitlab" %}{{ resultado_btn(item) }}{% endif %}
       </div>
       {% endfor %}
     </div>
@@ -98,7 +149,10 @@
 <div class="hidden md:block">
   <div class="space-y-2">
     {% for g in groups %}
-    <details class="group bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden
+    <details class="group bg-white border rounded-xl shadow-sm overflow-hidden
+                    {% if g.alerta_geral == 'red' %}border-red-200
+                    {% elif g.alerta_geral == 'yellow' %}border-yellow-200
+                    {% else %}border-gray-100{% endif %}
                     {% if g.status_geral != 'Pronto' %}open{% endif %}">
       <summary class="grid grid-cols-[1fr_auto_auto_auto_auto] items-center gap-4 px-5 py-3.5
                       cursor-pointer list-none select-none hover:bg-gray-50 active:bg-gray-100">
@@ -124,8 +178,9 @@
              class="block text-xs text-indigo-500 hover:text-indigo-700 underline whitespace-nowrap mt-0.5">Ver laudo ↗</a>
           {% endif %}
         </div>
-        <div class="flex items-center gap-1.5">
+        <div class="flex items-center gap-1.5 flex-wrap justify-end">
           {{ badge_geral(g.status_geral) }}
+          {{ badge_alerta(g.alerta_geral) }}
           <span class="text-xs text-gray-400">{{ g.itens | length }}x</span>
         </div>
         <svg class="w-4 h-4 text-gray-400 shrink-0 transition-transform group-open:rotate-180"
@@ -137,32 +192,26 @@
         <table class="w-full text-sm">
           <tbody class="divide-y divide-gray-50">
             {% for item in g.itens %}
-            <tr class="hover:bg-gray-50">
-              <td class="pl-5 pr-4 py-2.5 text-gray-700">{{ item.nome }}</td>
+            <tr class="hover:bg-gray-50
+                       {% if item.alerta == 'red' %}bg-red-50
+                       {% elif item.alerta == 'yellow' %}bg-yellow-50{% endif %}">
+              <td class="pl-5 pr-4 py-2.5">
+                <div class="flex items-center gap-2 text-gray-700">
+                  {% if item.alerta == 'red' %}
+                    <span class="w-2 h-2 rounded-full bg-red-500 shrink-0"></span>
+                  {% elif item.alerta == 'yellow' %}
+                    <span class="w-2 h-2 rounded-full bg-yellow-400 shrink-0"></span>
+                  {% else %}
+                    <span class="w-2 h-2 rounded-full bg-gray-200 shrink-0"></span>
+                  {% endif %}
+                  <div>
+                    {{ item.nome }}
+                    {% if g.lab_id == "bitlab" %}{{ resultado_btn(item) }}{% endif %}
+                  </div>
+                </div>
+              </td>
               <td class="pr-5 py-2.5 text-right">{{ badge_item(item.status) }}</td>
             </tr>
-            {% if item.item_id and item.status == "Pronto" and g.lab_id == "bitlab" %}
-            <tr>
-              <td colspan="2" class="px-5 pb-3">
-                <details class="resultado-detail">
-                  <summary class="cursor-pointer text-xs text-indigo-500 hover:text-indigo-700 select-none inline-flex items-center gap-1"
-                           hx-get="/labmonitor/partials/resultado/{{ item.item_id }}"
-                           hx-target="next .resultado-body"
-                           hx-swap="innerHTML"
-                           hx-trigger="click once">
-                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
-                    </svg>
-                    Ver resultado
-                  </summary>
-                  <div class="resultado-body mt-2 rounded-lg border border-gray-100 bg-white overflow-hidden">
-                    <p class="text-gray-400 text-xs p-3 text-center htmx-indicator">Carregando…</p>
-                  </div>
-                </details>
-              </td>
-            </tr>
-            {% endif %}
             {% endfor %}
           </tbody>
         </table>
