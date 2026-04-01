@@ -2,18 +2,31 @@
 Deploy para Railway — sempre usa o serviço correto.
 Uso: python deploy.py
 """
-import configparser, subprocess, time, sys
+import configparser, subprocess, time, sys, os
 import requests
 
 cfg = configparser.ConfigParser()
 cfg.read(".secrets")
 
-RAILWAY_TOKEN = cfg["railway"]["token"]
-SERVICE_ID    = cfg["railway"]["service_id"]
-ENV_ID        = cfg["railway"]["env_id"]
-APP_URL       = cfg["railway"]["url"]
-GH_TOKEN      = cfg["github"]["token"]
+def _cfg_get(section: str, key: str, env_name: str = "", default: str = "") -> str:
+    if env_name and os.environ.get(env_name):
+        return os.environ[env_name]
+    if cfg.has_section(section) and cfg.has_option(section, key):
+        return cfg[section][key]
+    return default
+
+
+RAILWAY_TOKEN = _cfg_get("railway", "token", env_name="RAILWAY_TOKEN")
+SERVICE_ID    = _cfg_get("railway", "service_id", env_name="RAILWAY_SERVICE_ID", default="215d2612-2f33-475c-8a4f-3c8588089164")
+ENV_ID        = _cfg_get("railway", "env_id", env_name="RAILWAY_ENV_ID", default="f95eb850-1680-4d28-95ce-6dc77b5d7653")
+APP_URL       = _cfg_get("railway", "url", env_name="APP_URL", default="https://pinkblue-vet-production.up.railway.app")
+GH_TOKEN      = _cfg_get("github", "token", env_name="GH_TOKEN")
 GH_REPO       = "guigiese/monitor-exames-bitlab"
+
+if not RAILWAY_TOKEN:
+    raise RuntimeError("RAILWAY_TOKEN not available via environment or .secrets")
+if not GH_TOKEN:
+    raise RuntimeError("GH_TOKEN not available via environment or .secrets")
 
 headers = {"Authorization": f"Bearer {RAILWAY_TOKEN}", "Content-Type": "application/json"}
 
