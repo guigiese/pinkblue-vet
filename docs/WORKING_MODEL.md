@@ -94,39 +94,37 @@ Use them this way:
 
 ## 4. Jira Status Model
 
-Delivery workflow for `PBEXM` and `PBCORE`:
-- `Backlog`
-- `Descoberta`
-- `Pronto pra dev`
-- `Em andamento`
-- `Em revisÃ£o`
-- `ConcluÃ­do`
+### Delivery workflow — PBEXM e PBCORE
 
-Working meaning for the delivery flow:
-- `Backlog`: item captured, but not yet refined
-- `Descoberta`: scope, approach, or dependency is still being clarified
-- `Pronto pra dev`: refined enough to enter execution
-- `Em andamento`: active implementation work
-- `Em revisÃ£o`: review, validation, or final acceptance
-- `ConcluÃ­do`: done according to DoD
+```
+Backlog → Descoberta → Pronto pra dev → Em andamento → Em revisão → Concluído
+```
 
-Incubator workflow for `PBINC`:
-- `Backlog`
-- `Descoberta`
-- `ValidaÃ§Ã£o`
-- `Pronto pra incubar`
-- `Em incubaÃ§Ã£o`
-- `Graduado`
-- `Descartado`
+| Status | Significado | Critério para avançar |
+|---|---|---|
+| `Backlog` | Capturado, ainda não refinado | Ter objetivo claro e escopo definido |
+| `Descoberta` | Escopo, abordagem ou dependência ainda sendo clarificados | Objetivo claro + critério de aceite conhecido |
+| `Pronto pra dev` | Refinado o suficiente para entrar em execução | Sessão de IA/dev iniciar e registrar [CLAIM] |
+| `Em andamento` | Implementação ativa | PR aberto com a entrega |
+| `Em revisão` | Em revisão, validação ou aceite final | PR mergeado + [CLOSE-OUT] no card + docs atualizados |
+| `Concluído` | Concluído conforme DoD | — |
 
-Working meaning for the incubator flow:
-- `Backlog`: idea captured, but not yet worked
-- `Descoberta`: problem, scope, or opportunity is being explored
-- `ValidaÃ§Ã£o`: the idea is being pressure-tested before investment
-- `Pronto pra incubar`: ready to receive focused incubation effort
-- `Em incubaÃ§Ã£o`: active incubation with shaping and first construction
-- `Graduado`: mature enough to leave the incubator and become a real delivery front
-- `Descartado`: intentionally closed due to fit, priority, or viability
+### Incubator workflow — PBINC
+
+```
+Backlog → Descoberta → Validação → Pronto pra incubar → Em incubação → Graduado
+                                                                      ↘ Descartado
+```
+
+| Status | Significado | Critério para avançar |
+|---|---|---|
+| `Backlog` | Ideia capturada, ainda não trabalhada | Valer a pena explorar |
+| `Descoberta` | Problema, escopo ou oportunidade sendo explorados | Problema entendido + hipótese de valor formulada |
+| `Validação` | Ideia sendo pressure-tested antes de investir | Validada: problema real, solução viável, fit com plataforma |
+| `Pronto pra incubar` | Pronto para receber esforço focado de incubação | Sessão iniciar trabalho ativo |
+| `Em incubação` | Incubação ativa com shaping e primeira construção | Maduro o suficiente para virar módulo real |
+| `Graduado` | Maduro para sair da incubadora e virar frente de entrega real | — |
+| `Descartado` | Fechado intencionalmente por fit, prioridade ou viabilidade | — |
 
 When a new PB project is created, use the helper below:
 - `powershell -File scripts/apply_pb_jira_workflow.ps1 -ProjectKey <KEY>`
