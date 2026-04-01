@@ -1,13 +1,68 @@
 """
-Lógica central de monitoramento.
+Logica central de monitoramento.
 Pode rodar standalone (monitor.py) ou embutido na web (web/app.py).
 """
 
+import hashlib
 import time
 from datetime import datetime
+
 from labs import CONNECTORS
 from notifiers import NOTIFIERS
 from web.state import normalize_status
+
+_EXTERNAL_EVENT_CACHE: dict[str, float] = {}
+_EXTERNAL_EVENT_TTL_SECONDS = 60 * 60 * 72
+
+
+def _cleanup_external_event_cache(now_ts: float) -> None:
+    cutoff = now_ts - _EXTERNAL_EVENT_TTL_SECONDS
+    expired = [sig for sig, ts in _EXTERNAL_EVENT_CACHE.items() if ts < cutoff]
+    for sig in expired:
+        _EXTERNAL_EVENT_CACHE.pop(sig, None)
+
+
+def _should_send_external_event(signature: str) -> bool:
+    now_ts = time.time()
+    _cleanup_external_event_cache(now_ts)
+    if signature in _EXTERNAL_EVENT_CACHE:
+        return False
+    _EXTERNAL_EVENT_CACHE[signature] = now_ts
+    return True
+
+
+def _event_signature(lab_id: str, kind: str, record_id: str, item_ids: list[str]) -> str:
+    base = "|".join([lab_id, kind, record_id, *sorted(item_ids)])
+    return hashlib.sha1(base.encode("utf-8")).hexdigest()
+
+
+def _format_item_lines(items: list[dict]) -> str:
+    seen: set[str] = set()
+    names: list[str] = []
+    for item in items:
+        name = item.get("nome", "").strip()
+        if name and name not in seen:
+            seen.add(name)
+            names.append(name)
+    return "\n".join(f"• {name}" for name in names)
+
+
+def _build_received_message(lab_name: str, record_id: str, record: dict) -> str:
+    return (
+        f"📥 <b>Exame recebido no laboratorio - {lab_name}</b>\n"
+        f"👤 {record['label']}\n"
+        f"📋 {record_id} | {record['data']}\n"
+        f"🔬 Exames\n{_format_item_lines(list(record['itens'].values()))}"
+    )
+
+
+def _build_completed_message(lab_name: str, record_id: str, record: dict, items: list[dict]) -> str:
+    return (
+        f"✅ <b>Exames concluidos - {lab_name}</b>\n"
+        f"👤 {record['label']}\n"
+        f"📋 {record_id} | {record['data']}\n"
+        f"🔬 Liberados neste lote\n{_format_item_lines(items)}"
+    )
 
 
 def _stamp_liberados(anterior: dict, atual: dict, ts: str) -> None:
@@ -30,36 +85,87 @@ def _stamp_liberados(anterior: dict, atual: dict, ts: str) -> None:
                     item["liberado_em"] = ts
 
 
-def detectar_novidades(lab_name: str, anterior: dict, atual: dict) -> list[str]:
-    msgs = []
+def build_notification_plan(lab_id: str, lab_name: str, anterior: dict, atual: dict) -> tuple[list[str], list[dict]]:
+    """
+    Returns two streams:
+    - internal_messages: fine-grained feed for the app state
+    - external_events: Telegram/WhatsApp-safe notifications following the current policy
+
+    External policy:
+    - notify when a new record first appears in the lab
+    - notify when items in a record transition to Pronto, grouped by record in the same cycle
+    """
+    internal_messages: list[str] = []
+    external_events: list[dict] = []
+
     for rid, rec in atual.items():
+        itens = rec.get("itens", {})
+
         if rid not in anterior:
-            nomes = ", ".join(i["nome"] for i in rec["itens"].values())
-            msgs.append(
-                f"🆕 <b>Nova entrada — {lab_name}</b>\n"
+            nomes = ", ".join(item["nome"] for item in itens.values())
+            internal_messages.append(
+                f"🆕 <b>Nova entrada - {lab_name}</b>\n"
                 f"👤 {rec['label']}\n"
                 f"📋 {rid} | {rec['data']}\n"
                 f"🔬 {nomes}"
             )
-        else:
-            for iid, item in rec["itens"].items():
-                s_new = normalize_status(item["status"])
-                s_old = normalize_status(anterior[rid]["itens"].get(iid, {}).get("status", ""))
-                if s_old and s_new != s_old:
-                    msgs.append(
-                        f"✅ <b>Resultado disponível — {lab_name}</b>\n"
-                        f"👤 {rec['label']}\n"
-                        f"🔬 {item['nome']}\n"
-                        f"📊 {s_old} → {s_new}"
-                    )
-    return msgs
+
+            statuses = {normalize_status(item.get('status', '')) for item in itens.values()}
+            item_ids = list(itens.keys())
+            if itens and statuses == {"Pronto"}:
+                external_events.append({
+                    "kind": "completed",
+                    "signature": _event_signature(lab_id, "completed", rid, item_ids),
+                    "message": _build_completed_message(lab_name, rid, rec, list(itens.values())),
+                })
+            else:
+                external_events.append({
+                    "kind": "received",
+                    "signature": _event_signature(lab_id, "received", rid, item_ids),
+                    "message": _build_received_message(lab_name, rid, rec),
+                })
+            continue
+
+        completed_items: list[tuple[str, dict]] = []
+
+        for iid, item in itens.items():
+            s_new = normalize_status(item["status"])
+            s_old = normalize_status(anterior[rid]["itens"].get(iid, {}).get("status", ""))
+            if s_old and s_new != s_old:
+                internal_messages.append(
+                    f"✅ <b>Resultado disponivel - {lab_name}</b>\n"
+                    f"👤 {rec['label']}\n"
+                    f"🔬 {item['nome']}\n"
+                    f"📊 {s_old} → {s_new}"
+                )
+                if s_new == "Pronto" and s_old != "Pronto":
+                    completed_items.append((iid, item))
+
+        if completed_items:
+            external_events.append({
+                "kind": "completed",
+                "signature": _event_signature(
+                    lab_id,
+                    "completed",
+                    rid,
+                    [iid for iid, _ in completed_items],
+                ),
+                "message": _build_completed_message(
+                    lab_name,
+                    rid,
+                    rec,
+                    [item for _, item in completed_items],
+                ),
+            })
+
+    return internal_messages, external_events
 
 
 def run_monitor_loop(state=None):
     """
     Loop principal de monitoramento.
     Se `state` for fornecido (AppState), atualiza o estado da interface web.
-    Se não, roda standalone sem persistência em memória.
+    Se nao, roda standalone sem persistencia em memoria.
     """
     print(f"[{datetime.now():%H:%M:%S}] Monitor iniciado")
 
@@ -83,35 +189,44 @@ def run_monitor_loop(state=None):
                 state.is_checking[lab.lab_id] = True
             try:
                 print(f"[{datetime.now():%H:%M:%S}] Verificando {lab.lab_name}...")
-                atual    = lab.snapshot()
+                atual = lab.snapshot()
                 anterior = state.snapshots.get(lab.lab_id, {}) if state else {}
 
                 if not anterior:
-                    print(f"  Primeira execução — estado salvo.")
+                    print("  Primeira execucao - estado salvo.")
                 else:
-                    novidades = detectar_novidades(lab.lab_name, anterior, atual)
+                    internal_messages, external_events = build_notification_plan(
+                        lab.lab_id,
+                        lab.lab_name,
+                        anterior,
+                        atual,
+                    )
                     _stamp_liberados(anterior, atual, datetime.now().isoformat())
                     if hasattr(lab, "enrich_resultados"):
                         lab.enrich_resultados(anterior, atual)
-                    if novidades:
-                        for msg in novidades:
-                            print(f"  -> {msg[:80]}")
-                            if state:
-                                state.add_notification(lab.lab_name, msg)
-                        # Um único envio por lab por ciclo — evita spam de notificações
-                        batch_msg = "\n\n".join(novidades)
-                        for n in notifiers:
-                            n.enviar(batch_msg)
+
+                    for msg in internal_messages:
+                        print(f"  -> {msg[:80]}")
+                        if state:
+                            state.add_notification(lab.lab_name, msg)
+
+                    for event in external_events:
+                        if not _should_send_external_event(event["signature"]):
+                            print(f"  -> evento externo duplicado suprimido ({event['kind']})")
+                            continue
+                        print(f"  -> envio externo {event['kind']}")
+                        for notifier in notifiers:
+                            notifier.enviar(event["message"])
 
                 if state:
-                    state.snapshots[lab.lab_id]  = atual
+                    state.snapshots[lab.lab_id] = atual
                     state.last_check[lab.lab_id] = datetime.now().strftime("%H:%M:%S")
                     state.last_error.pop(lab.lab_id, None)
 
                 print(f"  {lab.lab_name}: {len(atual)} registros")
 
             except Exception as e:
-                print(f"  {lab.lab_name}: erro — {e}")
+                print(f"  {lab.lab_name}: erro - {e}")
                 if state:
                     state.last_error[lab.lab_id] = str(e)
             finally:

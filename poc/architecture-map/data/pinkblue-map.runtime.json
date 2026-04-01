@@ -33,7 +33,7 @@
       "source": {
         "kind": "local",
         "label": "Local repo",
-        "checkedAt": "2026-03-31T22:52:20.199336+00:00"
+        "checkedAt": "2026-04-01T02:05:42.743260+00:00"
       },
       "healthReason": "Safe area for local experiments, docs, and PoCs that should not touch the active deploy line.",
       "signals": [
@@ -50,7 +50,8 @@
           "value": "Localhost only"
         }
       ],
-      "links": []
+      "links": [],
+      "iconPath": "./assets/rendered/local-workspace.png"
     },
     {
       "id": "codex",
@@ -83,7 +84,7 @@
       "source": {
         "kind": "session",
         "label": "Current Codex session",
-        "checkedAt": "2026-03-31T22:52:20.199336+00:00"
+        "checkedAt": "2026-04-01T02:05:42.743260+00:00"
       },
       "healthReason": "Atuando só na PoC local e na estrutura paralela do projeto.",
       "signals": [
@@ -100,7 +101,8 @@
           "value": "No deploy touch"
         }
       ],
-      "links": []
+      "links": [],
+      "iconPath": "./assets/rendered/codex.png"
     },
     {
       "id": "claude",
@@ -133,7 +135,7 @@
       "source": {
         "kind": "manual",
         "label": "User input",
-        "checkedAt": "2026-03-31T22:52:20.199336+00:00"
+        "checkedAt": "2026-04-01T02:05:42.743260+00:00"
       },
       "healthReason": "Linha principal pausada por créditos esgotados. Mantivemos a PoC fora desse escopo.",
       "signals": [
@@ -150,7 +152,8 @@
           "value": "Do not disturb active scope"
         }
       ],
-      "links": []
+      "links": [],
+      "iconPath": "./assets/rendered/claude.png"
     },
     {
       "id": "github",
@@ -158,7 +161,7 @@
       "subtitle": "Primary code host",
       "kind": "platform",
       "health": "healthy",
-      "statusLine": "Repo público • push 31/03 19:46",
+      "statusLine": "Repo público • push 31/03 22:36",
       "owner": "GitHub",
       "usage": {
         "kind": "platform",
@@ -179,12 +182,12 @@
       "source": {
         "kind": "live-api",
         "label": "GitHub API",
-        "checkedAt": "2026-03-31T22:52:20.199336+00:00"
+        "checkedAt": "2026-04-01T02:05:42.743260+00:00"
       },
       "healthReason": "API do GitHub respondeu normalmente e o repositório público segue acessível.",
       "signals": [
-        "GitHub API respondeu em 98 ms.",
-        "Último push detectado em 31/03 19:46.",
+        "GitHub API respondeu em 292 ms.",
+        "Último push detectado em 31/03 22:36.",
         "Visibilidade atual: public."
       ],
       "metrics": [
@@ -210,7 +213,8 @@
           "label": "Commits",
           "url": "https://github.com/guigiese/monitor-exames-bitlab/commits/main"
         }
-      ]
+      ],
+      "iconPath": "./assets/rendered/github.png"
     },
     {
       "id": "jira",
@@ -243,7 +247,7 @@
       "source": {
         "kind": "manual",
         "label": "Jira workspace",
-        "checkedAt": "2026-03-31T22:52:20.199336+00:00"
+        "checkedAt": "2026-04-01T02:05:42.743260+00:00"
       },
       "healthReason": "Fluxo e projetos PB estão ativos. A telemetria aqui ainda é operacional, não via API de uso.",
       "signals": [
@@ -269,7 +273,8 @@
           "label": "PBCORE",
           "url": "https://guigiese.atlassian.net/jira/software/projects/PBCORE"
         }
-      ]
+      ],
+      "iconPath": "./assets/rendered/jira.png"
     },
     {
       "id": "railway",
@@ -277,11 +282,11 @@
       "subtitle": "Current hosting platform",
       "kind": "platform",
       "health": "healthy",
-      "statusLine": "Deploy SUCCESS • RAM 49 MB",
+      "statusLine": "Deploy SUCCESS • RAM 56 MB",
       "owner": "Railway",
       "usage": {
         "kind": "runtime",
-        "value": "RX 443 MB • TX 220 MB nas últimas 24h"
+        "value": "RX 455 MB • TX 221 MB nas últimas 24h"
       },
       "limit": {
         "kind": "runtime",
@@ -304,13 +309,13 @@
       "source": {
         "kind": "live-api",
         "label": "Railway GraphQL + HTTP probes",
-        "checkedAt": "2026-03-31T22:52:20.199336+00:00"
+        "checkedAt": "2026-04-01T02:05:42.743260+00:00"
       },
       "healthReason": "Railway está saudável agora: último deploy em SUCCESS, app acordado e uso de memória bem abaixo do limite.",
       "signals": [
         "Último deploy: SUCCESS em 31/03 19:46.",
-        "Memória agora: 49 MB; pico 24h: 103 MB.",
-        "CPU 24h: média 0.23%; pico 4.55%.",
+        "Memória agora: 56 MB; pico 24h: 103 MB.",
+        "CPU 24h: média 0.22%; pico 4.55%.",
         "O alerta antigo foi removido porque o serviço está respondendo bem e sem pressão real de memória."
       ],
       "metrics": [
@@ -320,15 +325,15 @@
         },
         {
           "label": "Memory",
-          "value": "49 MB now • 103 MB peak / 1.00 GB"
+          "value": "56 MB now • 103 MB peak / 1.00 GB"
         },
         {
           "label": "CPU 24h",
-          "value": "0.23% avg • 4.55% peak"
+          "value": "0.22% avg • 4.55% peak"
         },
         {
           "label": "Traffic 24h",
-          "value": "RX 443 MB • TX 220 MB"
+          "value": "RX 455 MB • TX 221 MB"
         }
       ],
       "links": [
@@ -336,7 +341,8 @@
           "label": "Production app",
           "url": "https://pinkblue-vet-production.up.railway.app"
         }
-      ]
+      ],
+      "iconPath": "./assets/rendered/railway.png"
     },
     {
       "id": "pinkblue-site",
@@ -344,7 +350,7 @@
       "subtitle": "Public entry point",
       "kind": "site",
       "health": "healthy",
-      "statusLine": "Landing 200 • 750 ms",
+      "statusLine": "Landing 200 • 1114 ms",
       "owner": "PinkBlue",
       "usage": {
         "kind": "site",
@@ -366,11 +372,11 @@
       "source": {
         "kind": "live-http",
         "label": "Public HTTP probe",
-        "checkedAt": "2026-03-31T22:52:20.199336+00:00"
+        "checkedAt": "2026-04-01T02:05:42.743260+00:00"
       },
       "healthReason": "Landing pública respondeu normalmente.",
       "signals": [
-        "GET / retornou 200 em 750 ms."
+        "GET / retornou 200 em 1114 ms."
       ],
       "metrics": [
         {
@@ -379,7 +385,7 @@
         },
         {
           "label": "Latency",
-          "value": "750 ms"
+          "value": "1114 ms"
         }
       ],
       "links": [
@@ -387,7 +393,8 @@
           "label": "Live site",
           "url": "https://pinkblue-vet-production.up.railway.app/"
         }
-      ]
+      ],
+      "iconPath": "./assets/rendered/pinkblue-site.png"
     },
     {
       "id": "lab-monitor",
@@ -423,18 +430,18 @@
       "source": {
         "kind": "live-http",
         "label": "Public app routes",
-        "checkedAt": "2026-03-31T22:52:20.199336+00:00"
+        "checkedAt": "2026-04-01T02:05:42.743260+00:00"
       },
       "healthReason": "Dashboard, contadores e páginas operacionais responderam normalmente.",
       "signals": [
-        "GET /labmonitor retornou 200 em 417 ms.",
+        "GET /labmonitor retornou 200 em 444 ms.",
         "GET /labmonitor/partials/lab_counts retornou 200.",
         "2 laboratórios e 1 canal(is) ativos na config versionada."
       ],
       "metrics": [
         {
           "label": "Dashboard",
-          "value": "200 • 417 ms"
+          "value": "200 • 444 ms"
         },
         {
           "label": "Protocolos",
@@ -462,7 +469,8 @@
           "label": "Canais",
           "url": "https://pinkblue-vet-production.up.railway.app/labmonitor/canais"
         }
-      ]
+      ],
+      "iconPath": "./assets/rendered/lab-monitor.png"
     },
     {
       "id": "telegram",
@@ -491,7 +499,7 @@
       "source": {
         "kind": "live-http",
         "label": "Public canais page",
-        "checkedAt": "2026-03-31T22:52:20.199336+00:00"
+        "checkedAt": "2026-04-01T02:05:42.743260+00:00"
       },
       "healthReason": "Canal principal ativo com usuários inscritos visíveis na página pública.",
       "signals": [
@@ -513,7 +521,8 @@
           "label": "Canais page",
           "url": "https://pinkblue-vet-production.up.railway.app/labmonitor/canais"
         }
-      ]
+      ],
+      "iconPath": "./assets/rendered/telegram.png"
     },
     {
       "id": "whatsapp-callmebot",
@@ -546,7 +555,7 @@
       "source": {
         "kind": "live-http",
         "label": "Public canais page",
-        "checkedAt": "2026-03-31T22:52:20.199336+00:00"
+        "checkedAt": "2026-04-01T02:05:42.743260+00:00"
       },
       "healthReason": "Canal mantido mapeado, mas hoje desligado na configuração ativa. Útil para decisão futura de reativar ou aposentar.",
       "signals": [
@@ -568,7 +577,8 @@
           "label": "Canais page",
           "url": "https://pinkblue-vet-production.up.railway.app/labmonitor/canais"
         }
-      ]
+      ],
+      "iconPath": "./assets/rendered/whatsapp-callmebot.png"
     },
     {
       "id": "bitlab",
@@ -576,7 +586,7 @@
       "subtitle": "Bioanalises API source",
       "kind": "external",
       "health": "healthy",
-      "statusLine": "Habilitado • último check 22:47:48",
+      "statusLine": "Habilitado • último check 01:58:45",
       "owner": "BitLab",
       "usage": {
         "kind": "data-source",
@@ -598,12 +608,12 @@
       "source": {
         "kind": "live-http",
         "label": "Public labs page",
-        "checkedAt": "2026-03-31T22:52:20.199336+00:00"
+        "checkedAt": "2026-04-01T02:05:42.743260+00:00"
       },
       "healthReason": "BioAnálises (BitLab) aparece habilitado e sem erro público recente.",
       "signals": [
         "Página /labmonitor/labs mostra BioAnálises (BitLab) habilitado.",
-        "Último check visível: 22:47:48."
+        "Último check visível: 01:58:45."
       ],
       "metrics": [
         {
@@ -612,7 +622,7 @@
         },
         {
           "label": "Last check",
-          "value": "22:47:48"
+          "value": "01:58:45"
         }
       ],
       "links": [
@@ -620,7 +630,8 @@
           "label": "Labs page",
           "url": "https://pinkblue-vet-production.up.railway.app/labmonitor/labs"
         }
-      ]
+      ],
+      "iconPath": "./assets/rendered/bitlab.png"
     },
     {
       "id": "nexio",
@@ -628,7 +639,7 @@
       "subtitle": "Pathology portal source",
       "kind": "external",
       "health": "healthy",
-      "statusLine": "Habilitado • último check 22:47:49",
+      "statusLine": "Habilitado • último check 01:58:46",
       "owner": "Nexio / Pathoweb",
       "usage": {
         "kind": "data-source",
@@ -652,12 +663,12 @@
       "source": {
         "kind": "live-http",
         "label": "Public labs page",
-        "checkedAt": "2026-03-31T22:52:20.199336+00:00"
+        "checkedAt": "2026-04-01T02:05:42.743260+00:00"
       },
       "healthReason": "Nexio Patologia aparece habilitado e sem erro público recente.",
       "signals": [
         "Página /labmonitor/labs mostra Nexio Patologia habilitado.",
-        "Último check visível: 22:47:49."
+        "Último check visível: 01:58:46."
       ],
       "metrics": [
         {
@@ -666,7 +677,7 @@
         },
         {
           "label": "Last check",
-          "value": "22:47:49"
+          "value": "01:58:46"
         }
       ],
       "links": [
@@ -674,7 +685,8 @@
           "label": "Labs page",
           "url": "https://pinkblue-vet-production.up.railway.app/labmonitor/labs"
         }
-      ]
+      ],
+      "iconPath": "./assets/rendered/nexio.png"
     }
   ],
   "edges": [
@@ -734,7 +746,7 @@
       "kind": "deploy",
       "label": "deploy source",
       "health": "healthy",
-      "check": "Deploy SUCCESS • RAM 49 MB",
+      "check": "Deploy SUCCESS • RAM 56 MB",
       "notes": "Deploy source segue no GitHub, mas agora o mapa já mostra o estado vivo do serviço no Railway.",
       "issues": [
         "PBCORE-24"
@@ -747,7 +759,7 @@
       "kind": "hosting",
       "label": "hosts runtime",
       "health": "healthy",
-      "check": "200 • 417 ms",
+      "check": "200 • 444 ms",
       "notes": "Esta conexão agora é validada pela própria resposta pública do app em produção.",
       "issues": [
         "PBCORE-24"
@@ -806,7 +818,7 @@
       "kind": "data-intake",
       "label": "requests lab data",
       "health": "healthy",
-      "check": "22:47:48",
+      "check": "01:58:45",
       "notes": "Sinal derivado da página pública de laboratórios.",
       "issues": []
     },
@@ -817,7 +829,7 @@
       "kind": "data-intake",
       "label": "requests lab data",
       "health": "healthy",
-      "check": "22:47:49",
+      "check": "01:58:46",
       "notes": "Sinal derivado da página pública de laboratórios.",
       "issues": [
         "PBEXM-5"
@@ -825,8 +837,8 @@
     }
   ],
   "meta": {
-    "generatedAt": "2026-03-31T22:52:20.199336+00:00",
-    "generatedAtDisplay": "31/03/2026 19:52:20",
+    "generatedAt": "2026-04-01T02:05:42.743260+00:00",
+    "generatedAtDisplay": "31/03/2026 23:05:42",
     "liveNodeCount": 8,
     "manualNodeCount": 4,
     "watchNodeCount": 2,

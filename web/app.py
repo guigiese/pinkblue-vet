@@ -5,6 +5,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, Request, Form, APIRouter
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from web.state import state
@@ -17,6 +18,7 @@ from notifiers.telegram_polling import (
     register_webhook,
     WEBHOOK_SECRET_PATH,
 )
+from web.ops_map import OPS_MAP_DIR, get_ops_map_runtime
 
 TEMPLATES_DIR = Path(__file__).parent / "templates"
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
@@ -39,6 +41,7 @@ async def lifespan(app):
 
 app = FastAPI(lifespan=lifespan, title="PinkBlue Vet")
 router = APIRouter(prefix="/labmonitor")
+app.mount("/ops-map-static", StaticFiles(directory=str(OPS_MAP_DIR)), name="ops_map_static")
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -65,6 +68,21 @@ async def telegram_webhook(request: Request):
 @app.get("/", response_class=HTMLResponse)
 async def landing(request: Request):
     return _render(request, "index.html")
+
+
+@app.get("/ops-map", response_class=HTMLResponse)
+async def ops_map_redirect():
+    return RedirectResponse(url="/ops-map/", status_code=307)
+
+
+@app.get("/ops-map/", response_class=HTMLResponse)
+async def ops_map_page(request: Request):
+    return _render(request, "ops_map.html")
+
+
+@app.get("/ops-map/data/runtime.json", response_class=JSONResponse)
+async def ops_map_runtime():
+    return JSONResponse(get_ops_map_runtime())
 
 
 # ── Lab Monitor Pages ─────────────────────────────────────────────────────────

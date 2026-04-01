@@ -1,6 +1,7 @@
-# PinkBlue Lab Monitor — Session Primer
+# PinkBlue Vet - Lab Monitor Module - Session Primer
 
-Você está no repositório do Lab Monitor da PinkBlue Vet.
+Você está no repositório do módulo Lab Monitor da PinkBlue Vet.
+PinkBlue Vet é o guarda-chuva da plataforma; Lab Monitor é apenas um dos módulos.
 Leia este arquivo inteiro. Depois execute a tarefa recebida.
 Consulte os arquivos referenciados abaixo apenas se a tarefa exigir.
 

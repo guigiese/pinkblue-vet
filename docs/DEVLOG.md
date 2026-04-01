@@ -1,7 +1,10 @@
-# DEVLOG.md — Lab Monitor (SimplesVet)
+# DEVLOG.md - PinkBlue Vet / Lab Monitor Module
 > Log narrativo de decisões de arquitetura, problemas encontrados e lições aprendidas.
 > Escrito para que uma IA (ou desenvolvedor futuro) entenda o **porquê** de cada escolha,
 > não apenas o **o quê**. Ordenado cronologicamente.
+
+Este log pertence ao repositório do módulo Lab Monitor.
+Ele não descreve a plataforma PinkBlue Vet inteira, e sim as decisões, problemas e aprendizados deste módulo dentro do guarda-chuva PinkBlue Vet.
 
 ---
 
@@ -561,3 +564,112 @@ baseada em comentários manuais ou nomes de ferramentas.
 | URL muda após renomear serviço | Railway regenera URL baseada no nome | Configurar domínio customizado ou avisar usuários após renomear |
 | telegram_users.json perdido | Sem volume persistente no Railway | Usuários enviam /assinar novamente após deploy — processo simples |
 | BitLab connect timeout | Servidor lento ou instável | Erro capturado em last_error e exibido na UI; monitor continua os outros labs |
+| Ícones do mapa virando quadrados lavados | PNG final foi embrulhado em SVG no browser | Compor badges no build do PNG e usar `assets/rendered/*.png` direto no Cytoscape |
+
+---
+
+## Fase 14 — Stabilization of the architecture-map icon pipeline
+
+### Context
+The architecture-map PoC moved from generic node cards to round branded icons with a health badge and a secondary category badge.
+
+### Symptom
+After the secondary badge was added, the main icons regressed visually:
+- the round PNG nodes looked washed out;
+- some nodes appeared inside pale square cards again;
+- the graph no longer matched the intended "logo bubble" look.
+
+### Root cause
+The graph was no longer using the final rendered PNG as the node artifact.
+Instead, the PNG was wrapped in a second SVG layer in the browser so the secondary badge could be added there.
+
+That browser-side composition was a bad fit for Cytoscape:
+- the node lost the clean round PNG presentation;
+- the rendered result looked like a square or faded card;
+- browser cache made the regression look inconsistent between reloads.
+
+### Final fix
+- `scripts/build_architecture_map_icons.py` now bakes both badges into the final PNG.
+- `poc/architecture-map/app.js` points Cytoscape directly to `assets/rendered/*.png`.
+- `scripts/run_architecture_map_poc.ps1` refreshes runtime data and rebuilds icons before serving localhost.
+- `app.js` appends a version token to the icon URL to reduce stale-cache confusion.
+
+### Guardrail
+For this PoC, the rendered PNG is the final icon artifact.
+Do not wrap it in an extra SVG layer just to add overlays.
+If badge composition changes in the future, change the icon build pipeline, not the Cytoscape node image path.
+
+### Operational rule
+When validating a visual icon change:
+1. rebuild the rendered icons;
+2. confirm `pinkblue-map.runtime.json` still carries `iconPath`;
+3. confirm the node `background-image` resolves to `/assets/rendered/<name>.png`;
+4. only then evaluate the visual result in the browser.
+
+---
+
+## Fase 15 - Notification policy hardening and grouped Telegram dispatch
+
+### Context
+The original notification flow mixed two concerns:
+- internal change logging for the app state;
+- external dispatch for Telegram/other channels.
+
+At the same time, `detectar_novidades()` emitted one message per changed item.
+That meant a record with several exams turning ready together could still fan out into noisy output.
+
+### Product decision implemented
+External notifications now follow a narrower operational policy:
+- notify when a record first appears in the lab;
+- notify when items from the same record transition to `Pronto`;
+- group ready items by record in the same monitor cycle.
+
+The app can still keep finer-grained internal messages, but Telegram no longer needs to mirror every micro-transition.
+
+### Technical change
+- `core.py` now builds a notification plan instead of sending raw status-change messages directly.
+- Internal feed messages and external dispatch events are separated.
+- External events carry signatures and pass through a short in-memory dedupe cache before dispatch.
+
+### Why this matters
+This does two things at once:
+1. it reduces Telegram spam in the expected user flow;
+2. it adds a second line of defense against repeated external sends if the same event is recomputed in close succession.
+
+### Validation
+`python -m unittest discover -s Testes -v`
+
+The tests cover:
+- one received event for a newly seen record;
+- one grouped completion event when multiple items turn ready together;
+- signature-based suppression of duplicate external dispatch.
+
+---
+
+## Fase 16 - Architecture map promoted from localhost PoC to app module
+
+### Context
+The architecture map started as a localhost-only PoC served by `http.server`.
+That was enough for layout iteration, but not enough for consulting the map remotely.
+
+### Final shape
+The map is now exposed by the application itself:
+- page route: `/ops-map/`
+- live data route: `/ops-map/data/runtime.json`
+- static assets route: `/ops-map-static/*`
+
+The home page also gained an entry card for the map module.
+
+### Important implementation detail
+The cloud version does not depend on a manually refreshed `pinkblue-map.runtime.json`.
+Instead:
+- the app serves the HTML wrapper;
+- the browser fetches live runtime data from `/ops-map/data/runtime.json`;
+- the runtime payload is cached briefly in `web/ops_map.py`;
+- the rendered PNG icons are served as static assets.
+
+This keeps the old local PoC usable while making the feature available in Railway.
+
+### Guardrail
+Do not tie the cloud map to a pre-generated runtime file only.
+For the hosted version, the runtime data must remain refreshable by the app itself, otherwise the visual drifts out of date quickly.

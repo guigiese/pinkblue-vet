@@ -74,8 +74,8 @@ def handle_update(update: dict, token: str | None = None):
         if novo:
             _send(chat_id,
                   "✅ <b>Inscrito com sucesso!</b>\n\n"
-                  "Você receberá notificações quando novos exames entrarem "
-                  "ou quando um resultado for liberado.\n\n"
+                  "Você receberá notificações quando um exame entrar no laboratorio "
+                  "e quando resultados forem concluidos em lote.\n\n"
                   "Para cancelar, envie /sair.", token)
         else:
             _send(chat_id,
@@ -108,10 +108,12 @@ def handle_update(update: dict, token: str | None = None):
     # ── /testar ───────────────────────────────────────────────────────────────
     elif text == "/testar":
         _send(chat_id,
-              "✅ <b>Resultado disponível — BioAnálises (BitLab)</b>\n"
+              "✅ <b>Exames concluidos - BioAnálises (BitLab)</b>\n"
               "👤 Bolinha - Maria Silva\n"
-              "🔬 Hemograma Completo\n"
-              "📊 Em Andamento → Pronto\n\n"
+              "📋 08-00012345 | 01/04/2026\n"
+              "🔬 Liberados neste lote\n"
+              "• Hemograma Completo\n"
+              "• ALT\n\n"
               "<i>Esta é uma notificação de teste. Notificações reais "
               "chegam neste mesmo formato.</i>", token)
 

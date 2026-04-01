@@ -69,7 +69,10 @@ async function init() {
 }
 
 async function loadMap() {
-  const sources = ["./data/pinkblue-map.runtime.json", "./data/pinkblue-map.v1.json"];
+  const configuredSource = window.__PB_MAP_DATA_URL;
+  const sources = configuredSource
+    ? [configuredSource]
+    : ["./data/pinkblue-map.runtime.json", "./data/pinkblue-map.v1.json"];
   for (const source of sources) {
     const response = await fetch(source, { cache: "no-store" });
     if (response.ok) {
@@ -80,24 +83,24 @@ async function loadMap() {
 }
 
 function normalizeMap(map) {
+  const iconVersion = map.meta?.generatedAt || Date.now();
   const nodes = map.nodes.map((node) => {
     const source = node.source || {};
     const metricsText = (node.metrics || [])
       .map((metric) => `${metric.label} ${metric.value}`)
       .join(" ");
     const signalsText = (node.signals || []).join(" ");
-    const statusLine = compactText(node.statusLine || "", 38);
     return {
       ...node,
       kindColor: kindColors[node.kind] || "#132126",
       healthColor: healthColors[node.health] || "#7f8c8d",
       surfaceColor: surfaceColorFor(node.health),
-      iconUri: iconDataUri(node),
-      iconUriRaw: iconDataUri(node, false),
+      iconUri: iconDataUri(node, iconVersion),
+      position: normalizePosition(node.position),
       sourceKind: source.kind || "manual",
       sourceLabel: source.label || "Manual",
       checkedAtDisplay: map.meta?.generatedAtDisplay || "",
-      displayLabel: [node.name, statusLine].filter(Boolean).join("\n"),
+      displayLabel: node.name,
       searchText: [
         node.name,
         node.subtitle,
@@ -132,6 +135,15 @@ function compactText(text, maxLength) {
   return `${text.slice(0, maxLength - 1)}…`;
 }
 
+function normalizePosition(position = {}) {
+  const x = Number(position.x || 0);
+  const y = Number(position.y || 0);
+  return {
+    x: 120 + x * 0.62,
+    y: 86 + y * 0.62,
+  };
+}
+
 function surfaceColorFor(health) {
   return {
     healthy: "#f7fdf9",
@@ -141,16 +153,33 @@ function surfaceColorFor(health) {
   }[health] || "#ffffff";
 }
 
-function iconDataUri(node, escaped = true) {
-  const svg = buildNodeIconSvg(node);
-  return escaped ? svgToDataUri(svg) : svg;
+function iconDataUri(node, versionToken = "") {
+  if (node.iconPath) {
+    // Cytoscape must consume the final rendered PNG directly.
+    // Wrapping that PNG in a second SVG layer caused square, washed-out nodes.
+    return resolveIconHref(node.iconPath, versionToken);
+  }
+  const svg = buildLegacyNodeIconSvg(node);
+  return svgToDataUri(svg);
 }
 
 function svgToDataUri(svg) {
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 }
 
-function buildNodeIconSvg(node) {
+function resolveIconHref(iconPath, versionToken = "") {
+  try {
+    const url = new URL(iconPath, window.location.href);
+    if (versionToken) {
+      url.searchParams.set("v", String(versionToken));
+    }
+    return url.href;
+  } catch {
+    return iconPath;
+  }
+}
+
+function buildLegacyNodeIconSvg(node) {
   const specs = {
     workspace: { bg: "#64748b", glyph: glyphWorkspace() },
     codex: { bg: "#111827", glyph: glyphCodex() },
@@ -168,13 +197,61 @@ function buildNodeIconSvg(node) {
 
   const spec = specs[node.iconKey] || specs.workspace;
   const healthDot = healthColors[node.health] || "#7f8c8d";
+  const categoryBadge = buildCategoryBadgeSvg(node);
   return `
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 72 72">
       <rect x="4" y="4" width="64" height="64" rx="20" fill="${spec.bg}" />
+      ${categoryBadge}
       <circle cx="56" cy="16" r="7" fill="${healthDot}" stroke="rgba(255,255,255,0.92)" stroke-width="3" />
       ${spec.glyph}
     </svg>
   `;
+}
+
+function buildCategoryBadgeSvg(node) {
+  const spec = categoryBadgeSpec(node);
+  return `
+    <g transform="translate(7 7)">
+      <circle cx="9" cy="9" r="9" fill="rgba(255,255,255,0.96)" stroke="rgba(19,33,38,0.08)" stroke-width="1.5" />
+      <g
+        transform="translate(9 9) scale(0.74) translate(-12 -12)"
+        fill="none"
+        stroke="${spec.color}"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        ${spec.glyph}
+      </g>
+    </g>
+  `;
+}
+
+function categoryBadgeSpec(node) {
+  const byId = {
+    "local-workspace": { color: "#475569", glyph: badgeGlyphLocal() },
+    github: { color: "#111827", glyph: badgeGlyphRepo() },
+    jira: { color: "#0f766e", glyph: badgeGlyphPlanning() },
+    railway: { color: "#2563eb", glyph: badgeGlyphHosting() },
+    telegram: { color: "#0284c7", glyph: badgeGlyphChannel() },
+    "whatsapp-callmebot": { color: "#16a34a", glyph: badgeGlyphChannel() },
+    bitlab: { color: "#0c7a69", glyph: badgeGlyphLab() },
+    nexio: { color: "#7c3aed", glyph: badgeGlyphLab() },
+  };
+
+  if (byId[node.id]) {
+    return byId[node.id];
+  }
+
+  const byKind = {
+    ai: { color: "#d2672d", glyph: badgeGlyphAi() },
+    site: { color: "#2563eb", glyph: badgeGlyphSite() },
+    system: { color: "#0c7a69", glyph: badgeGlyphSystem() },
+    platform: { color: "#2f6fed", glyph: badgeGlyphPlatform() },
+    external: { color: "#5f6b71", glyph: badgeGlyphLab() },
+  };
+
+  return byKind[node.kind] || { color: "#475569", glyph: badgeGlyphPlatform() };
 }
 
 function glyphWorkspace() {
@@ -261,6 +338,74 @@ function glyphNexio() {
   `;
 }
 
+function badgeGlyphAi() {
+  return `
+    <rect x="7" y="7" width="10" height="10" rx="2" />
+    <path d="M9 3v4M15 3v4M9 17v4M15 17v4M3 9h4M3 15h4M17 9h4M17 15h4" />
+  `;
+}
+
+function badgeGlyphSystem() {
+  return `
+    <rect x="4.5" y="6.5" width="15" height="11" rx="2" />
+    <path d="M8 10l2.5 2-2.5 2M13.5 14h3.5" />
+  `;
+}
+
+function badgeGlyphPlatform() {
+  return `
+    <rect x="5" y="5" width="5" height="5" rx="1.2" />
+    <rect x="14" y="5" width="5" height="5" rx="1.2" />
+    <rect x="5" y="14" width="5" height="5" rx="1.2" />
+    <rect x="14" y="14" width="5" height="5" rx="1.2" />
+  `;
+}
+
+function badgeGlyphSite() {
+  return `
+    <circle cx="12" cy="12" r="7.5" />
+    <path d="M4.5 12h15M12 4.5c2.4 2.4 3.7 4.9 3.7 7.5S14.4 17.1 12 19.5M12 4.5c-2.4 2.4-3.7 4.9-3.7 7.5S9.6 17.1 12 19.5" />
+  `;
+}
+
+function badgeGlyphLocal() {
+  return `
+    <rect x="5" y="6" width="14" height="10" rx="2" />
+    <path d="M9 20h6M12 16v4" />
+  `;
+}
+
+function badgeGlyphRepo() {
+  return `
+    <path d="M9 8l-4 4 4 4M15 8l4 4-4 4" />
+  `;
+}
+
+function badgeGlyphPlanning() {
+  return `
+    <rect x="6" y="5" width="12" height="15" rx="2" />
+    <path d="M9 5.5h6v3H9zM9 11h6M9 15h5" />
+  `;
+}
+
+function badgeGlyphHosting() {
+  return `
+    <path d="M7 18h10a4 4 0 0 0 .5-8A5 5 0 0 0 8 9a3.5 3.5 0 0 0-1 9z" />
+  `;
+}
+
+function badgeGlyphChannel() {
+  return `
+    <path d="M7 8h10a3 3 0 0 1 3 3v1a3 3 0 0 1-3 3h-6l-4 3v-3H7a3 3 0 0 1-3-3v-1a3 3 0 0 1 3-3z" />
+  `;
+}
+
+function badgeGlyphLab() {
+  return `
+    <path d="M10 4.5h4M11 4.5v5l-4 8a3 3 0 0 0 2.7 4h4.6a3 3 0 0 0 2.7-4l-4-8v-5" />
+  `;
+}
+
 function buildGraph() {
   state.cy = cytoscape({
     container: graphElement,
@@ -279,56 +424,56 @@ function buildGraph() {
       {
         selector: "node",
         style: {
-          shape: "round-rectangle",
+          shape: "ellipse",
           label: "data(displayLabel)",
-          "background-color": "data(surfaceColor)",
+          "background-color": "#000000",
+          "background-opacity": 0,
           "background-image": "data(iconUri)",
           "background-fit": "contain",
           "background-clip": "none",
-          "background-width": 54,
-          "background-height": 54,
+          "background-width": 72,
+          "background-height": 72,
           "background-position-x": "50%",
-          "background-position-y": "26%",
-          "border-color": "data(kindColor)",
-          "border-width": 3,
-          "text-wrap": "wrap",
-          "text-max-width": 136,
+          "background-position-y": "28%",
+          "border-width": 0,
+          "text-wrap": "ellipsis",
+          "text-max-width": 118,
           "text-valign": "bottom",
-          "text-margin-y": -10,
+          "text-margin-y": -2,
           "text-halign": "center",
           color: "#132126",
           "font-family": "IBM Plex Sans",
-          "font-size": 11,
-          "font-weight": 600,
+          "font-size": 10.5,
+          "font-weight": 500,
           "line-height": 1.2,
-          width: 172,
-          height: 136,
-          padding: 12,
+          width: 104,
+          height: 110,
+          padding: 0,
           "overlay-opacity": 0,
         },
       },
       {
         selector: "node:selected",
         style: {
-          "border-width": 5,
-          "shadow-blur": 18,
-          "shadow-color": "data(healthColor)",
-          "shadow-opacity": 0.2,
+          "underlay-color": "data(healthColor)",
+          "underlay-opacity": 0.12,
+          "underlay-padding": 12,
         },
       },
       {
         selector: "edge",
         style: {
-          label: "data(displayLabel)",
+          label: "",
           "curve-style": "bezier",
-          width: 4,
+          width: 2,
           "line-color": "data(lineColor)",
           "target-arrow-color": "data(lineColor)",
           "target-arrow-shape": "triangle",
           "line-style": "data(lineStyle)",
+          opacity: 0.48,
           color: "#58676d",
           "font-family": "IBM Plex Mono",
-          "font-size": 8.5,
+          "font-size": 8,
           "text-background-color": "#fffaf2",
           "text-background-opacity": 1,
           "text-background-padding": 3,
@@ -340,7 +485,9 @@ function buildGraph() {
       {
         selector: "edge:selected",
         style: {
-          width: 6,
+          label: "data(displayLabel)",
+          width: 4,
+          opacity: 0.95,
           "text-background-color": "#132126",
           color: "#ffffff",
         },
@@ -620,8 +767,8 @@ function renderDefaultDetail() {
         <span class="detail-label">Como ler</span>
         <ul class="default-list">
           <li>Ícones identificam os artefatos principais em vez de formas genéricas.</li>
-          <li>A borda do nó indica o tipo do artefato.</li>
-          <li>O ponto de status no ícone e os chips mostram saúde atual.</li>
+          <li>O microícone no canto esquerdo reforça a categoria do artefato.</li>
+          <li>O ponto de status no canto direito e os chips mostram saúde atual.</li>
           <li>No detalhe você vê de onde veio o sinal: manual, HTTP público, API ou sessão local.</li>
         </ul>
       </section>
