@@ -64,6 +64,21 @@ CARD_SANDBOX_VARIANTS = [
         "meta_layout": "third-line-compact",
         "card_density": "compact-3row-s3",
     }
+    ,
+    {
+        "id": "v5-badges-third-line-mobile-locked",
+        "name": "V5 · Badge + 3ª linha com status fixo no mobile",
+        "note": "Parte da V4, mas preserva o bloco de status na direita também no celular, sem deixá-lo cair para baixo.",
+        "signals_align": "right",
+        "date_mode": "inline-meta",
+        "rail_palette": "vivid",
+        "item_alert_style": "triangle-alert-only",
+        "result_table_width": "compact",
+        "rail_shape": "organic-strong",
+        "species_badge_mode": "sex-colored",
+        "meta_layout": "third-line-compact",
+        "card_density": "compact-3row-s3",
+    }
 ]
 
 _VARIANTS_BY_ID = {variant["id"]: variant for variant in CARD_SANDBOX_VARIANTS}

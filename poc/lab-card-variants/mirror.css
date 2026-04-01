@@ -636,6 +636,20 @@
     min-width: 0;
   }
 
+  .pb-variant--v5-badges-third-line-mobile-locked .pb-summary__body {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 0.5rem;
+  }
+
+  .pb-variant--v5-badges-third-line-mobile-locked .pb-signals,
+  .pb-variant--v5-badges-third-line-mobile-locked .pb-signals--right {
+    align-items: flex-end;
+    justify-content: flex-start;
+    text-align: right;
+    min-width: 5.8rem;
+  }
+
   .pb-chevron {
     display: none;
   }
