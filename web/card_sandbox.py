@@ -194,6 +194,7 @@ def _build_protocol(group: dict, reason: str) -> dict:
         ]
 
     return {
+        "sourceKind": "live",
         "sampleReason": reason,
         "labId": group["lab_id"],
         "labName": group["lab"],
@@ -213,9 +214,9 @@ def _build_protocol(group: dict, reason: str) -> dict:
     }
 
 
-def _pick_sample_groups(groups: list[dict]) -> list[dict]:
+def _pick_sample_groups(groups: list[dict]) -> tuple[list[dict], list[dict]]:
     if not groups:
-        return []
+        return [], []
 
     selected: list[dict] = []
     seen: set[tuple[str, str]] = set()
@@ -237,14 +238,84 @@ def _pick_sample_groups(groups: list[dict]) -> list[dict]:
     take(lambda g: (_record_alert(_snapshot_lookup(g["lab_id"], g["record_id"])) or g["alerta_geral"]) == "yellow", "warning-ready")
     take(lambda g: True, "fallback")
 
-    return selected[:3]
+    remaining = [
+        _build_protocol(group, "live-extra")
+        for group in groups
+        if (group["lab_id"], group["record_id"]) not in seen
+    ]
+
+    return selected[:3], remaining
+
+
+def _missing_dimensions(protocols: list[dict]) -> set[str]:
+    missing: set[str] = set()
+    if len({protocol["status"] for protocol in protocols}) < 2:
+        missing.add("status")
+    if len({protocol["labId"] for protocol in protocols}) < 2:
+        missing.add("lab")
+    if not any(protocol["criticality"] for protocol in protocols):
+        missing.add("criticality")
+    if not any(len(protocol["items"]) > 1 for protocol in protocols):
+        missing.add("multi-item")
+    return missing
+
+
+def _candidate_score(candidate: dict, protocols: list[dict], missing: set[str]) -> int:
+    score = 0
+    statuses = {protocol["status"] for protocol in protocols}
+    labs = {protocol["labId"] for protocol in protocols}
+
+    if "status" in missing and candidate["status"] not in statuses:
+        score += 2
+    if "lab" in missing and candidate["labId"] not in labs:
+        score += 2
+    if "criticality" in missing and candidate["criticality"]:
+        score += 3
+    if "multi-item" in missing and len(candidate["items"]) > 1:
+        score += 2
+
+    score += max(0, len(candidate["items"]) - 1)
+    return score
+
+
+def _with_fallback_source(protocol: dict) -> dict:
+    return {**protocol, "sourceKind": "fallback"}
 
 
 def get_card_sandbox_runtime() -> dict:
     groups = state.get_exames()
-    live_protocols = _pick_sample_groups(groups)
+    live_protocols, live_remaining = _pick_sample_groups(groups)
 
     if live_protocols:
+        protocols = list(live_protocols)
+        live_pool = list(live_remaining)
+        fallback_pool = [_with_fallback_source(protocol) for protocol in _FALLBACK_PROTOCOLS]
+
+        while len(protocols) < 3 and live_pool:
+            protocols.append(live_pool.pop(0))
+
+        while len(protocols) < 3 and fallback_pool:
+            protocols.append(fallback_pool.pop(0))
+
+        missing = _missing_dimensions(protocols)
+        if missing:
+            candidate_pool = live_pool + fallback_pool
+            used = {(protocol["sourceKind"], protocol["protocol"], protocol["patientName"]) for protocol in protocols}
+            while candidate_pool and missing:
+                candidate = max(candidate_pool, key=lambda item: _candidate_score(item, protocols, missing))
+                candidate_pool.remove(candidate)
+                key = (candidate["sourceKind"], candidate["protocol"], candidate["patientName"])
+                if key in used:
+                    continue
+                if _candidate_score(candidate, protocols, missing) <= 0:
+                    break
+                if len(protocols) < 3:
+                    protocols.append(candidate)
+                else:
+                    protocols[-1] = candidate
+                used.add(key)
+                missing = _missing_dimensions(protocols)
+
         return {
             "generatedAt": datetime.now().isoformat(),
             "source": "live-state",
@@ -253,8 +324,9 @@ def get_card_sandbox_runtime() -> dict:
                 "Amostras reais selecionadas do estado atual do Lab Monitor.",
                 "Espécie/sexo ainda não aparecem no payload atual do módulo.",
                 "O card inteiro abre os detalhes; não há CTA textual fixo.",
+                "Se o estado vivo não trouxer variedade suficiente, o sandbox complementa com amostras de contraste claramente marcadas.",
             ],
-            "protocols": live_protocols,
+            "protocols": protocols[:3],
         }
 
     return {
@@ -266,5 +338,5 @@ def get_card_sandbox_runtime() -> dict:
             "Ao publicar no Railway, o sandbox passa a usar protocolos reais do estado vivo.",
             "Espécie/sexo seguem fora do payload atual.",
         ],
-        "protocols": _FALLBACK_PROTOCOLS,
+        "protocols": [_with_fallback_source(protocol) for protocol in _FALLBACK_PROTOCOLS],
     }

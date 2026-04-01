@@ -182,7 +182,20 @@ function patientTitle(protocol) {
     : protocol.patientName;
 }
 
-function protocolReasonLabel(reason) {
+function protocolReasonLabel(reason, sourceKind = "live") {
+  if (sourceKind === "fallback") {
+    switch (reason) {
+      case "critical-ready":
+        return "Contraste critico";
+      case "partial-warning":
+        return "Contraste parcial";
+      case "nexio-single":
+        return "Contraste simples";
+      default:
+        return "Contraste sintetico";
+    }
+  }
+
   switch (reason) {
     case "partial-warning":
       return "Parcial real";
@@ -290,7 +303,7 @@ function renderSamplePills() {
         <button type="button"
                 class="sample-pill ${state.selectedProtocol === index ? "is-active" : ""}"
                 data-sample-index="${index}">
-          ${escapeHtml(protocolReasonLabel(protocol.sampleReason))} · ${escapeHtml(protocol.patientName)}
+          ${escapeHtml(protocolReasonLabel(protocol.sampleReason, protocol.sourceKind))} · ${escapeHtml(protocol.patientName)}
         </button>
       `
     )
@@ -440,7 +453,7 @@ function renderDetail(protocol) {
       </div>
       <div class="detail-cell">
         <strong>Origem da amostra</strong>
-        <span>${escapeHtml(protocolReasonLabel(protocol.sampleReason))}</span>
+        <span>${escapeHtml(protocolReasonLabel(protocol.sampleReason, protocol.sourceKind))}</span>
       </div>
     </div>
 
