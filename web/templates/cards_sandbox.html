@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PinkBlue - Sandbox de Cards</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/sandboxes/cards-static/styles.css">
+</head>
+<body>
+  <main class="sandbox-shell">
+    <header class="topbar">
+      <a href="/" class="home-link" aria-label="Voltar para a home PinkBlue Vet">
+        <span class="home-mark">PB</span>
+        <span class="home-copy">
+          <strong>PinkBlue Vet</strong>
+          <span>Voltar para a home</span>
+        </span>
+      </a>
+      <span class="topbar-tag">Sandbox</span>
+    </header>
+
+    <section class="hero">
+      <div class="hero-copy">
+        <p class="eyebrow">PinkBlue / Sandbox / Round 2</p>
+        <h1>Cards de exames</h1>
+        <p>
+          Exploração visual baseada em protocolos reais para aproximar o sandbox do comportamento final do Lab Monitor
+          sem encostar ainda na interface oficial.
+        </p>
+      </div>
+      <div id="hero-notes" class="hero-notes"></div>
+    </section>
+
+    <section class="control-panel">
+      <div class="control-block">
+        <span class="control-label">Variantes</span>
+        <div id="variant-tabs" class="variant-tabs"></div>
+      </div>
+      <div class="control-block">
+        <span class="control-label">Protocolos</span>
+        <div id="sample-pills" class="sample-pills"></div>
+      </div>
+    </section>
+
+    <section class="workspace">
+      <div class="gallery-card">
+        <div class="gallery-head">
+          <div>
+            <p class="section-kicker">Galeria</p>
+            <h2 id="variant-title">Carregando variantes…</h2>
+            <p id="variant-note" class="muted-copy">Aguardando dados do sandbox.</p>
+          </div>
+          <div class="gallery-actions">
+            <button type="button" class="ghost-button" data-action="previous">Anterior</button>
+            <button type="button" class="ghost-button" data-action="next">Próxima</button>
+          </div>
+        </div>
+
+        <div id="variant-stage" class="variant-stage"></div>
+      </div>
+
+      <aside id="detail-panel" class="detail-card" aria-live="polite"></aside>
+    </section>
+  </main>
+
+  <script>
+    window.__PB_CARD_SANDBOX_DATA_URL = "/sandboxes/cards/data/runtime.json";
+  </script>
+  <script type="module" src="/sandboxes/cards-static/app.js"></script>
+</body>
+</html>

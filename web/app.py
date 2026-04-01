@@ -18,10 +18,10 @@ from notifiers.telegram_polling import (
     register_webhook,
     WEBHOOK_SECRET_PATH,
 )
+from web.card_sandbox import CARD_SANDBOX_DIR, get_card_sandbox_runtime
 from web.ops_map import OPS_MAP_DIR, get_ops_map_runtime
 
 TEMPLATES_DIR = Path(__file__).parent / "templates"
-CARD_SANDBOX_DIR = Path(__file__).parent.parent / "poc" / "lab-card-variants"
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 APP_URL = os.environ.get("APP_URL", "https://pinkblue-vet-production.up.railway.app")
@@ -43,7 +43,7 @@ async def lifespan(app):
 app = FastAPI(lifespan=lifespan, title="PinkBlue Vet")
 router = APIRouter(prefix="/labmonitor")
 app.mount("/ops-map-static", StaticFiles(directory=str(OPS_MAP_DIR)), name="ops_map_static")
-app.mount("/sandboxes/cards", StaticFiles(directory=str(CARD_SANDBOX_DIR), html=True), name="cards_sandbox")
+app.mount("/sandboxes/cards-static", StaticFiles(directory=str(CARD_SANDBOX_DIR)), name="cards_sandbox_static")
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -85,6 +85,21 @@ async def ops_map_page(request: Request):
 @app.get("/ops-map/data/runtime.json", response_class=JSONResponse)
 async def ops_map_runtime():
     return JSONResponse(get_ops_map_runtime())
+
+
+@app.get("/sandboxes/cards", response_class=HTMLResponse)
+async def cards_sandbox_redirect():
+    return RedirectResponse(url="/sandboxes/cards/", status_code=307)
+
+
+@app.get("/sandboxes/cards/", response_class=HTMLResponse)
+async def cards_sandbox_page(request: Request):
+    return _render(request, "cards_sandbox.html")
+
+
+@app.get("/sandboxes/cards/data/runtime.json", response_class=JSONResponse)
+async def cards_sandbox_runtime():
+    return JSONResponse(get_card_sandbox_runtime())
 
 
 # ── Lab Monitor Pages ─────────────────────────────────────────────────────────
