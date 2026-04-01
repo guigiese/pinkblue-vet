@@ -25,8 +25,9 @@ Always read in this order before starting implementation:
 2. `docs/WORKING_MODEL.md`
 3. `docs/CONTEXT.md`
 4. `docs/DEVLOG.md`
-5. the Jira card related to the task
-6. only then, the relevant code files
+5. Check the GitHub Projects board for active sessions: look for open PRs to main from `session/*` branches to know if another session is already active
+6. the Jira card related to the task
+7. only then, the relevant code files
 
 If there is no Jira card yet, the AI should say so clearly and avoid inventing hidden scope.
 
@@ -76,19 +77,85 @@ Expected working behavior:
 - progress comment: meaningful milestone or blocker;
 - close-out comment: result, validation, changed docs, open follow-ups.
 
-## 5A. Parallel Work Guardrail
+## 5A. Session Protocol (Mandatory for All AI Sessions)
 
-If another AI or developer has active work in progress, especially near validation or deploy,
-do not assume it is safe to edit the same scope.
+Every AI session that changes code or docs must follow this protocol without exception.
 
-Default behavior in that situation:
-- prefer Jira, docs, discovery, and planning work first;
-- prefer isolated files, routes, modules, or artifacts that do not affect the active delivery line;
-- do not change deploy-critical paths, release steps, or shared implementation files without explicit need;
-- if overlap is unavoidable, document the risk clearly in Jira and in the final handoff.
+### Session Identity
 
-When there is an active paused deploy or unfinished implementation by another AI,
-the safest default is to work in parallel, not in-place.
+Generate a unique session-id at the start of every working session:
+
+```python
+import secrets, datetime
+date = datetime.date.today().strftime("%Y%m%d")
+rand = secrets.token_hex(2)  # 4 hex chars
+session_id = f"{date}-{rand}"  # e.g. 20260331-a1b2
+```
+
+### Branch Naming
+
+Every session works on a dedicated branch:
+
+```
+session/YYYYMMDD-XXXX
+```
+
+Examples: `session/20260331-a1b2`, `session/20260401-c3d4`
+
+**Never push directly to `main`.** Always work on a `session/` branch.
+
+### Always Open a PR to Main
+
+When the work is ready (or at any meaningful checkpoint):
+
+```
+git push origin session/YYYYMMDD-XXXX
+gh pr create --base main --title "session/YYYYMMDD-XXXX: <summary>" --body "..."
+```
+
+The GitHub Actions workflow (`session-route.yml`) takes it from there:
+- **Fast-path** (1 active session): merge immediately after syntax check, then deploy
+- **Full-path** (2+ active sessions): validate first (syntax + import checks), then merge and deploy
+
+The session does not choose the path — the Actions workflow decides based on how many `session/*` branches are active.
+
+### Claim in Jira Before Starting
+
+Before touching any file, add a `[CLAIM]` comment to the relevant Jira card:
+
+```
+[CLAIM] session-id: 20260331-a1b2
+Files in scope: web/app.py, labs/bitlab.py
+Start time: 2026-03-31T14:00Z
+```
+
+This tells other sessions what is being touched so they can avoid conflict.
+
+### Release in Jira When Done
+
+After the PR is merged (or abandoned), add a `[RELEASE]` comment:
+
+```
+[RELEASE] session-id: 20260331-a1b2
+Files unlocked: web/app.py, labs/bitlab.py
+PR merged: #42
+```
+
+### If the Pipeline Fails
+
+1. Read the failed job log in the GitHub PR (Actions tab)
+2. Fix the issue in the same `session/` branch
+3. Push the fix: `git push origin session/YYYYMMDD-XXXX`
+4. The PR auto-triggers the workflow again — no new PR needed
+5. Add a Jira comment describing what failed and what was fixed
+
+### Summary of Rules
+
+- One session = one `session/` branch = one PR
+- Never push to `main` directly
+- Always claim in Jira before starting
+- Always release in Jira when done
+- The Actions workflow is the neutral arbiter — the session just opens the PR and fixes failures
 
 ## 6. Before Finishing
 
