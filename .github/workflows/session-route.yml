@@ -1,0 +1,116 @@
+name: Session Router
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize]
+
+jobs:
+  route:
+    runs-on: ubuntu-latest
+    outputs:
+      mode: ${{ steps.count.outputs.mode }}
+    steps:
+      - name: Count active sessions
+        id: count
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          COUNT=$(gh api repos/${{ github.repository }}/branches \
+            --jq '[.[] | select(.name | startswith("session/"))] | length')
+          echo "Active session branches: $COUNT"
+          if [ "$COUNT" -le 1 ]; then
+            echo "mode=fast" >> $GITHUB_OUTPUT
+          else
+            echo "mode=full" >> $GITHUB_OUTPUT
+          fi
+
+  fast-merge:
+    needs: route
+    if: needs.route.outputs.mode == 'fast'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Syntax check
+        run: python -m py_compile labs/bitlab.py labs/nexio.py web/app.py web/state.py core.py
+
+      - name: Merge immediately (single session)
+        run: gh pr merge ${{ github.event.pull_request.number }} --squash --delete-branch
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Deploy to Railway
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN_DEPLOY }}
+        run: python deploy.py
+
+      - name: Smoke test
+        run: |
+          sleep 20
+          curl -f https://pinkblue-vet-production.up.railway.app/labmonitor
+          echo "Production healthy"
+
+  full-validate:
+    needs: route
+    if: needs.route.outputs.mode == 'full'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Syntax check
+        run: python -m py_compile labs/bitlab.py labs/nexio.py web/app.py web/state.py core.py
+
+      - name: Import check
+        run: python -c "from labs import CONNECTORS; from web.app import app; print('Import OK')"
+
+  full-merge:
+    needs: full-validate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Merge after validation (multiple sessions)
+        run: gh pr merge ${{ github.event.pull_request.number }} --squash --delete-branch
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Deploy to Railway
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN_DEPLOY }}
+        run: python deploy.py
+
+      - name: Smoke test
+        run: |
+          sleep 20
+          curl -f https://pinkblue-vet-production.up.railway.app/labmonitor
+          echo "Production healthy"
