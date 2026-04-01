@@ -13,6 +13,12 @@ if ($LASTEXITCODE -ne 0) {
     throw "Failed to refresh architecture map runtime data."
 }
 
+Write-Host "Rendering node icons..."
+& $python.Source (Join-Path $PSScriptRoot 'build_architecture_map_icons.py')
+if ($LASTEXITCODE -ne 0) {
+    throw "Failed to build architecture map rendered icons."
+}
+
 Write-Host "Serving architecture map PoC from $target"
 Write-Host "Open $url"
 

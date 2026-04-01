@@ -2,3 +2,14 @@
 estado_exames.json
 __pycache__/
 *.pyc
+
+# Architecture map local debug artifacts
+architecture-map-shot.png
+graph-area-before.png
+graph-area-after.png
+poc/architecture-map/headless-shot.png
+poc/architecture-map/graph-shot.png
+poc/architecture-map/graph-shot-2.png
+poc/architecture-map/layout-debug.json
+poc/architecture-map/layout-debug-2.json
+poc/architecture-map/tmp-layout.html

@@ -1,4 +1,4 @@
-# CONTEXT.md — Lab Monitor (SimplesVet)
+# CONTEXT.md - PinkBlue Vet / Lab Monitor Module
 > Documento técnico para onboarding de IAs e desenvolvedores.
 > Descreve o estado atual do projeto, arquitetura, contratos de dados e regras de extensão.
 > Atualizado em: 2026-03-31
@@ -7,7 +7,13 @@
 
 ## O que é este projeto
 
-Monitor automatizado de exames laboratoriais para uma clínica veterinária (PinkBlue Vet).
+Este repositório pertence ao guarda-chuva PinkBlue Vet e implementa o módulo Lab Monitor.
+
+PinkBlue Vet é a plataforma principal.
+Lab Monitor é um dos módulos/produtos dentro dessa plataforma.
+Nomes legados como `SimplesVet` podem aparecer em pastas locais ou referências antigas, mas não devem ser tratados como o nome da plataforma.
+
+O Lab Monitor é um monitor automatizado de exames laboratoriais para uma clínica veterinária (PinkBlue Vet).
 Faz scraping/API-calls em laboratórios parceiros, detecta novos exames e mudanças de status,
 e envia notificações via Telegram (e opcionalmente WhatsApp).
 
@@ -18,7 +24,10 @@ Roda 24/7 na nuvem (Railway) como um único serviço Python que combina:
 **URL de produção:** https://pinkblue-vet-production.up.railway.app
 
 A aplicação é servida sob o prefixo `/labmonitor`. A raiz `/` exibe uma landing page
-com os apps disponíveis. Atualmente apenas o Lab Monitor está ativo.
+com os apps disponíveis sob o guarda-chuva PinkBlue Vet. Atualmente apenas o Lab Monitor está ativo neste ambiente.
+
+Existe também um módulo operacional acessível em `/ops-map/`, que publica o mapa visual
+de sistemas, plataformas, integrações e sinais da operação PinkBlue.
 
 ---
 
@@ -66,10 +75,12 @@ Isso é intencional: o custo zero de infra exige zero serviços adicionais.
 │
 ├── web/
 │   ├── app.py               # FastAPI: landing /, APIRouter prefix=/labmonitor
+│   ├── ops_map.py           # Runtime do mapa operacional (snapshot com cache curto)
 │   ├── state.py             # AppState singleton compartilhado entre thread e web
 │   └── templates/
 │       ├── index.html       # Landing page standalone (sem base.html)
 │       ├── base.html        # Layout sidebar responsivo (Tailwind CDN + HTMX CDN)
+│       ├── ops_map.html     # Wrapper do mapa operacional servido pelo próprio app
 │       ├── dashboard.html   # Contadores por lab + feed de notificações
 │       ├── exames.html      # Tabela de exames com filtros
 │       ├── labs.html        # Gerenciar labs (toggle, test connection)
@@ -91,14 +102,18 @@ Isso é intencional: o custo zero de infra exige zero serviços adicionais.
 │   └── DEVLOG.md            # Log narrativo de decisões e lições aprendidas
 │
 └── poc/
-    └── architecture-map/    # PoC local: grafo interativo de artefatos PinkBlue (Codex)
+    ├── architecture-map/    # PoC/base do mapa operacional PinkBlue
+    │   ├── index.html
+    │   ├── app.js
+    │   ├── styles.css
+    │   ├── README.md
+    │   ├── assets/
+    │   └── data/
+    │       ├── pinkblue-map.v1.json       # grafo base estático
+    │       └── pinkblue-map.runtime.json  # snapshot ao vivo (gerado por scripts/refresh_*)
+    └── lab-card-variants/   # Sandbox local com variações dos cards de exames
         ├── index.html
-        ├── app.js
-        ├── styles.css
-        ├── README.md
-        └── data/
-            ├── pinkblue-map.v1.json       # grafo base estático
-            └── pinkblue-map.runtime.json  # snapshot ao vivo (gerado por scripts/refresh_*)
+        └── styles.css
 ```
 
 ---
@@ -128,6 +143,23 @@ Isso é intencional: o custo zero de infra exige zero serviços adicionais.
 
 `id` e `type` podem ser diferentes. `id` é o identificador de instância na UI;
 `type` aponta para a classe no registry.
+
+---
+
+## Política atual de notificações
+
+Hoje o projeto separa dois fluxos:
+
+- feed interno do app: continua registrando mudanças finas de status por item
+- notificações externas (Telegram / outros canais): seguem política operacional mais restrita
+
+Política externa atual:
+- notificar quando uma nova requisição entra no laboratório
+- notificar quando itens da mesma requisição passam para `Pronto`
+- agrupar os itens concluídos por requisição no mesmo ciclo de monitoramento
+- suprimir reenvio do mesmo evento externo por assinatura/idempotência em memória
+
+Isso reduz spam e deixa o Telegram mais próximo da leitura operacional desejada.
 
 ---
 

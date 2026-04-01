@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lab Monitor Card Variants</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <main class="shell">
+    <header class="hero">
+      <p class="eyebrow">PinkBlue / Lab Monitor / Local-only</p>
+      <h1>Variacoes dos cards de exames</h1>
+      <p>
+        Ambiente local para comparar leituras mais leves dos cards do Lab Monitor,
+        com foco em reduzir densidade, destacar a data e tratar criticidade sem competir
+        com o badge principal de status.
+      </p>
+    </header>
+
+    <section class="grid">
+      <article class="variant">
+        <div class="variant-head">
+          <div>
+            <p class="variant-kicker">V1</p>
+            <h2>Signal rail</h2>
+          </div>
+          <span class="variant-note">Criticidade na lateral</span>
+        </div>
+        <div class="exam-card rail-critical">
+          <div class="card-top">
+            <div>
+              <span class="status-pill status-progress">Em andamento</span>
+              <h3>Mel</h3>
+              <p class="meta">Nexio Patologia • Nº 24-001281</p>
+            </div>
+            <div class="date-block">
+              <strong>01/04</strong>
+              <span>6d em aberto</span>
+            </div>
+          </div>
+          <p class="summary">Painel compacto com a data destacada e a criticidade saindo da disputa direta por badges.</p>
+          <div class="item-list">
+            <span>Citologia oncótica</span>
+            <span>Histopatológico</span>
+          </div>
+          <div class="card-foot">
+            <span class="foot-link">Ver laudo</span>
+            <span class="foot-alert">Critico</span>
+          </div>
+        </div>
+      </article>
+
+      <article class="variant">
+        <div class="variant-head">
+          <div>
+            <p class="variant-kicker">V2</p>
+            <h2>Status dot</h2>
+          </div>
+          <span class="variant-note">Criticidade como ponto</span>
+        </div>
+        <div class="exam-card">
+          <div class="card-top">
+            <div>
+              <div class="title-row">
+                <span class="status-dot warning"></span>
+                <span class="status-pill status-ready">Pronto</span>
+              </div>
+              <h3>Paçoca</h3>
+              <p class="meta">BioAnálises (BitLab) • Nº 08-00048192</p>
+            </div>
+            <div class="date-block success">
+              <strong>31/03</strong>
+              <span>Lib. 10:42</span>
+            </div>
+          </div>
+          <p class="summary">A criticidade sai do texto e vira só um sinal visual sutil ao lado do status.</p>
+          <div class="item-list">
+            <span>Hemograma completo</span>
+            <span>ALT</span>
+            <span>Creatinina</span>
+          </div>
+          <div class="card-foot">
+            <span>3 exames</span>
+            <span class="foot-link">Abrir resultado</span>
+          </div>
+        </div>
+      </article>
+
+      <article class="variant">
+        <div class="variant-head">
+          <div>
+            <p class="variant-kicker">V3</p>
+            <h2>Priority band</h2>
+          </div>
+          <span class="variant-note">Barra interna discreta</span>
+        </div>
+        <div class="exam-card band-warning">
+          <div class="card-top">
+            <div>
+              <span class="status-pill status-partial">Parcial</span>
+              <h3>Luna</h3>
+              <p class="meta">BioAnálises (BitLab) • Nº 08-00048193</p>
+            </div>
+            <div class="date-block">
+              <strong>30/03</strong>
+              <span>2 itens prontos</span>
+            </div>
+          </div>
+          <p class="summary">A criticidade vira uma faixa semântica discreta no corpo, mantendo o status como selo principal.</p>
+          <div class="item-list stacked">
+            <span><b>Pronto</b> Hemograma completo</span>
+            <span><b>Pronto</b> ALT</span>
+            <span><b>Analisando</b> Ureia</span>
+          </div>
+          <div class="card-foot">
+            <span>Atualiza bem em mobile</span>
+            <span class="foot-link">Ver detalhes</span>
+          </div>
+        </div>
+      </article>
+    </section>
+  </main>
+</body>
+</html>
