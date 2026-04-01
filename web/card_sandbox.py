@@ -383,6 +383,91 @@ def _inject_sandbox_preview(group_view: dict, index: int) -> dict:
     return group_view
 
 
+def _filter_group_view(group: dict, lab: str, status: str, q: str) -> bool:
+    if lab and group["lab_id"] != lab:
+        return False
+    if status and group["status_geral"] != status:
+        return False
+    if q:
+        haystack = " ".join(
+            value
+            for value in [
+                group.get("patient_name"),
+                group.get("tutor_name"),
+                group.get("paciente"),
+                group.get("protocol"),
+                group.get("record_id"),
+            ]
+            if value
+        )
+        if q.lower() not in haystack.lower():
+            return False
+    return True
+
+
+def _fallback_group_view(protocol: dict) -> dict:
+    items = [
+        {
+            "nome": item["name"],
+            "status": item["status"],
+            "item_id": item["itemId"],
+            "alerta": item["alert"],
+            "resultado": item["results"],
+        }
+        for item in protocol["items"]
+    ]
+    counts = _status_counts(
+        [
+            {
+                "status": item["status"],
+            }
+            for item in protocol["items"]
+        ]
+    )
+    return {
+        "lab_id": protocol["labId"],
+        "lab": protocol["labName"],
+        "record_id": protocol["protocol"],
+        "paciente": f"{protocol['patientName']} - {protocol['tutorName']}" if protocol.get("tutorName") else protocol["patientName"],
+        "patient_name": protocol["patientName"],
+        "tutor_name": protocol.get("tutorName") or "",
+        "species_sex": protocol.get("speciesSex"),
+        "protocol": protocol["protocol"],
+        "data": protocol["date"],
+        "date_display": protocol["date"],
+        "data_raw": protocol["dateRaw"],
+        "status_geral": protocol["status"],
+        "dias_em_aberto": protocol.get("daysOpen"),
+        "days_em_aberto_preview": protocol.get("daysOpen"),
+        "liberado_em": protocol.get("releaseAt"),
+        "liberado_em_iso": None,
+        "release_at_display": protocol.get("releaseAt"),
+        "portal_url": protocol.get("portalUrl"),
+        "portal_id": protocol["protocol"],
+        "criticality": protocol.get("criticality"),
+        "alerta_geral": protocol.get("criticality"),
+        "items_total": len(items),
+        "ready_ratio_text": _ready_ratio_text(counts, len(items)),
+        "status_counts": counts,
+        "status_count_parts": _humanize_status_counts(counts),
+        "timeline_parts": _timeline_parts(protocol.get("daysOpen"), None),
+        "items_view": [
+            {
+                "id": item["id"],
+                "name": item["name"],
+                "status": item["status"],
+                "alert": item["alert"],
+                "item_id": item["itemId"],
+                "release_at": item.get("releaseAt"),
+                "release_at_display": item.get("releaseAtDisplay"),
+                "results": item["results"],
+            }
+            for item in protocol["items"]
+        ],
+        "itens": items,
+    }
+
+
 def _build_group_view(group: dict) -> dict:
     snapshot_record = _snapshot_lookup(group["lab_id"], group["record_id"]) or {}
     patient_name, tutor_name = _parse_label(snapshot_record.get("label") or group["paciente"])
@@ -409,7 +494,12 @@ def _build_group_view(group: dict) -> dict:
 
 def get_card_sandbox_groups(lab: str = "", status: str = "", q: str = "") -> list[dict]:
     groups = [_build_group_view(group) for group in state.get_exames(lab, status, q)]
-    return [_inject_sandbox_preview(group, index) for index, group in enumerate(groups)]
+    if groups:
+        return [_inject_sandbox_preview(group, index) for index, group in enumerate(groups)]
+
+    fallback_groups = [_fallback_group_view(protocol) for protocol in _FALLBACK_PROTOCOLS]
+    fallback_groups = [group for group in fallback_groups if _filter_group_view(group, lab, status, q)]
+    return [_inject_sandbox_preview(group, index) for index, group in enumerate(fallback_groups)]
 
 
 def _build_protocol(group: dict, reason: str) -> dict:
