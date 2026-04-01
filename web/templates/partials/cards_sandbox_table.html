@@ -1,0 +1,183 @@
+{% macro badge_geral(status, style) %}
+  {% set tone = {
+    "Pronto": "ready",
+    "Parcial": "partial",
+    "Analisando": "analysis",
+    "Em Andamento": "progress",
+    "Recebido": "received"
+  }.get(status, "neutral") %}
+  <span class="pb-status-badge pb-status-badge--{{ style }} is-{{ tone }}">
+    {% if status == "Pronto" %}
+      <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+    {% elif status == "Parcial" %}
+      <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><circle cx="10" cy="10" r="8"/></svg>
+    {% elif status == "Recebido" %}
+      <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a8 8 0 100 16A8 8 0 0010 2zm0 14a6 6 0 110-12 6 6 0 010 12z"/></svg>
+    {% else %}
+      <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd"/></svg>
+    {% endif %}
+    {{ status }}
+  </span>
+{% endmacro %}
+
+{% macro critical_icon(alerta, style) %}
+  {% if alerta %}
+  <span class="pb-critical pb-critical--{{ style }} is-{{ alerta }}">
+    <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+      <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+    </svg>
+  </span>
+  {% endif %}
+{% endmacro %}
+
+{% macro badge_item(status) %}
+  {% if status == "Pronto" %}
+    <span class="px-2 py-0.5 rounded text-xs bg-green-50 text-green-700 font-medium">{{ status }}</span>
+  {% elif status == "Analisando" %}
+    <span class="px-2 py-0.5 rounded text-xs bg-yellow-50 text-yellow-700 font-medium">{{ status }}</span>
+  {% elif status == "Em Andamento" %}
+    <span class="px-2 py-0.5 rounded text-xs bg-amber-50 text-amber-700 font-medium">{{ status }}</span>
+  {% elif status == "Recebido" %}
+    <span class="px-2 py-0.5 rounded text-xs bg-purple-50 text-purple-700 font-medium">{{ status }}</span>
+  {% else %}
+    <span class="px-2 py-0.5 rounded text-xs bg-gray-50 text-gray-600">{{ status }}</span>
+  {% endif %}
+{% endmacro %}
+
+{% macro resultado_btn(item) %}
+{% if item.item_id and item.status == "Pronto" %}
+<details class="resultado-detail mt-1.5">
+  <summary class="cursor-pointer text-xs text-indigo-500 hover:text-indigo-700 select-none inline-flex items-center gap-1 py-0.5"
+           hx-get="/labmonitor/partials/resultado/{{ item.item_id }}"
+           hx-target="next .resultado-body"
+           hx-swap="innerHTML"
+           hx-trigger="click once">
+    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+    </svg>
+    Ver resultado
+  </summary>
+  <div class="resultado-body mt-1.5 rounded-lg border border-gray-100 bg-white overflow-hidden">
+    <p class="text-gray-400 text-xs p-3 text-center">Carregando...</p>
+  </div>
+</details>
+{% endif %}
+{% endmacro %}
+
+{% if groups %}
+<div class="space-y-2.5">
+  {% for g in groups %}
+  <details class="group pb-group bg-white border rounded-xl shadow-sm overflow-hidden pb-frame--{{ variant_cfg.frame }} pb-density--{{ variant_cfg.density }} pb-date--{{ variant_cfg.date_style }} pb-status--{{ variant_cfg.status_style }} pb-critical-mode--{{ variant_cfg.critical_style }} pb-meta--{{ variant_cfg.meta_style }} pb-timeline--{{ variant_cfg.timeline_style }} crit-{{ g.criticality or 'none' }} {% if g.status_geral != 'Pronto' %}open{% endif %}">
+    <summary class="pb-summary cursor-pointer list-none select-none hover:bg-gray-50 active:bg-gray-100">
+      <div class="pb-summary__body">
+        <div class="pb-summary__top">
+          <span class="pb-date">{{ g.date_display }}</span>
+          <div class="pb-signals">
+            {% if variant_cfg.critical_style == "inline" %}
+              {{ critical_icon(g.criticality, "inline") }}
+            {% endif %}
+            {{ badge_geral(g.status_geral, variant_cfg.status_style) }}
+            {% if variant_cfg.critical_style == "trailing" %}
+              {{ critical_icon(g.criticality, "trailing") }}
+            {% elif variant_cfg.critical_style == "badge" %}
+              {{ critical_icon(g.criticality, "badge") }}
+            {% endif %}
+          </div>
+        </div>
+
+        <div class="pb-summary__identity">
+          <strong class="pb-patient">{{ g.patient_name }}</strong>
+          {% if g.tutor_name %}
+          <span class="pb-tutor">{{ g.tutor_name }}</span>
+          {% endif %}
+        </div>
+
+        <div class="pb-summary__meta">
+          <div class="pb-meta-left">
+            <span class="pb-chip pb-chip--lab">{{ g.lab }}</span>
+            <span class="pb-chip pb-chip--protocol">Nº {{ g.protocol }}</span>
+            {% if g.portal_url %}
+            <a href="{{ g.portal_url }}" target="_blank" rel="noopener"
+               onclick="event.stopPropagation()"
+               class="text-xs text-indigo-500 hover:text-indigo-700 underline whitespace-nowrap">Ver laudo</a>
+            {% endif %}
+          </div>
+
+          <div class="pb-meta-right">
+            <div class="pb-cluster pb-cluster--counts">
+              {% for part in g.status_count_parts %}
+              <span class="pb-chip pb-chip--count is-{{ part.tone }}">{{ part.label }}</span>
+              {% endfor %}
+            </div>
+            {% if g.timeline_parts %}
+            <div class="pb-cluster pb-cluster--timeline">
+              {% for part in g.timeline_parts %}
+              <span class="pb-chip pb-chip--timeline {% if part.stale %}is-stale{% endif %}">{{ part.label }}</span>
+              {% endfor %}
+            </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      <span class="pb-chevron" aria-hidden="true">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+        </svg>
+      </span>
+    </summary>
+
+    <div class="border-t border-gray-100 divide-y divide-gray-50 md:hidden">
+      {% for item in g.items_view %}
+      <div class="px-4 py-2.5 text-sm {% if item.alert == 'red' %}bg-red-50{% elif item.alert == 'yellow' %}bg-yellow-50{% endif %}">
+        <div class="flex items-center justify-between gap-3">
+          <span class="text-gray-700 flex items-center gap-1.5 min-w-0">
+            {% if item.alert == 'red' %}
+              <span class="w-2 h-2 rounded-full bg-red-500 shrink-0"></span>
+            {% elif item.alert == 'yellow' %}
+              <span class="w-2 h-2 rounded-full bg-yellow-400 shrink-0"></span>
+            {% else %}
+              <span class="w-2 h-2 rounded-full bg-gray-200 shrink-0"></span>
+            {% endif %}
+            <span class="truncate">{{ item.name }}</span>
+          </span>
+          {{ badge_item(item.status) }}
+        </div>
+        {% if g.lab_id == "bitlab" %}{{ resultado_btn(item) }}{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+
+    <div class="hidden md:block border-t border-gray-100">
+      <table class="w-full text-sm">
+        <tbody class="divide-y divide-gray-50">
+          {% for item in g.items_view %}
+          <tr class="hover:bg-gray-50 {% if item.alert == 'red' %}bg-red-50{% elif item.alert == 'yellow' %}bg-yellow-50{% endif %}">
+            <td class="pl-5 pr-4 py-2.5">
+              <div class="flex items-center gap-2 text-gray-700">
+                {% if item.alert == 'red' %}
+                  <span class="w-2 h-2 rounded-full bg-red-500 shrink-0"></span>
+                {% elif item.alert == 'yellow' %}
+                  <span class="w-2 h-2 rounded-full bg-yellow-400 shrink-0"></span>
+                {% else %}
+                  <span class="w-2 h-2 rounded-full bg-gray-200 shrink-0"></span>
+                {% endif %}
+                <div class="min-w-0">
+                  <div class="truncate">{{ item.name }}</div>
+                  {% if g.lab_id == "bitlab" %}{{ resultado_btn(item) }}{% endif %}
+                </div>
+              </div>
+            </td>
+            <td class="pr-5 py-2.5 text-right">{{ badge_item(item.status) }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </details>
+  {% endfor %}
+</div>
+{% else %}
+<p class="text-gray-400 text-sm text-center py-10">Nenhum exame encontrado.</p>
+{% endif %}

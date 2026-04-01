@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}Sandbox de Cards{% endblock %}
+{% block extra_head %}
+<link rel="stylesheet" href="/sandboxes/cards-static/mirror.css">
+{% endblock %}
+{% block header %}Exames{% endblock %}
+{% block content %}
+
+<p class="text-xs text-gray-400 mb-3">
+  Sandbox visual: a pagina espelha a listagem real de exames e varia apenas o agrupador do protocolo.
+</p>
+
+<form class="flex flex-wrap gap-2 mb-5" method="get">
+  <select name="variant" class="border rounded-lg px-3 py-2 text-sm bg-white min-w-[220px]">
+    {% for item in variants %}
+    <option value="{{ item.id }}" {% if variant_filter == item.id %}selected{% endif %}>{{ item.name }}</option>
+    {% endfor %}
+  </select>
+
+  <div class="relative flex-1 min-w-[180px]">
+    <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none"
+         fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"/>
+    </svg>
+    <input type="text" name="q" value="{{ q }}" placeholder="Buscar paciente..."
+           class="w-full border rounded-lg pl-9 pr-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300">
+  </div>
+
+  <select name="lab" class="border rounded-lg px-3 py-2 text-sm bg-white">
+    <option value="">Todos os labs</option>
+    {% for l in labs_cfg %}
+    <option value="{{ l.id }}" {% if lab_filter == l.id %}selected{% endif %}>{{ l.name }}</option>
+    {% endfor %}
+  </select>
+
+  <select name="status" class="border rounded-lg px-3 py-2 text-sm bg-white">
+    <option value="">Todos os status</option>
+    {% for s in statuses %}
+    <option value="{{ s }}" {% if status_filter == s %}selected{% endif %}>{{ s }}</option>
+    {% endfor %}
+  </select>
+
+  <button type="submit"
+          class="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-indigo-700">
+    Filtrar
+  </button>
+  {% if lab_filter or status_filter or q or variant_filter != "balanced-finalist" %}
+  <a href="/sandboxes/cards/?variant={{ variant_filter }}"
+     class="px-4 py-2 rounded-lg text-sm border hover:bg-gray-50 text-gray-600">Limpar</a>
+  {% endif %}
+</form>
+
+<div class="sandbox-variant-note">
+  <span class="sandbox-variant-pill">{{ variant_cfg.name }}</span>
+  <p>{{ variant_cfg.note }}</p>
+</div>
+
+{% if groups %}
+<p class="text-xs text-gray-400 mb-3">
+  {{ groups | length }} requisicao{% if groups | length != 1 %}oes{% endif %}
+  {% if q %} para "<span class="font-medium text-gray-600">{{ q }}</span>"{% endif %}
+</p>
+{% endif %}
+
+<div id="exames-table"
+     hx-get="/sandboxes/cards/partials/exames?lab={{ lab_filter }}&status={{ status_filter }}&q={{ q }}&variant={{ variant_filter }}"
+     hx-trigger="every 15m"
+     hx-swap="innerHTML">
+  {% include "partials/cards_sandbox_table.html" %}
+</div>
+
+{% endblock %}

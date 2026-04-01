@@ -18,7 +18,14 @@ from notifiers.telegram_polling import (
     register_webhook,
     WEBHOOK_SECRET_PATH,
 )
-from web.card_sandbox import CARD_SANDBOX_DIR, get_card_sandbox_runtime
+from web.card_sandbox import (
+    CARD_SANDBOX_DIR,
+    CARD_SANDBOX_VARIANTS,
+    DEFAULT_CARD_SANDBOX_VARIANT,
+    get_card_sandbox_groups,
+    get_card_sandbox_runtime,
+    get_card_sandbox_variant,
+)
 from web.ops_map import OPS_MAP_DIR, get_ops_map_runtime
 
 TEMPLATES_DIR = Path(__file__).parent / "templates"
@@ -93,13 +100,49 @@ async def cards_sandbox_redirect():
 
 
 @app.get("/sandboxes/cards/", response_class=HTMLResponse)
-async def cards_sandbox_page(request: Request):
-    return _render(request, "cards_sandbox.html")
+async def cards_sandbox_page(
+    request: Request,
+    lab: str = "",
+    status: str = "",
+    q: str = "",
+    variant: str = DEFAULT_CARD_SANDBOX_VARIANT,
+):
+    variant_cfg = get_card_sandbox_variant(variant)
+    return _render(
+        request,
+        "cards_sandbox_mirror.html",
+        groups=get_card_sandbox_groups(lab, status, q),
+        labs_cfg=state.config["labs"],
+        statuses=STANDARD_STATUSES,
+        lab_filter=lab,
+        status_filter=status,
+        q=q,
+        variants=CARD_SANDBOX_VARIANTS,
+        variant_filter=variant_cfg["id"],
+        variant_cfg=variant_cfg,
+    )
 
 
 @app.get("/sandboxes/cards/data/runtime.json", response_class=JSONResponse)
 async def cards_sandbox_runtime():
     return JSONResponse(get_card_sandbox_runtime())
+
+
+@app.get("/sandboxes/cards/partials/exames", response_class=HTMLResponse)
+async def cards_sandbox_partial_exames(
+    request: Request,
+    lab: str = "",
+    status: str = "",
+    q: str = "",
+    variant: str = DEFAULT_CARD_SANDBOX_VARIANT,
+):
+    variant_cfg = get_card_sandbox_variant(variant)
+    return _render(
+        request,
+        "partials/cards_sandbox_table.html",
+        groups=get_card_sandbox_groups(lab, status, q),
+        variant_cfg=variant_cfg,
+    )
 
 
 # ── Lab Monitor Pages ─────────────────────────────────────────────────────────
