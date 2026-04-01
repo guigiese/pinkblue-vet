@@ -231,54 +231,92 @@ The platform is PinkBlue.
 `SimplesVet` may remain in legacy paths for now, but it must not be treated as the platform-level name.
 Any naming cleanup should align platform, modules, repositories, and documentation around PinkBlue.
 
-## 11. Collaboration Model: Claude + Codex
+## 11. Collaboration Model: Multi-Session Protocol
 
-Two AI agents may work on this repository at the same time.
-This section defines the minimum coordination rules to prevent conflicts.
+Any number of AI sessions may work on this repository concurrently.
+This section defines how they coordinate without stepping on each other.
 
-### Roles
+### Session Identity
 
-At any given moment, define one AI as **deploy owner** and the other as **discovery AI**.
+Every working session is an independent actor identified by a unique session-id:
 
-- **Deploy owner**: holds the active delivery line. May edit production code, run deploys, create PBEXM delivery cards.
-- **Discovery AI**: works in isolation — docs, Jira discovery cards, scripts, and isolated artifacts (like `poc/`). Does not touch deploy-critical files, shared implementation, or `main` branch active paths.
+```
+session-id = YYYYMMDD + 4 hex chars (e.g. 20260331-a1b2)
+```
 
-The roles can rotate between sessions, but the handoff must be explicit (Jira comment or commit message).
+There is no distinction between AI tools, agents, or human developers.
+The unit of coordination is the **session**, not the actor.
 
-### Coordination via Jira
+### Branch Naming
 
-Before starting work on any shared scope:
-1. Check whether another AI has an open card for the same area.
-2. If yes, default to discovery or isolated work.
-3. Add a Jira comment to the relevant card noting: which AI, what scope, what timestamp.
-4. At close-out, add a comment with what changed and what the other AI needs to know.
+Every session works on a dedicated branch:
 
-### Branch and file rules
+```
+session/YYYYMMDD-XXXX
+```
 
-- Each AI should prefer working on isolated paths:
-  - Claude Code → active delivery in `labs/`, `web/`, `core.py`
-  - Codex → docs, `scripts/`, `poc/`, `AI_START_HERE.md`, `WORKING_MODEL.md`, PBCORE cards
-- If both AIs need to touch the same file, use separate git branches and coordinate the merge explicitly.
-- `poc/` is Codex territory by convention until validated for production.
-- Production deploy path (`deploy.py`, Railway, `main` branch) is Claude Code territory unless explicitly handed off.
+Pushing directly to `main` is not allowed. Every change goes through a PR.
 
-### Shared artifact rules
+### PR Format
 
-- `docs/CONTEXT.md` and `docs/DEVLOG.md` are shared — add, do not overwrite.
-- `config.json` is deploy-sensitive — only the deploy owner should edit it.
-- `scripts/` is shared but non-destructive — both AIs may add scripts; neither should delete the other's scripts without a Jira card.
-- `.secrets` is never touched by either AI — human-managed only.
+When opening a PR to main:
+- Title: `session/YYYYMMDD-XXXX: <one-line summary>`
+- Body: brief description of what changed and why, plus the Jira card reference
 
-### Conflict resolution
+### Fast-Path vs Full-Path Routing
 
-If a conflict is detected (two AIs edited the same file in separate sessions):
+The GitHub Actions workflow `session-route.yml` is the neutral arbiter.
+It counts active `session/*` branches at PR open time:
+
+- **Fast-path** (1 active session): syntax check passes → merge immediately → deploy
+- **Full-path** (2+ active sessions): syntax check + import check → merge → deploy
+
+Sessions do not select the path. They only open the PR and fix failures.
+The Actions workflow decides based on observed branch count.
+
+### Claim / Release Protocol
+
+**Before starting any file change**, add a `[CLAIM]` comment to the Jira card:
+
+```
+[CLAIM] session-id: 20260331-a1b2
+Files in scope: web/app.py, labs/bitlab.py
+```
+
+**After the PR is merged or abandoned**, add a `[RELEASE]` comment:
+
+```
+[RELEASE] session-id: 20260331-a1b2
+Files unlocked: web/app.py, labs/bitlab.py
+```
+
+If another session sees a `[CLAIM]` on a file it needs, it should prefer different files or coordinate explicitly before proceeding.
+
+### Valid Session Close-Out
+
+A session is closed-out when all of the following are true:
+
+1. The `session/` branch has an open or merged PR targeting `main`
+2. The Jira card has a `[CLOSE-OUT]` comment describing: what changed, how it was validated, which docs were updated, and any follow-ups
+3. A `[RELEASE]` comment was added for all claimed files
+4. The `session/` branch is deleted (merged PRs auto-delete if configured)
+
+### Shared Artifact Rules
+
+- `docs/CONTEXT.md` and `docs/DEVLOG.md` are shared — add, do not overwrite existing entries.
+- `config.json` is deploy-sensitive — only change it when the Jira card explicitly requires it.
+- `scripts/` is shared but non-destructive — sessions may add scripts; do not delete another session's scripts without a Jira card.
+- `.secrets` is never touched by any session — human-managed only.
+
+### Conflict Resolution
+
+If two sessions edited the same file and a merge conflict arises:
 1. Human reviews both diffs.
 2. Merge the non-conflicting additions manually.
-3. Log the conflict in DEVLOG.md.
+3. Log the conflict in `docs/DEVLOG.md`.
 4. Add a Jira comment on the relevant card.
 
-### When the model does not apply
+### When in Doubt
 
-This model applies to sessions where both AIs have active context.
-If only one AI is active, it acts as deploy owner by default.
-If uncertain, always default to: docs first, code second, deploy last.
+Default to: docs first, isolated artifacts second, shared implementation third, deploy last.
+If uncertain about scope overlap, check open PRs from `session/*` branches before starting.
