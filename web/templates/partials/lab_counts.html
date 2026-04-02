@@ -57,7 +57,7 @@
       </div>
       <div>
         <p id="cnt-pronto" class="text-2xl font-bold text-green-700 leading-none">{{ combined.pronto }}</p>
-        <p class="text-xs text-gray-500 mt-0.5">Prontos</p>
+        <p class="text-xs text-gray-500 mt-0.5">PRONTO</p>
       </div>
     </div>
     <!-- Parciais -->
@@ -69,19 +69,19 @@
       </div>
       <div>
         <p id="cnt-parcial" class="text-2xl font-bold text-blue-700 leading-none">{{ combined.parcial }}</p>
-        <p class="text-xs text-gray-500 mt-0.5">Parciais</p>
+        <p class="text-xs text-gray-500 mt-0.5">PARCIAL</p>
       </div>
     </div>
     <!-- Em andamento -->
     <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-4 flex items-center gap-3">
       <div class="w-9 h-9 rounded-lg bg-amber-100 flex items-center justify-center shrink-0">
-        <svg class="w-4 h-4 text-amber-600 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg class="w-4 h-4 text-amber-600" style="animation: spin 1s linear infinite reverse;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
         </svg>
       </div>
       <div>
         <p id="cnt-andamento" class="text-2xl font-bold text-amber-700 leading-none">{{ combined.andamento }}</p>
-        <p class="text-xs text-gray-500 mt-0.5">Em andamento</p>
+        <p class="text-xs text-gray-500 mt-0.5">EM CURSO</p>
       </div>
     </div>
     <!-- Total -->
@@ -115,9 +115,9 @@
            style="width: {% if combined.total > 0 %}{{ ((combined.andamento / combined.total) * 100) | round | int }}{% else %}0{% endif %}%"></div>
     </div>
     <div class="flex gap-4 mt-1.5 text-xs text-gray-400">
-      <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-green-500 inline-block"></span>Pronto</span>
-      <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-blue-400 inline-block"></span>Parcial</span>
-      <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-amber-400 inline-block"></span>Andamento</span>
+      <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-green-500 inline-block"></span>PRONTO</span>
+      <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-blue-400 inline-block"></span>PARCIAL</span>
+      <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-amber-400 inline-block"></span>EM CURSO</span>
     </div>
   </div>
 

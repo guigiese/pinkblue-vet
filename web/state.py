@@ -5,6 +5,15 @@ from pathlib import Path
 
 CONFIG_FILE = Path(__file__).parent.parent / "config.json"
 
+STATUS_SHORT_LABELS: dict[str, str] = {
+    "Pronto": "PRONTO",
+    "Parcial": "PARCIAL",
+    "Em Andamento": "EM CURSO",
+    "Analisando": "ANALISE",
+    "Recebido": "RECEBIDO",
+    "Cancelado": "CANCELADO",
+}
+
 # Fallback portal URLs (when no portal_id is available)
 PORTAL_URLS: dict[str, str] = {
     "bitlab": "https://bitlabenterprise.com.br/bioanalises/resultados",
@@ -122,6 +131,33 @@ def _format_time(raw: str | None) -> str:
         return ""
 
 
+def _parse_datetime(raw: str | None) -> datetime | None:
+    if not raw:
+        return None
+    text = raw.strip()
+    for candidate in (text, text.replace("Z", "+00:00")):
+        try:
+            return datetime.fromisoformat(candidate)
+        except Exception:
+            pass
+    for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d/%m/%y", "%d/%m/%Y %H:%M", "%d/%m/%y %H:%M"):
+        try:
+            return datetime.strptime(text, fmt)
+        except Exception:
+            pass
+    return None
+
+
+def _iso_sort_key(raw: str | None) -> str:
+    dt = _parse_datetime(raw)
+    return dt.isoformat() if dt else (raw or "")
+
+
+def status_card_title(status: str) -> str:
+    label = STATUS_SHORT_LABELS.get(status, status.upper())
+    return label.capitalize()
+
+
 def _build_days_payload(days_open: int | None) -> tuple[str | None, bool]:
     if days_open is None:
         return None, False
@@ -230,15 +266,17 @@ class AppState:
                 if not itens:
                     continue
 
-                # Liberation timestamp: first item with liberado_em that is Pronto
-                liberado_em_raw = next(
-                    (
-                        i["liberado_em"]
-                        for i in itens
-                        if i.get("liberado_em") and i["status"] in _STATUS_PRONTO
-                    ),
-                    None,
-                )
+                release_candidates = [
+                    i["liberado_em"]
+                    for i in itens
+                    if i.get("liberado_em") and i["status"] in _STATUS_PRONTO
+                ]
+                liberado_em_raw = None
+                if release_candidates:
+                    liberado_em_raw = max(
+                        release_candidates,
+                        key=lambda raw: _parse_datetime(raw) or datetime.min,
+                    )
                 try:
                     liberado_em = (
                         datetime.fromisoformat(liberado_em_raw).strftime("%d/%m %H:%M")
@@ -263,16 +301,18 @@ class AppState:
                 if status_filter and status_geral != status_filter:
                     continue
 
+                received_at_raw = record.get("received_at") or record.get("collected_at") or record["data"]
+                received_at_dt = _parse_datetime(received_at_raw) or _parse_datetime(record["data"])
+
                 # Date formatting + dias_em_aberto (None for done statuses)
-                try:
-                    data_dt  = datetime.strptime(record["data"], "%Y-%m-%d")
-                    data_fmt = data_dt.strftime("%d/%m/%Y")
+                if received_at_dt:
+                    data_fmt = received_at_dt.strftime("%d/%m/%Y")
                     dias_em_aberto = (
-                        (datetime.now() - data_dt).days
+                        (datetime.now() - received_at_dt).days
                         if status_geral not in _STATUS_DONE else None
                     )
-                except Exception:
-                    data_fmt       = record["data"]
+                else:
+                    data_fmt = record["data"]
                     dias_em_aberto = None
 
                 paciente = record["label"]
@@ -319,7 +359,7 @@ class AppState:
                 ]
 
                 days_label, days_stale = _build_days_payload(dias_em_aberto)
-                time_display = _format_time(liberado_em_raw)
+                time_display = _format_time(received_at_raw)
                 ready_ratio_text = f"{n_pronto}/{len(itens_clean)} prontos"
                 itens_view = [
                     {
@@ -347,8 +387,8 @@ class AppState:
                     "species_sex":     species_sex,
                     "breed":           breed,
                     "data":            data_fmt,
-                    "data_raw":        record["data"],
-                    "date_display":    _format_date(record["data"]),
+                    "data_raw":        _iso_sort_key(received_at_raw) or record["data"],
+                    "date_display":    _format_date(received_at_raw or record["data"]),
                     "time_display":    time_display,
                     "status_geral":    status_geral,
                     "dias_em_aberto":  dias_em_aberto,
@@ -356,6 +396,8 @@ class AppState:
                     "days_stale":      days_stale,
                     "liberado_em":     liberado_em,
                     "liberado_em_iso": liberado_em_raw,
+                    "last_release_display": liberado_em,
+                    "last_release_iso": liberado_em_raw,
                     "itens":           sorted(itens_clean, key=lambda x: x["nome"]),
                     "items_view":      sorted(itens_view, key=lambda x: x["name"]),
                     "items_total":     len(itens_clean),

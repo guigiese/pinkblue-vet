@@ -51,6 +51,16 @@ def _clean_report_text(text: str) -> str:
     return "\n".join(cleaned).strip()
 
 
+def _extract_received_at(raw_text: str) -> str:
+    match = re.search(r"\b(\d{2}/\d{2}/\d{4})\b", raw_text or "")
+    if not match:
+        return ""
+    try:
+        return time.strftime("%Y-%m-%d", time.strptime(match.group(1), "%d/%m/%Y"))
+    except Exception:
+        return ""
+
+
 class NexioConnector(LabConnector):
 
     BASE  = "https://www.pathoweb.com.br"
@@ -163,12 +173,13 @@ class NexioConnector(LabConnector):
             "sex_raw": sex_raw,
             "species_sex": _compose_species_sex(species_raw, sex_raw),
             "breed": breed,
+            "received_at": _extract_received_at(report_text),
             "report_text": report_text,
             "diagnosis_text": diagnosis,
         }
 
     def enrich_snapshot_metadata(self, anterior: dict, atual: dict) -> None:
-        carry_fields = ("owner_name", "species_raw", "sex_raw", "species_sex", "breed")
+        carry_fields = ("owner_name", "species_raw", "sex_raw", "species_sex", "breed", "received_at")
         to_fetch: list[tuple[str, str]] = []
 
         for rid, record in atual.items():

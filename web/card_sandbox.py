@@ -255,7 +255,7 @@ _PREVIEW_PROTOCOLS = [
     {
         "sampleReason": "critical-ready",
         "labId": "bitlab",
-        "labName": "BioAnálises (BitLab)",
+        "labName": "Bioanálises",
         "protocol": "08-00000001",
         "patientName": "Lua",
         "tutorName": "Patricia S.",
@@ -327,7 +327,7 @@ _PREVIEW_PROTOCOLS = [
     {
         "sampleReason": "partial-warning",
         "labId": "bitlab",
-        "labName": "BioAnálises (BitLab)",
+        "labName": "Bioanálises",
         "protocol": "08-00000002",
         "patientName": "Aurora",
         "tutorName": "Marilene C.",
@@ -383,7 +383,7 @@ _PREVIEW_PROTOCOLS = [
     {
         "sampleReason": "long-open",
         "labId": "bitlab",
-        "labName": "BioAnálises (BitLab)",
+        "labName": "Bioanálises",
         "protocol": "08-00000003",
         "patientName": "Bento",
         "tutorName": "Daniel F.",

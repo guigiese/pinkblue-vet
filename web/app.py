@@ -310,13 +310,14 @@ async def partial_resultado(request: Request, item_id: str):
 
     # Check if result is already cached in the snapshot
     rows = _find_cached_resultado(item_id)
+    record = _find_result_record(item_id)
 
     if rows is None:
         # Not cached — fetch fresh from BitLab
         try:
             token = connector._login()
             raw   = connector.buscar_resultado_html(token, item_id)
-            rows  = connector.parse_resultado(raw)
+            rows  = connector.parse_resultado(raw, record)
             _cache_resultado(item_id, rows)
         except Exception as e:
             return HTMLResponse(
@@ -333,6 +334,15 @@ def _find_cached_resultado(item_id: str) -> list[dict] | None:
             for item in record["itens"].values():
                 if item.get("item_id") == item_id and "resultado" in item:
                     return item["resultado"]
+    return None
+
+
+def _find_result_record(item_id: str) -> dict | None:
+    for snap in state.snapshots.values():
+        for record in snap.values():
+            for item in record["itens"].values():
+                if item.get("item_id") == item_id:
+                    return record
     return None
 
 
