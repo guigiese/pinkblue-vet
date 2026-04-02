@@ -53,7 +53,7 @@
 <!-- Lista de grupos (atualiza a cada 15min preservando filtros) -->
 <div id="exames-table"
      hx-get="/labmonitor/partials/exames?lab={{ lab_filter }}&status={{ status_filter }}&q={{ q }}"
-     hx-trigger="every 15m"
+     hx-trigger="load delay:20s, every 15m"
      hx-swap="innerHTML">
   {% include "partials/exames_table.html" %}
 </div>

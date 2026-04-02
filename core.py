@@ -213,11 +213,13 @@ def run_monitor_loop(state=None):
                 atual = lab.snapshot()
                 anterior = state.snapshots.get(lab.lab_id, {}) if state else {}
                 ts_now = datetime.now().isoformat()
+                if state:
+                    # Publish the fresh snapshot immediately so the panel stops
+                    # rendering empty while metadata/results continue to hydrate.
+                    state.snapshots[lab.lab_id] = atual
 
                 if not anterior:
                     _hydrate_snapshot_metadata(lab, anterior, atual, ts_now)
-                    if state:
-                        state.snapshots[lab.lab_id] = atual
                     _hydrate_snapshot_results(lab, anterior, atual)
                     print("  Primeira execucao - estado salvo.")
                 else:
@@ -228,8 +230,6 @@ def run_monitor_loop(state=None):
                         atual,
                     )
                     _hydrate_snapshot_metadata(lab, anterior, atual, ts_now)
-                    if state:
-                        state.snapshots[lab.lab_id] = atual
                     _hydrate_snapshot_results(lab, anterior, atual)
 
                     for msg in internal_messages:
