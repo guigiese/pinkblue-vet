@@ -1,11 +1,11 @@
 {% if rows %}
-<div class="overflow-x-auto">
+<div class="pb-item-result-table-wrap is-compact">
   <table class="w-full text-xs">
     <thead>
       <tr class="border-b border-gray-200">
-        <th class="text-left py-1.5 px-3 font-semibold text-gray-500 uppercase tracking-wide">Parâmetro</th>
+        <th class="text-left py-1.5 px-3 font-semibold text-gray-500 uppercase tracking-wide">Parametro</th>
         <th class="text-right py-1.5 px-3 font-semibold text-gray-500 uppercase tracking-wide">Resultado</th>
-        <th class="text-right py-1.5 px-3 font-semibold text-gray-500 uppercase tracking-wide hidden sm:table-cell">Referência</th>
+        <th class="text-right py-1.5 px-3 font-semibold text-gray-500 uppercase tracking-wide hidden sm:table-cell">Referencia</th>
       </tr>
     </thead>
     <tbody class="divide-y divide-gray-50">
@@ -21,10 +21,7 @@
           {% endif %}
           {{ row.nome }}
         </td>
-        <td class="py-1.5 px-3 text-right font-mono font-semibold
-                   {% if row.alerta == 'red' %}text-red-700
-                   {% elif row.alerta == 'yellow' %}text-yellow-700
-                   {% else %}text-gray-800{% endif %}">
+        <td class="py-1.5 px-3 text-right font-mono font-semibold {% if row.alerta == 'red' %}text-red-700{% elif row.alerta == 'yellow' %}text-yellow-700{% else %}text-gray-800{% endif %}">
           {{ row.valor }}
         </td>
         <td class="py-1.5 px-3 text-right text-gray-400 hidden sm:table-cell">{{ row.referencia }}</td>
@@ -34,5 +31,5 @@
   </table>
 </div>
 {% else %}
-<p class="text-gray-400 text-xs p-3 text-center">Resultado não disponível.</p>
+<p class="pb-item-result-empty">Resultado não disponível.</p>
 {% endif %}

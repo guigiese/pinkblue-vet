@@ -164,8 +164,11 @@ async def dashboard_slash(request: Request):
 
 @router.get("/exames", response_class=HTMLResponse)
 async def exames(request: Request, lab: str = "", status: str = "", q: str = ""):
+    variant_cfg = get_card_sandbox_variant("v0-reference-current")
     return _render(request, "exames.html",
                    groups=state.get_exames(lab, status, q),
+                   variant_cfg=variant_cfg,
+                   result_fetch_prefix="/labmonitor/partials/resultado",
                    labs_cfg=state.config["labs"],
                    statuses=STANDARD_STATUSES,
                    lab_filter=lab,
@@ -210,8 +213,11 @@ async def partial_lab_counts(request: Request):
 
 @router.get("/partials/exames", response_class=HTMLResponse)
 async def partial_exames(request: Request, lab: str = "", status: str = "", q: str = ""):
+    variant_cfg = get_card_sandbox_variant("v0-reference-current")
     return _render(request, "partials/exames_table.html",
-                   groups=state.get_exames(lab, status, q))
+                   groups=state.get_exames(lab, status, q),
+                   variant_cfg=variant_cfg,
+                   result_fetch_prefix="/labmonitor/partials/resultado")
 
 
 @router.get("/partials/telegram-users", response_class=HTMLResponse)

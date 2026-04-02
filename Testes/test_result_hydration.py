@@ -106,6 +106,12 @@ class ResultCacheTests(unittest.TestCase):
 
             self.assertEqual(len(groups), 1)
             self.assertEqual(groups[0]["itens"][0]["resultado"][0]["nome"], "Hemacias")
+            self.assertEqual(groups[0]["patient_name"], "Bidu")
+            self.assertEqual(groups[0]["tutor_name"], "Tutor")
+            self.assertEqual(groups[0]["protocol"], "REQ-1")
+            self.assertEqual(groups[0]["ready_ratio_text"], "1/1 prontos")
+            self.assertEqual(groups[0]["items_view"][0]["name"], "Hemograma")
+            self.assertEqual(groups[0]["criticality"], "yellow")
         finally:
             state.snapshots = original_snapshots
             state._config = original_config

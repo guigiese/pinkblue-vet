@@ -86,6 +86,44 @@ def _search_match(q: str, text: str) -> bool:
     return True
 
 
+def _split_patient_label(label: str) -> tuple[str, str]:
+    """
+    Best-effort split of the existing label into patient and tutor.
+    Current labels usually follow: "Paciente - Tutor".
+    """
+    if " - " not in label:
+        return label.strip(), ""
+    patient, tutor = label.split(" - ", 1)
+    return patient.strip(), tutor.strip()
+
+
+def _format_date(raw: str | None) -> str:
+    if not raw:
+        return ""
+    try:
+        return datetime.fromisoformat(raw).strftime("%d/%m/%Y")
+    except Exception:
+        try:
+            return datetime.strptime(raw, "%Y-%m-%d").strftime("%d/%m/%Y")
+        except Exception:
+            return raw
+
+
+def _format_time(raw: str | None) -> str:
+    if not raw:
+        return ""
+    try:
+        return datetime.fromisoformat(raw).strftime("%H:%M")
+    except Exception:
+        return ""
+
+
+def _build_days_payload(days_open: int | None) -> tuple[str | None, bool]:
+    if days_open is None:
+        return None, False
+    return f"{days_open}d em aberto", days_open > 7
+
+
 # Exames a excluir (ruído operacional dos labs)
 EXCLUDE_EXAMES: set[str] = {
     "OBS BIOQUIMICA",
@@ -232,6 +270,7 @@ class AppState:
                     dias_em_aberto = None
 
                 paciente = record["label"]
+                patient_name, tutor_name = _split_patient_label(paciente)
 
                 if not _search_match(q, paciente):
                     continue
@@ -262,21 +301,55 @@ class AppState:
                     for i in itens
                 ]
 
+                species_sex = (
+                    record.get("species_sex")
+                    or record.get("especie_sexo")
+                    or record.get("speciesSex")
+                )
+                days_label, days_stale = _build_days_payload(dias_em_aberto)
+                time_display = _format_time(liberado_em_raw)
+                ready_ratio_text = f"{n_pronto}/{len(itens_clean)} prontos"
+                itens_view = [
+                    {
+                        "id": item["item_id"] or f"{record_id}-{idx}",
+                        "name": item["nome"],
+                        "status": item["status"],
+                        "alert": item["alerta"],
+                        "item_id": item["item_id"],
+                        "release_at": liberado_em_raw if item["status"] in _STATUS_PRONTO else None,
+                        "release_at_display": liberado_em if item["status"] in _STATUS_PRONTO else None,
+                        "results": item["resultado"],
+                    }
+                    for idx, item in enumerate(itens_clean, start=1)
+                ]
+
                 groups.append({
                     "lab_id":          lab_id,
                     "lab":             lab_name,
                     "record_id":       record_id,
                     "paciente":        paciente,
+                    "patient_name":    patient_name,
+                    "tutor_name":      tutor_name,
+                    "species_sex":     species_sex,
                     "data":            data_fmt,
                     "data_raw":        record["data"],
+                    "date_display":    _format_date(record["data"]),
+                    "time_display":    time_display,
                     "status_geral":    status_geral,
                     "dias_em_aberto":  dias_em_aberto,
+                    "days_label":      days_label,
+                    "days_stale":      days_stale,
                     "liberado_em":     liberado_em,
                     "liberado_em_iso": liberado_em_raw,
                     "itens":           sorted(itens_clean, key=lambda x: x["nome"]),
+                    "items_view":      sorted(itens_view, key=lambda x: x["name"]),
+                    "items_total":     len(itens_clean),
+                    "ready_ratio_text": ready_ratio_text,
                     "portal_url":      portal_url,
                     "portal_id":       record_id,
                     "alerta_geral":    alerta_geral,
+                    "criticality":     alerta_geral,
+                    "protocol":        record_id,
                 })
 
         return sorted(groups, key=lambda x: x["data_raw"], reverse=True)
