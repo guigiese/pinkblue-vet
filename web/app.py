@@ -120,6 +120,7 @@ async def cards_sandbox_page(
         variants=CARD_SANDBOX_VARIANTS,
         variant_filter=variant_cfg["id"],
         variant_cfg=variant_cfg,
+        default_variant_id=DEFAULT_CARD_SANDBOX_VARIANT,
     )
 
 

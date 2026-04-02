@@ -46,7 +46,7 @@
           class="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-indigo-700">
     Filtrar
   </button>
-  {% if lab_filter or status_filter or q or variant_filter != "v1-reference" %}
+  {% if lab_filter or status_filter or q or variant_filter != default_variant_id %}
   <a href="/sandboxes/cards/?variant={{ variant_filter }}"
      class="px-4 py-2 rounded-lg text-sm border hover:bg-gray-50 text-gray-600">Limpar</a>
   {% endif %}

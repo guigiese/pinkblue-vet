@@ -167,8 +167,18 @@
 }
 
 .pb-species-badge__icon {
-  font-size: 0.72rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 0.82rem;
+  height: 0.82rem;
   line-height: 1;
+}
+
+.pb-species-badge__icon svg {
+  width: 100%;
+  height: 100%;
+  display: block;
 }
 
 .pb-date-inline,
@@ -280,6 +290,13 @@
   font-size: 0.68rem;
   line-height: 1.05;
   white-space: nowrap;
+}
+
+.pb-status-secondary {
+  display: flex;
+  flex-direction: column;
+  gap: 0.14rem;
+  align-items: inherit;
 }
 
 .pb-days.is-stale {
@@ -614,6 +631,197 @@
   border-radius: 0.95rem 0 0 0.95rem;
 }
 
+.pb-status-badge.is-uniform {
+  min-width: 7.35rem;
+}
+
+.pb-summary__left {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 0;
+}
+
+.pb-summary__left.has-side-icon {
+  gap: 0.68rem;
+}
+
+.pb-card-main--two-row {
+  gap: 0.22rem;
+}
+
+.pb-row--identity-clean {
+  gap: 0.24rem 0.44rem;
+}
+
+.pb-row--meta-clean {
+  gap: 0.18rem 0.42rem;
+}
+
+.pb-family--aligned-2row .pb-summary {
+  padding: 0.6rem 0.92rem;
+}
+
+.pb-family--aligned-2row .pb-summary__body {
+  gap: 0.64rem;
+  align-items: center;
+}
+
+.pb-family--aligned-2row .pb-patient {
+  font-size: 0.98rem;
+  line-height: 1.02;
+}
+
+.pb-family--aligned-2row .pb-tutor {
+  font-size: 0.76rem;
+  line-height: 1.02;
+}
+
+.pb-family--aligned-2row .pb-species-badge {
+  min-height: 1.1rem;
+  padding: 0.03rem 0.42rem;
+  font-size: 0.65rem;
+}
+
+.pb-family--aligned-2row .pb-date,
+.pb-family--aligned-2row .pb-time,
+.pb-family--aligned-2row .pb-lab,
+.pb-family--aligned-2row .pb-protocol-link {
+  font-size: 0.68rem;
+}
+
+.pb-family--aligned-2row .pb-signals {
+  min-width: 7.55rem;
+  gap: 0.14rem;
+}
+
+.pb-family--aligned-2row .pb-status-detail,
+.pb-family--aligned-2row .pb-days {
+  font-size: 0.64rem;
+}
+
+.pb-protocol-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  color: rgb(99 102 241);
+  font-size: 0.68rem;
+  line-height: 1.05;
+  white-space: nowrap;
+  text-decoration: underline;
+}
+
+.pb-protocol-link:hover {
+  color: rgb(67 56 202);
+}
+
+.pb-protocol-link.is-static {
+  color: rgb(148 163 184);
+  text-decoration: none;
+}
+
+.pb-protocol-link.is-expanded {
+  font-size: 0.72rem;
+}
+
+.pb-expanded-meta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.8rem;
+  padding: 0.56rem 0.96rem;
+  border-top: 1px solid rgb(243 244 246);
+  border-bottom: 1px solid rgb(243 244 246);
+  background: rgb(250 250 251);
+}
+
+.pb-expanded-meta__pair {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.38rem;
+  flex-wrap: wrap;
+}
+
+.pb-expanded-meta__label {
+  color: rgb(107 114 128);
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.pb-species-symbol {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  color: rgb(107 114 128);
+}
+
+.pb-species-symbol svg {
+  width: 100%;
+  height: 100%;
+}
+
+.pb-species-symbol.is-inline {
+  width: 0.98rem;
+  height: 0.98rem;
+}
+
+.pb-species-symbol.is-side {
+  width: 1.48rem;
+  height: 1.48rem;
+}
+
+.pb-species-symbol.is-male {
+  color: rgb(59 130 246);
+}
+
+.pb-species-symbol.is-female {
+  color: rgb(236 72 153);
+}
+
+.pb-density--two-row-compact .pb-summary__body {
+  gap: 0.64rem;
+}
+
+.pb-density--two-row-compact .pb-card-main--two-row {
+  gap: 0.22rem;
+}
+
+.pb-density--two-row-compact .pb-summary {
+  padding: 0.6rem 0.92rem;
+}
+
+.pb-density--two-row-airy .pb-summary {
+  padding: 0.76rem 0.96rem;
+}
+
+.pb-density--two-row-airy .pb-summary__body {
+  gap: 0.76rem;
+}
+
+.pb-density--two-row-airy .pb-card-main--two-row {
+  gap: 0.34rem;
+}
+
+.pb-density--two-row-airy .pb-row--identity-clean {
+  gap: 0.3rem 0.48rem;
+}
+
+.pb-density--two-row-airy .pb-row--meta-clean {
+  gap: 0.24rem 0.48rem;
+}
+
+.pb-signals--center {
+  align-items: center;
+  text-align: center;
+}
+
+.pb-signals--center .pb-status-secondary {
+  align-items: center;
+}
+
 @media (max-width: 767px) {
   .sandbox-variant-note {
     align-items: flex-start;
@@ -648,6 +856,44 @@
     justify-content: flex-start;
     text-align: right;
     min-width: 5.8rem;
+  }
+
+  .pb-family--aligned-2row .pb-summary__body {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 0.52rem;
+  }
+
+  .pb-family--aligned-2row .pb-signals,
+  .pb-family--aligned-2row .pb-signals--right {
+    align-items: flex-end;
+    text-align: right;
+    min-width: 5.95rem;
+  }
+
+  .pb-family--aligned-2row .pb-patient,
+  .pb-family--aligned-2row .pb-tutor {
+    -webkit-line-clamp: 1;
+  }
+
+  .pb-family--aligned-2row .pb-summary__left {
+    gap: 0.5rem;
+  }
+
+  .pb-family--aligned-2row .pb-species-symbol.is-side {
+    width: 1.28rem;
+    height: 1.28rem;
+  }
+
+  .pb-density--two-row-airy .pb-summary {
+    padding-top: 0.84rem;
+    padding-bottom: 0.84rem;
+  }
+
+  .pb-family--aligned-2row .pb-signals--center {
+    align-items: center;
+    text-align: center;
+    min-width: 5.95rem;
   }
 
   .pb-chevron {
