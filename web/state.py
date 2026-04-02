@@ -131,6 +131,15 @@ def _format_time(raw: str | None) -> str:
         return ""
 
 
+def _format_release_display(raw: str | None) -> str | None:
+    dt = _parse_datetime(raw)
+    if not dt:
+        return None
+    if "T" not in (raw or "") and " " not in (raw or ""):
+        return dt.strftime("%d/%m/%Y")
+    return dt.strftime("%d/%m %H:%M")
+
+
 def _parse_datetime(raw: str | None) -> datetime | None:
     if not raw:
         return None
@@ -277,13 +286,7 @@ class AppState:
                         release_candidates,
                         key=lambda raw: _parse_datetime(raw) or datetime.min,
                     )
-                try:
-                    liberado_em = (
-                        datetime.fromisoformat(liberado_em_raw).strftime("%d/%m %H:%M")
-                        if liberado_em_raw else None
-                    )
-                except Exception:
-                    liberado_em = None
+                liberado_em = _format_release_display(liberado_em_raw)
 
                 # Compute group overall status
                 n_pronto = sum(1 for i in itens if i["status"] in _STATUS_PRONTO)

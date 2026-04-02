@@ -571,6 +571,7 @@ class BitlabConnector(LabConnector):
                     "nome":     e["deExame"],
                     "status":   e["deStatusWeb"],
                     "dtColeta": e.get("dtColeta", ""),
+                    "released_at_hint": e.get("dtEntrega", ""),
                     "item_id":  e.get("id", ""),
                 }
                 for e in itens_raw

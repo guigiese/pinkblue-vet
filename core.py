@@ -15,6 +15,40 @@ _EXTERNAL_EVENT_CACHE: dict[str, float] = {}
 _EXTERNAL_EVENT_TTL_SECONDS = 60 * 60 * 72
 
 
+def _parse_iso_like(raw: str | None) -> datetime | None:
+    if not raw:
+        return None
+    text = raw.strip()
+    for candidate in (text, text.replace("Z", "+00:00")):
+        try:
+            return datetime.fromisoformat(candidate)
+        except Exception:
+            pass
+    for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d/%m/%y", "%d/%m/%Y %H:%M", "%d/%m/%y %H:%M"):
+        try:
+            return datetime.strptime(text, fmt)
+        except Exception:
+            pass
+    return None
+
+
+def _derive_liberado_fallback(record: dict, item: dict, ts: str) -> str:
+    candidates = (
+        item.get("released_at_hint"),
+        record.get("released_at_hint"),
+        item.get("dtEntrega"),
+        item.get("dtColeta"),
+        record.get("received_at"),
+        record.get("data"),
+        ts,
+    )
+    for raw in candidates:
+        parsed = _parse_iso_like(raw)
+        if parsed:
+            return parsed.isoformat()
+    return ts
+
+
 def _cleanup_external_event_cache(now_ts: float) -> None:
     cutoff = now_ts - _EXTERNAL_EVENT_TTL_SECONDS
     expired = [sig for sig, ts in _EXTERNAL_EVENT_CACHE.items() if ts < cutoff]
@@ -83,6 +117,8 @@ def _stamp_liberados(anterior: dict, atual: dict, ts: str) -> None:
                     item["liberado_em"] = ant_item["liberado_em"]
                 elif s_old and s_old != "Pronto":
                     item["liberado_em"] = ts
+                elif not item.get("liberado_em"):
+                    item["liberado_em"] = _derive_liberado_fallback(rec, item, ts)
 
 
 def _hydrate_snapshot_details(lab, anterior: dict, atual: dict, ts: str) -> None:

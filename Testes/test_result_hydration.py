@@ -43,6 +43,30 @@ class SnapshotHydrationTests(unittest.TestCase):
         self.assertEqual(atual["REQ-1"]["itens"]["I1"]["alerta"], "yellow")
         self.assertEqual(len(atual["REQ-1"]["itens"]["I1"]["resultado"]), 1)
 
+    def test_first_cycle_preserves_ready_items_with_fallback_release_hint(self):
+        atual = {
+            "REQ-1": {
+                "label": "Bidu - Tutor",
+                "data": "2026-04-01",
+                "received_at": "2026-03-31T16:55:17",
+                "itens": {
+                    "I1": {
+                        "nome": "Hemograma",
+                        "status": "Pronto",
+                        "item_id": "item-1",
+                        "dtColeta": "2026-03-31T17:10:00",
+                    }
+                },
+            }
+        }
+
+        class FakeLab:
+            pass
+
+        core._hydrate_snapshot_details(FakeLab(), {}, atual, "2026-04-02T10:00:00")
+
+        self.assertEqual(atual["REQ-1"]["itens"]["I1"]["liberado_em"], "2026-03-31T17:10:00")
+
 
 class ResultCacheTests(unittest.TestCase):
     def test_manual_result_fetch_rehydrates_snapshot_item(self):

@@ -257,9 +257,26 @@ class NexioConnector(LabConnector):
             resultado[num] = {
                 "label":     label,
                 "data":      data_iso,
+                "released_at_hint": (
+                    datetime.strptime(exame["data_liberacao"], "%d/%m/%Y").strftime("%Y-%m-%d")
+                    if exame["data_liberacao"] and re.match(r"^\d{2}/\d{2}/\d{4}$", exame["data_liberacao"])
+                    else datetime.strptime(exame["data_liberacao"], "%d/%m/%y").strftime("%Y-%m-%d")
+                    if exame["data_liberacao"] and re.match(r"^\d{2}/\d{2}/\d{2}$", exame["data_liberacao"])
+                    else ""
+                ),
                 "portal_id": exame["exame_id"],
                 "itens": {
-                    num: {"nome": f"Patologia {num}", "status": exame["status"]}
+                    num: {
+                        "nome": f"Patologia {num}",
+                        "status": exame["status"],
+                        "released_at_hint": (
+                            datetime.strptime(exame["data_liberacao"], "%d/%m/%Y").strftime("%Y-%m-%d")
+                            if exame["data_liberacao"] and re.match(r"^\d{2}/\d{2}/\d{4}$", exame["data_liberacao"])
+                            else datetime.strptime(exame["data_liberacao"], "%d/%m/%y").strftime("%Y-%m-%d")
+                            if exame["data_liberacao"] and re.match(r"^\d{2}/\d{2}/\d{2}$", exame["data_liberacao"])
+                            else ""
+                        ),
+                    }
                 },
             }
 
