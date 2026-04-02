@@ -156,10 +156,10 @@ def parse_public_channels(html: str) -> dict[str, dict[str, Any]]:
 def parse_protocol_totals(html: str) -> dict[str, int]:
     text = BeautifulSoup(html, "html.parser").get_text(" ", strip=True)
     return {
-        "ready": int(re.search(r"(\d+)\s+Prontos", text).group(1)) if re.search(r"(\d+)\s+Prontos", text) else 0,
-        "partial": int(re.search(r"(\d+)\s+Parciais", text).group(1)) if re.search(r"(\d+)\s+Parciais", text) else 0,
-        "progress": int(re.search(r"(\d+)%\s+prontos", text).group(1)) if re.search(r"(\d+)%\s+prontos", text) else 0,
-        "total": int(re.search(r"(\d+)\s+Protocolos", text).group(1)) if re.search(r"(\d+)\s+Protocolos", text) else 0,
+        "ready": int(re.search(r"(\d+)\s+Pronto[s]?", text, re.I).group(1)) if re.search(r"(\d+)\s+Pronto[s]?", text, re.I) else 0,
+        "partial": int(re.search(r"(\d+)\s+Parcial(?:is)?", text, re.I).group(1)) if re.search(r"(\d+)\s+Parcial(?:is)?", text, re.I) else 0,
+        "progress": int(re.search(r"(\d+)%\s+prontos", text, re.I).group(1)) if re.search(r"(\d+)%\s+prontos", text, re.I) else 0,
+        "total": int(re.search(r"(\d+)\s+Protocolos", text, re.I).group(1)) if re.search(r"(\d+)\s+Protocolos", text, re.I) else 0,
     }
 
 

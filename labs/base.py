@@ -26,7 +26,7 @@ class LabConnector(ABC):
     @property
     @abstractmethod
     def lab_name(self) -> str:
-        """Nome legível (ex: 'BioAnálises BitLab')."""
+        """Nome legível (ex: 'Bioanálises')."""
 
     @abstractmethod
     def snapshot(self) -> dict[str, dict]:

@@ -1,4 +1,5 @@
 import unittest
+import zlib
 
 import core
 from labs.bitlab import BitlabConnector
@@ -217,6 +218,7 @@ class ConnectorMetadataParsingTests(unittest.TestCase):
 
     def test_nexio_parse_report_text(self):
         report_text = """
+        14/03/2026
         DADOS DO PACIENTE:
         Espécie: FELINA
         Idade:
@@ -235,7 +237,121 @@ class ConnectorMetadataParsingTests(unittest.TestCase):
         self.assertEqual(metadata["species_sex"], "gata")
         self.assertEqual(metadata["sex_raw"], "F")
         self.assertEqual(metadata["owner_name"], "Anelise Vogt")
+        self.assertEqual(metadata["received_at"], "2026-03-14")
         self.assertIn("hemangiossarcoma", metadata["diagnosis_text"].lower())
+
+
+class BitlabReferenceSelectionTests(unittest.TestCase):
+    def test_bitlab_selects_reference_for_patient_species(self):
+        html = """
+        <html><body>
+          <div style="left:20px;top:10px">TGP</div>
+          <div style="left:320px;top:10px"><b>50</b></div>
+          <div style="left:380px;top:10px">U/L</div>
+          <div style="left:320px;top:40px">Canino: 10 a 80 U/L</div>
+          <div style="left:320px;top:60px">Felino: 5 a 35 U/L</div>
+        </body></html>
+        """.encode("latin-1")
+
+        rows = BitlabConnector.parse_resultado(
+            zlib.compress(html),
+            {"species_raw": "Felina", "sex_raw": "F", "species_sex": "gata"},
+        )
+
+        self.assertEqual(rows[0]["referencia"], "Felino: 5 a 35 U/L")
+        self.assertEqual(rows[0]["alerta"], "red")
+
+    def test_bitlab_falls_back_to_species_group_when_sex_unknown(self):
+        html = """
+        <html><body>
+          <div style="left:20px;top:10px">Creatinina</div>
+          <div style="left:320px;top:10px"><b>1,3</b></div>
+          <div style="left:380px;top:10px">mg/dL</div>
+          <div style="left:320px;top:40px">Canino macho: 0,8 a 1,6 mg/dL</div>
+          <div style="left:320px;top:60px">Canino femea: 0,7 a 1,4 mg/dL</div>
+          <div style="left:320px;top:80px">Felino: 0,8 a 1,8 mg/dL</div>
+        </body></html>
+        """.encode("latin-1")
+
+        rows = BitlabConnector.parse_resultado(
+            zlib.compress(html),
+            {"species_raw": "Canina"},
+        )
+
+        self.assertEqual(
+            rows[0]["referencia"],
+            "Canino macho: 0,8 a 1,6 mg/dL; Canino femea: 0,7 a 1,4 mg/dL",
+        )
+        self.assertIsNone(rows[0]["alerta"])
+
+    def test_bitlab_enrich_resultados_uses_record_context(self):
+        html = """
+        <html><body>
+          <div style="left:20px;top:10px">TGP</div>
+          <div style="left:320px;top:10px"><b>50</b></div>
+          <div style="left:380px;top:10px">U/L</div>
+          <div style="left:320px;top:40px">Canino: 10 a 80 U/L</div>
+          <div style="left:320px;top:60px">Felino: 5 a 35 U/L</div>
+        </body></html>
+        """.encode("latin-1")
+
+        connector = BitlabConnector()
+        connector._login = lambda: "token"
+        connector.buscar_resultado_html = lambda token, item_id: zlib.compress(html)
+
+        atual = {
+            "REQ-1": {
+                "label": "Mia - Tutor",
+                "data": "2026-04-01",
+                "species_raw": "Felina",
+                "sex_raw": "F",
+                "species_sex": "gata",
+                "itens": {
+                    "I1": {"nome": "TGP", "status": "Pronto", "item_id": "item-1"},
+                },
+            }
+        }
+
+        connector.enrich_resultados({}, atual)
+
+        item = atual["REQ-1"]["itens"]["I1"]
+        self.assertEqual(item["resultado"][0]["referencia"], "Felino: 5 a 35 U/L")
+        self.assertEqual(item["alerta"], "red")
+
+
+class StatePresentationTests(unittest.TestCase):
+    def test_get_exames_uses_received_at_for_card_date_and_latest_release_for_group(self):
+        original_snapshots = state.snapshots
+        original_config = state._config
+        try:
+            state._config = {
+                "labs": [{"id": "bitlab", "name": "Bioanálises"}],
+                "notifiers": [],
+                "interval_minutes": 5,
+            }
+            state.snapshots = {
+                "bitlab": {
+                    "REQ-1": {
+                        "label": "Bidu - Tutor",
+                        "data": "2026-04-01",
+                        "received_at": "2026-03-31T16:55:17",
+                        "itens": {
+                            "I1": {"nome": "Hemograma", "status": "Pronto", "liberado_em": "2026-04-01T10:00:00"},
+                            "I2": {"nome": "ALT", "status": "Pronto", "liberado_em": "2026-04-01T12:30:00"},
+                        },
+                    }
+                }
+            }
+
+            groups = state.get_exames()
+
+            self.assertEqual(groups[0]["date_display"], "31/03/2026")
+            self.assertEqual(groups[0]["time_display"], "16:55")
+            self.assertEqual(groups[0]["last_release_display"], "01/04 12:30")
+            self.assertEqual(groups[0]["liberado_em_iso"], "2026-04-01T12:30:00")
+        finally:
+            state.snapshots = original_snapshots
+            state._config = original_config
 
 
 if __name__ == "__main__":

@@ -71,6 +71,102 @@ def _compose_species_sex(species_raw: str, sex_raw: str) -> str:
     return species_raw.title()
 
 
+def _normalize_species_key(*values: str) -> str:
+    for value in values:
+        norm = _strip_accents((value or "").strip().lower())
+        if not norm:
+            continue
+        if any(token in norm for token in ("canin", "cao", "cadela", "cachorr")):
+            return "canine"
+        if any(token in norm for token in ("felin", "gato", "gata")):
+            return "feline"
+    return ""
+
+
+def _normalize_sex_key(*values: str) -> str:
+    for value in values:
+        norm = _strip_accents((value or "").strip().lower())
+        if not norm:
+            continue
+        if norm in {"f", "femea", "female"} or "femea" in norm:
+            return "F"
+        if norm in {"m", "macho", "male"} or "macho" in norm:
+            return "M"
+        if any(token in norm for token in ("cadela", "gata")):
+            return "F"
+        if any(token in norm for token in ("cao", "cão", "gato")):
+            return "M"
+    return ""
+
+
+def _parse_reference_entry(text: str) -> dict | None:
+    ref_m = _REF_PAT.search(text or "")
+    if not ref_m:
+        return None
+    parts = ref_m.group().split(" a ")
+    try:
+        range_min = _parse_num(parts[0])
+        range_max = _parse_num(parts[1])
+    except Exception:
+        return None
+    label = re.sub(r"[:\-\s]+$", "", (text or "")[:ref_m.start()].strip())
+    species_key = _normalize_species_key(label)
+    sex_key = _normalize_sex_key(label)
+    return {
+        "text": (text or "").strip(),
+        "range": (range_min, range_max),
+        "species_key": species_key,
+        "sex_key": sex_key,
+        "specificity": int(bool(species_key)) + int(bool(sex_key)),
+    }
+
+
+def _select_reference_entries(entries: list[dict], patient_context: dict | None) -> list[dict]:
+    if not entries:
+        return []
+
+    patient_context = patient_context or {}
+    patient_species = _normalize_species_key(
+        patient_context.get("species_sex", ""),
+        patient_context.get("species_raw", ""),
+    )
+    patient_sex = _normalize_sex_key(
+        patient_context.get("sex_raw", ""),
+        patient_context.get("species_sex", ""),
+    )
+
+    selected: list[dict] = []
+    best_score: int | None = None
+
+    for entry in entries:
+        entry_species = entry.get("species_key", "")
+        entry_sex = entry.get("sex_key", "")
+        if entry_species and patient_species and entry_species != patient_species:
+            continue
+        if entry_sex and patient_sex and entry_sex != patient_sex:
+            continue
+
+        score = 0
+        if patient_species and entry_species == patient_species:
+            score += 1
+        if patient_sex and entry_sex == patient_sex:
+            score += 1
+
+        if best_score is None or score > best_score:
+            best_score = score
+            selected = [entry]
+        elif score == best_score:
+            selected.append(entry)
+
+    if not selected:
+        return entries
+    if best_score and best_score > 0:
+        return selected
+
+    generic = [entry for entry in selected if entry.get("specificity", 0) == 0]
+    return generic or selected
+
+
 def _calc_alert_single(value_str: str, ref_str: str) -> str | None:
     """Alert for Layout A: single numeric range on same row."""
     try:
@@ -106,7 +202,7 @@ class BitlabConnector(LabConnector):
 
     @property
     def lab_name(self):
-        return "BioAnálises (BitLab)"
+        return "Bioanálises"
 
     def _login(self) -> str:
         r = requests.post(f"{self.BASE}/SignIn",
@@ -203,7 +299,7 @@ class BitlabConnector(LabConnector):
         }
 
     @staticmethod
-    def parse_resultado(raw_bytes: bytes) -> list[dict]:
+    def parse_resultado(raw_bytes: bytes, patient_context: dict | None = None) -> list[dict]:
         """
         Parse BitLab zlib-compressed HTML result into structured rows.
         Handles two layouts:
@@ -295,8 +391,7 @@ class BitlabConnector(LabConnector):
                     continue  # no numeric value → not a parameter row
 
                 # Look ahead for species reference rows
-                species_refs: list[tuple[float, float]] = []
-                ref_texts: list[str] = []
+                ref_entries: list[dict] = []
 
                 for j in range(i + 1, len(sorted_tops)):
                     next_top = sorted_tops[j]
@@ -321,18 +416,14 @@ class BitlabConnector(LabConnector):
                         ref_m = _REF_PAT.search(c["text"])
                         if ref_m:
                             skip_tops.add(next_top)
-                            ref_texts.append(c["text"].strip())
-                            parts = ref_m.group().split(" a ")
-                            try:
-                                species_refs.append(
-                                    (_parse_num(parts[0]), _parse_num(parts[1]))
-                                )
-                            except Exception:
-                                pass
+                            entry = _parse_reference_entry(c["text"])
+                            if entry:
+                                ref_entries.append(entry)
 
                 valor_display = value_str + (f" {unit_str}" if unit_str else "")
+                selected_refs = _select_reference_entries(ref_entries, patient_context)
 
-                if not species_refs:
+                if not selected_refs:
                     results.append({
                         "nome":       name,
                         "valor":      valor_display,
@@ -346,12 +437,12 @@ class BitlabConnector(LabConnector):
                 numeric = _try_float(value_str)
                 if numeric is not None:
                     outside_count = sum(
-                        1 for rmin, rmax in species_refs
+                        1 for rmin, rmax in (entry["range"] for entry in selected_refs)
                         if numeric < rmin or numeric > rmax
                     )
-                    if outside_count == len(species_refs) and outside_count > 0:
+                    if outside_count == len(selected_refs) and outside_count > 0:
                         max_dev = 0.0
-                        for rmin, rmax in species_refs:
+                        for rmin, rmax in (entry["range"] for entry in selected_refs):
                             if numeric < rmin:
                                 dev = abs(numeric - rmin) / rmin if rmin else 1.0
                             else:
@@ -364,7 +455,7 @@ class BitlabConnector(LabConnector):
                 results.append({
                     "nome":       name,
                     "valor":      valor_display,
-                    "referencia": "; ".join(ref_texts),
+                    "referencia": "; ".join(entry["text"] for entry in selected_refs),
                     "alerta":     alert,
                 })
 
@@ -406,7 +497,7 @@ class BitlabConnector(LabConnector):
         for rid, iid, item_id in to_fetch:
             try:
                 raw = self.buscar_resultado_html(token, item_id)
-                rows = self.parse_resultado(raw)
+                rows = self.parse_resultado(raw, atual[rid])
                 worst = max(
                     (r["alerta"] for r in rows),
                     key=lambda a: _ALERT_RANK.get(a, 0),
@@ -487,6 +578,7 @@ class BitlabConnector(LabConnector):
             resultado[req["requisicao"]] = {
                 "label":     req["nmPaciente"],
                 "data":      req["dtRequisicao"][:10],
+                "received_at": req.get("dtRequisicao", "") or req["dtRequisicao"][:10],
                 "portal_id": req["id"],
                 "itens":     itens,
             }

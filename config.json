@@ -3,7 +3,7 @@
   "labs": [
     {
       "id": "bitlab",
-      "name": "BioAnálises (BitLab)",
+      "name": "Bioanálises",
       "connector": "bitlab",
       "enabled": true
     },

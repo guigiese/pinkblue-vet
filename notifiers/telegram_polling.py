@@ -108,7 +108,7 @@ def handle_update(update: dict, token: str | None = None):
     # ── /testar ───────────────────────────────────────────────────────────────
     elif text == "/testar":
         _send(chat_id,
-              "✅ <b>Exames concluidos - BioAnálises (BitLab)</b>\n"
+              "✅ <b>Exames concluidos - Bioanálises</b>\n"
               "👤 Bolinha - Maria Silva\n"
               "📋 08-00012345 | 01/04/2026\n"
               "🔬 Liberados neste lote\n"

@@ -349,6 +349,12 @@
         <span class="pb-expanded-meta__label">PROTOCOLO</span>
         {{ protocol_link(g.protocol, g.portal_url, True) }}
       </span>
+      {% if g.last_release_display %}
+      <span class="pb-expanded-meta__pair">
+        <span class="pb-expanded-meta__label">ULTIMA LIBERACAO</span>
+        <span class="pb-protocol-link is-static is-expanded">{{ g.last_release_display }}</span>
+      </span>
+      {% endif %}
       {% if g.species_sex or g.breed %}
       <span class="pb-expanded-meta__pair">
         <span class="pb-expanded-meta__label">PACIENTE</span>

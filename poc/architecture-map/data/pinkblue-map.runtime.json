@@ -610,9 +610,9 @@
         "label": "Public labs page",
         "checkedAt": "2026-04-01T02:05:42.743260+00:00"
       },
-      "healthReason": "BioAnálises (BitLab) aparece habilitado e sem erro público recente.",
+      "healthReason": "Bioanálises aparece habilitado e sem erro público recente.",
       "signals": [
-        "Página /labmonitor/labs mostra BioAnálises (BitLab) habilitado.",
+        "Página /labmonitor/labs mostra Bioanálises habilitado.",
         "Último check visível: 01:58:45."
       ],
       "metrics": [

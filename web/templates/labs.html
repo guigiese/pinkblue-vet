@@ -13,7 +13,7 @@
       <div class="min-w-0">
         <div class="flex items-center gap-2 flex-wrap">
           <h3 class="font-semibold text-gray-800 text-base">{{ lab.name }}</h3>
-          <span class="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 font-mono">{{ lab.connector }}</span>
+          <span class="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 font-mono">conector {{ lab.connector }}</span>
         </div>
         {% if last_check.get(lab.id) %}
         <p class="text-xs text-gray-400 mt-1">Último check: {{ last_check[lab.id] }}</p>
