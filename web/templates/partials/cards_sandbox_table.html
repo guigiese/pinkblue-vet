@@ -161,11 +161,27 @@
 
 {% macro item_toggle(item, table_width) %}
   {% if item.status == "Pronto" %}
-  <details class="pb-item-result-row" {% if item.alert %}data-has-alert="{{ item.alert }}"{% endif %}>
+  {% set can_fetch_result = result_fetch_prefix and item.item_id and not item.results %}
+  <details class="pb-item-result-row"
+           {% if item.alert %}data-has-alert="{{ item.alert }}"{% endif %}
+           {% if can_fetch_result %}
+           hx-get="{{ result_fetch_prefix }}/{{ item.item_id | urlencode }}"
+           hx-trigger="toggle once"
+           hx-target="find .pb-item-result-body"
+           hx-swap="innerHTML"
+           {% endif %}>
     <summary class="pb-item-row-toggle">
       <span class="pb-item-row-toggle__label">{{ item.name }}</span>
     </summary>
-    {{ result_rows(item.results, table_width) }}
+    <div class="pb-item-result-body">
+      {% if item.results %}
+        {{ result_rows(item.results, table_width) }}
+      {% elif can_fetch_result %}
+        <p class="pb-item-result-empty">Resultado será carregado ao expandir.</p>
+      {% else %}
+        {{ result_rows(item.results, table_width) }}
+      {% endif %}
+    </div>
   </details>
   {% else %}
   <div class="pb-item-row-toggle is-static">
