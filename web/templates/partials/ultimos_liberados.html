@@ -55,14 +55,11 @@
       </div>
     </div>
 
-    <div class="px-4 pb-3 pt-0 flex items-center justify-between gap-3">
+    <div class="px-4 pb-3 pt-0 flex items-center justify-start">
       <span class="inline-flex min-w-[7.4rem] items-center justify-center rounded-full border px-2.5 py-1 text-[10px] font-semibold leading-none tracking-[0.02em] {{ progress_border }} {{ progress_text }}"
             style="background: linear-gradient(90deg, {{ progress_fill }} 0%, {{ progress_fill }} {{ completion_pct }}%, {{ progress_rest }} {{ completion_pct }}%, {{ progress_rest }} 100%);">
         {{ g.items_ready }}/{{ g.items_total }} prontos
       </span>
-      <div class="text-[11px] leading-none text-gray-500">
-        <span class="font-mono text-[10px] uppercase tracking-[0.12em] text-gray-400">{{ g.record_id }}</span>
-      </div>
     </div>
   </a>
   {% endfor %}
