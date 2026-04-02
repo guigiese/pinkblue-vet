@@ -44,6 +44,8 @@ class DashboardRenderingTests(unittest.TestCase):
         self.assertIn("Bioanálises", body)
         self.assertIn("2/4 prontos", body)
         self.assertIn("PARCIAL", body)
+        self.assertIn("pb-species-symbol is-inline", body)
+        self.assertNotIn("pb-species-badge", body)
 
     def test_ultimos_liberados_links_with_clean_patient_query(self):
         fake_groups = [
@@ -73,6 +75,8 @@ class DashboardRenderingTests(unittest.TestCase):
         body = response.text
         self.assertIn('/labmonitor/exames?q=PIDA"', body)
         self.assertNotIn("PROP%3A", body)
+        self.assertNotIn("crit-red", body)
+        self.assertNotIn("pb-rail-palette--vivid", body)
 
     def test_lab_counts_cards_link_to_filtered_exams(self):
         fake_counts = {

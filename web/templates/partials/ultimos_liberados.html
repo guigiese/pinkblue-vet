@@ -1,19 +1,36 @@
-{% from "partials/cards_sandbox_table.html" import badge_geral, species_badge %}
+{% from "partials/cards_sandbox_table.html" import badge_geral, species_symbol %}
 {% if groups %}
 <div class="space-y-2.5">
   {% for g in groups %}
   <a href="/labmonitor/exames?q={{ (g.patient_name or g.paciente) | urlencode }}"
-     class="block pb-group pb-family--aligned-2row pb-density--two-row-compact pb-rail-palette--vivid pb-rail-shape--organic-strong rounded-xl border shadow-sm overflow-hidden crit-{{ g.alerta_geral or 'none' }} transition-colors {% if g.alerta_geral == 'red' %}bg-red-50/80 border-red-200 hover:bg-red-50{% elif g.alerta_geral == 'yellow' %}bg-yellow-50/80 border-yellow-200 hover:bg-yellow-50{% else %}bg-white border-gray-100 hover:bg-gray-50{% endif %}">
+     class="block pb-group pb-family--aligned-2row pb-density--two-row-compact rounded-xl border shadow-sm overflow-hidden transition-colors {% if g.alerta_geral == 'red' %}bg-red-50/80 border-red-200 hover:bg-red-50{% elif g.alerta_geral == 'yellow' %}bg-yellow-50/80 border-yellow-200 hover:bg-yellow-50{% else %}bg-white border-gray-100 hover:bg-gray-50{% endif %}">
     <div class="pb-summary">
       <div class="pb-summary__body">
         <div class="pb-summary__left">
+          <div class="shrink-0 self-center w-8 flex justify-center">
+            {% if g.alerta_geral == 'red' %}
+            <div class="w-8 h-8 rounded-full bg-red-500 flex items-center justify-center">
+              <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+              </svg>
+            </div>
+            {% elif g.alerta_geral == 'yellow' %}
+            <div class="w-8 h-8 rounded-full bg-yellow-400 flex items-center justify-center">
+              <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+              </svg>
+            </div>
+            {% else %}
+            <span class="block w-8 h-8" aria-hidden="true"></span>
+            {% endif %}
+          </div>
           <div class="pb-card-main pb-card-main--two-row">
             <div class="pb-row pb-row--identity pb-row--identity-clean">
+              {{ species_symbol(g.species_sex, "inline") }}
               <strong class="pb-patient">{{ g.patient_name or g.paciente }}</strong>
               {% if g.tutor_name %}
               <span class="pb-tutor">{{ g.tutor_name }}</span>
               {% endif %}
-              {{ species_badge(g.species_sex, "sex-colored") }}
             </div>
             <div class="pb-row pb-row--meta pb-row--meta-clean">
               <span class="pb-date-inline">
