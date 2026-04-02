@@ -91,7 +91,17 @@ def _hydrate_snapshot_details(lab, anterior: dict, atual: dict, ts: str) -> None
     This must happen on every cycle, including the first one after a restart,
     otherwise alert/resultado data disappear until a later refresh.
     """
+    _hydrate_snapshot_metadata(lab, anterior, atual, ts)
+    _hydrate_snapshot_results(lab, anterior, atual)
+
+
+def _hydrate_snapshot_metadata(lab, anterior: dict, atual: dict, ts: str) -> None:
     _stamp_liberados(anterior, atual, ts)
+    if hasattr(lab, "enrich_snapshot_metadata"):
+        lab.enrich_snapshot_metadata(anterior, atual)
+
+
+def _hydrate_snapshot_results(lab, anterior: dict, atual: dict) -> None:
     if hasattr(lab, "enrich_resultados"):
         lab.enrich_resultados(anterior, atual)
 
@@ -202,9 +212,13 @@ def run_monitor_loop(state=None):
                 print(f"[{datetime.now():%H:%M:%S}] Verificando {lab.lab_name}...")
                 atual = lab.snapshot()
                 anterior = state.snapshots.get(lab.lab_id, {}) if state else {}
+                ts_now = datetime.now().isoformat()
 
                 if not anterior:
-                    _hydrate_snapshot_details(lab, anterior, atual, datetime.now().isoformat())
+                    _hydrate_snapshot_metadata(lab, anterior, atual, ts_now)
+                    if state:
+                        state.snapshots[lab.lab_id] = atual
+                    _hydrate_snapshot_results(lab, anterior, atual)
                     print("  Primeira execucao - estado salvo.")
                 else:
                     internal_messages, external_events = build_notification_plan(
@@ -213,7 +227,10 @@ def run_monitor_loop(state=None):
                         anterior,
                         atual,
                     )
-                    _hydrate_snapshot_details(lab, anterior, atual, datetime.now().isoformat())
+                    _hydrate_snapshot_metadata(lab, anterior, atual, ts_now)
+                    if state:
+                        state.snapshots[lab.lab_id] = atual
+                    _hydrate_snapshot_results(lab, anterior, atual)
 
                     for msg in internal_messages:
                         print(f"  -> {msg[:80]}")

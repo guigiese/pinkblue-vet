@@ -6,3 +6,4 @@ python-multipart==0.0.9
 # scraping
 requests==2.32.3
 beautifulsoup4==4.13.4
+pypdf==6.9.2

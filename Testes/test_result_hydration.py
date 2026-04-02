@@ -1,6 +1,8 @@
 import unittest
 
 import core
+from labs.bitlab import BitlabConnector
+from labs.nexio import NexioConnector
 from web import app as web_app
 from web.state import state
 
@@ -116,6 +118,45 @@ class ResultCacheTests(unittest.TestCase):
             state.snapshots = original_snapshots
             state._config = original_config
 
+    def test_get_exames_exposes_breed_and_report_text(self):
+        original_snapshots = state.snapshots
+        original_config = state._config
+        try:
+            state._config = {
+                "labs": [{"id": "nexio", "name": "Nexio"}],
+                "notifiers": [],
+                "interval_minutes": 5,
+            }
+            state.snapshots = {
+                "nexio": {
+                    "AP000184/26": {
+                        "label": "Linda - Anelise Vogt",
+                        "data": "2026-03-26",
+                        "portal_id": "22032821",
+                        "species_sex": "gata",
+                        "breed": "SRD",
+                        "itens": {
+                            "AP000184/26": {
+                                "nome": "Patologia AP000184/26",
+                                "status": "Arquivo morto",
+                                "report_text": "DIAGNÓSTICO\nHemangiossarcoma cutâneo.",
+                                "diagnosis_text": "Hemangiossarcoma cutâneo.",
+                            }
+                        },
+                    }
+                }
+            }
+
+            groups = state.get_exames()
+
+            self.assertEqual(groups[0]["species_sex"], "gata")
+            self.assertEqual(groups[0]["breed"], "SRD")
+            self.assertIn("Hemangiossarcoma", groups[0]["items_view"][0]["report_text"])
+            self.assertIn("Hemangiossarcoma", groups[0]["items_view"][0]["diagnosis_text"])
+        finally:
+            state.snapshots = original_snapshots
+            state._config = original_config
+
     def test_get_exames_strips_prop_prefix_from_tutor_label(self):
         original_snapshots = state.snapshots
         original_config = state._config
@@ -147,6 +188,54 @@ class ResultCacheTests(unittest.TestCase):
         finally:
             state.snapshots = original_snapshots
             state._config = original_config
+
+
+class ConnectorMetadataParsingTests(unittest.TestCase):
+    def test_bitlab_parse_requisicao_metadata(self):
+        raw_pdf = (
+            "q 0 0 0 rg BT /F2 8 Tf 12 678 Td (Proprietário....:) Tj ET Q "
+            "q 0 0 0 rg BT /F2 8 Tf 12 666 Td (Espécie.........:) Tj ET Q "
+            "q 0 0 0 rg BT /F2 8 Tf 349.5 678 Td (Raça............:) Tj ET Q "
+            "q 0 0 0 rg 101.25 710.25 249.75 12 re W n BT /F1 11 Tf 104.25 712.5 Td (PIDA - JINGWEI DU) Tj ET Q "
+            "q 0 0 0 rg 502.5 686.25 25.5 12 re W n BT /F2 8 Tf 504.75 690 Td (F) Tj ET Q "
+            "q 0 0 0 rg 441.75 686.25 59.25 12 re W n BT /F2 8 Tf 444 690 Td (7 Meses) Tj ET Q "
+            "q 0 0 0 rg 441.75 698.25 99.75 12 re W n BT /F2 8 Tf 444 702 Td (31/03/26 16:55) Tj ET Q "
+            "q 0 0 0 rg 462.75 710.25 79.5 12 re W n BT /F2 8 Tf 465 714 Td (00030473) Tj ET Q "
+            "q 0 0 0 rg 437.25 710.25 18.75 12 re W n BT /F2 8 Tf 440.25 714 Td (08) Tj ET Q "
+            "q 0 0 0 rg 104.25 674.25 207.75 12 re W n BT /F2 8 Tf 106.5 678 Td (JINGWEI DU) Tj ET Q "
+            "q 0 0 0 rg 104.25 662.25 72.75 12 re W n BT /F2 8 Tf 106.5 666 Td (FELINA) Tj ET Q "
+            "q 0 0 0 rg 441.75 674.25 72.75 12 re W n BT /F2 8 Tf 444 678 Td (S.R.D..) Tj ET Q "
+        ).encode("latin-1")
+
+        metadata = BitlabConnector.parse_requisicao_metadata(raw_pdf)
+
+        self.assertEqual(metadata["owner_name"], "JINGWEI DU")
+        self.assertEqual(metadata["species_raw"], "FELINA")
+        self.assertEqual(metadata["species_sex"], "gata")
+        self.assertEqual(metadata["breed"], "SRD")
+        self.assertEqual(metadata["protocol_number"], "08-00030473")
+
+    def test_nexio_parse_report_text(self):
+        report_text = """
+        DADOS DO PACIENTE:
+        Espécie: FELINA
+        Idade:
+        FSexo:
+        Responsável: ANELISE VOGT
+        Convênio: PINK E BLUE VETERINÁRIA
+        DIAGNÓSTICO
+        Características histológicas favorecem hemangiossarcoma cutâneo.
+        DESCRIÇÃO MACROSCOPICA
+        Material: Um fragmento.
+        """
+
+        metadata = NexioConnector.parse_report_text(report_text)
+
+        self.assertEqual(metadata["species_raw"], "Felina")
+        self.assertEqual(metadata["species_sex"], "gata")
+        self.assertEqual(metadata["sex_raw"], "F")
+        self.assertEqual(metadata["owner_name"], "Anelise Vogt")
+        self.assertIn("hemangiossarcoma", metadata["diagnosis_text"].lower())
 
 
 if __name__ == "__main__":

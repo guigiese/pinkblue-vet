@@ -159,9 +159,25 @@
 {% endif %}
 {% endmacro %}
 
+{% macro report_text_block(item) %}
+{% if item.report_text %}
+<div class="px-3 py-2.5 text-xs leading-5 text-gray-700 whitespace-pre-line max-h-80 overflow-y-auto">
+  {% if item.diagnosis_text %}
+  <div class="mb-2">
+    <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Diagnóstico</p>
+    <p class="mt-1">{{ item.diagnosis_text }}</p>
+  </div>
+  {% endif %}
+  <div>{{ item.report_text }}</div>
+</div>
+{% else %}
+<p class="pb-item-result-empty">Resultado nao disponivel.</p>
+{% endif %}
+{% endmacro %}
+
 {% macro item_toggle(item, table_width) %}
   {% if item.status == "Pronto" %}
-  {% set can_fetch_result = result_fetch_prefix and item.item_id and not item.results %}
+  {% set can_fetch_result = result_fetch_prefix and item.item_id and not item.results and not item.report_text %}
   <details class="pb-item-result-row"
            {% if item.alert %}data-has-alert="{{ item.alert }}"{% endif %}
            {% if can_fetch_result %}
@@ -176,10 +192,12 @@
     <div class="pb-item-result-body">
       {% if item.results %}
         {{ result_rows(item.results, table_width) }}
+      {% elif item.report_text %}
+        {{ report_text_block(item) }}
       {% elif can_fetch_result %}
         <p class="pb-item-result-empty">Resultado será carregado ao expandir.</p>
       {% else %}
-        {{ result_rows(item.results, table_width) }}
+        {{ report_text_block(item) }}
       {% endif %}
     </div>
   </details>
@@ -331,6 +349,14 @@
         <span class="pb-expanded-meta__label">PROTOCOLO</span>
         {{ protocol_link(g.protocol, g.portal_url, True) }}
       </span>
+      {% if g.species_sex or g.breed %}
+      <span class="pb-expanded-meta__pair">
+        <span class="pb-expanded-meta__label">PACIENTE</span>
+        <span class="pb-protocol-link is-static is-expanded">
+          {% if g.species_sex %}{{ g.species_sex | capitalize }}{% endif %}{% if g.species_sex and g.breed %} · {% endif %}{% if g.breed %}{{ g.breed }}{% endif %}
+        </span>
+      </span>
+      {% endif %}
     </div>
     {% endif %}
 

@@ -7,6 +7,7 @@ import os
 import re
 import zlib
 import time
+import unicodedata
 import requests
 from datetime import datetime, timedelta
 from bs4 import BeautifulSoup
@@ -14,6 +15,9 @@ from .base import LabConnector
 
 _REF_PAT    = re.compile(r"[\d.,]+\s+a\s+[\d.,]+")
 _ALERT_RANK = {None: 0, "yellow": 1, "red": 2}
+_PDF_TEXT_PAT = re.compile(
+    r"(?P<x>\d+(?:\.\d+)?)\s+(?P<y>\d+(?:\.\d+)?)\s+Td\s+\((?P<text>(?:\\.|[^()])*)\)\s+Tj"
+)
 
 
 def _try_float(text: str) -> float | None:
@@ -25,6 +29,46 @@ def _try_float(text: str) -> float | None:
 
 def _parse_num(text: str) -> float:
     return float(text.strip().replace(".", "").replace(",", "."))
+
+
+def _strip_accents(text: str) -> str:
+    return "".join(
+        c for c in unicodedata.normalize("NFD", text or "")
+        if unicodedata.category(c) != "Mn"
+    )
+
+
+def _clean_breed(text: str) -> str:
+    clean = re.sub(r"\.+", ".", (text or "").strip()).strip(" .")
+    if not clean:
+        return ""
+    if clean.upper().replace(".", "") == "SRD":
+        return "SRD"
+    return clean.title()
+
+
+def _pdf_unescape(text: str) -> str:
+    return (
+        text.replace(r"\(", "(")
+        .replace(r"\)", ")")
+        .replace(r"\\", "\\")
+        .strip()
+    )
+
+
+def _compose_species_sex(species_raw: str, sex_raw: str) -> str:
+    species_norm = _strip_accents((species_raw or "").strip().lower())
+    sex_norm = (sex_raw or "").strip().upper()
+
+    if species_norm.startswith("canin"):
+        return "cadela" if sex_norm == "F" else "cão" if sex_norm == "M" else "cão"
+    if species_norm.startswith("felin"):
+        return "gata" if sex_norm == "F" else "gato" if sex_norm == "M" else "gato"
+    if not species_raw:
+        return ""
+    if sex_norm:
+        return f"{species_raw.title()} {sex_norm}"
+    return species_raw.title()
 
 
 def _calc_alert_single(value_str: str, ref_str: str) -> str | None:
@@ -54,7 +98,7 @@ class BitlabConnector(LabConnector):
         self._senha       = os.environ.get("BITLAB_SENHA",     "melanie")
         self._cd_convenio = int(os.environ.get("BITLAB_CD_CONVENIO", "1170"))
         self._cd_posto    = int(os.environ.get("BITLAB_CD_POSTO",    "8"))
-        self._dias_atras  = int(os.environ.get("DIAS_ATRAS",         "30"))
+        self._dias_atras  = int(os.environ.get("DIAS_ATRAS",         "60"))
 
     @property
     def lab_id(self):
@@ -104,6 +148,59 @@ class BitlabConnector(LabConnector):
         )
         r.raise_for_status()
         return r.content
+
+    def buscar_requisicao_pdf(self, token: str, requisicao_portal_id: str) -> bytes:
+        r = requests.get(
+            f"{self.BASE}/Requisicao/{requisicao_portal_id}",
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=20,
+        )
+        r.raise_for_status()
+        return r.content
+
+    @staticmethod
+    def parse_requisicao_metadata(raw_pdf: bytes) -> dict:
+        try:
+            text = raw_pdf.decode("latin-1", errors="ignore")
+        except Exception:
+            return {}
+
+        entries: list[tuple[float, float, str]] = [
+            (float(match.group("x")), float(match.group("y")), _pdf_unescape(match.group("text")))
+            for match in _PDF_TEXT_PAT.finditer(text)
+        ]
+
+        if not entries:
+            return {}
+
+        def pick(x_min: float, x_max: float, y_target: float, tolerance: float = 2.0) -> str:
+            for x_pos, y_pos, value in entries:
+                if x_min <= x_pos <= x_max and abs(y_pos - y_target) <= tolerance and value:
+                    return value
+            return ""
+
+        patient_display = pick(100, 130, 712.5)
+        owner_name = pick(100, 130, 678.0)
+        species_raw = pick(100, 130, 666.0)
+        breed = _clean_breed(pick(430, 460, 678.0))
+        sex_raw = pick(490, 520, 690.0)
+        age = pick(430, 460, 690.0)
+        collected_at = pick(430, 460, 702.0)
+        posto = pick(430, 445, 714.0)
+        requisicao_num = pick(460, 470, 714.0)
+        species_sex = _compose_species_sex(species_raw, sex_raw)
+
+        return {
+            "patient_display": patient_display,
+            "owner_name": owner_name,
+            "species_raw": species_raw,
+            "sex_raw": sex_raw,
+            "species_sex": species_sex,
+            "breed": breed,
+            "patient_age": age,
+            "collected_at": collected_at,
+            "protocol_number": f"{posto}-{requisicao_num}" if posto and requisicao_num else requisicao_num,
+        }
 
     @staticmethod
     def parse_resultado(raw_bytes: bytes) -> list[dict]:
@@ -317,10 +414,60 @@ class BitlabConnector(LabConnector):
                 )
                 atual[rid]["itens"][iid]["alerta"]    = worst
                 atual[rid]["itens"][iid]["resultado"] = rows
-                print(f"  [BitLab resultados] {iid} → alerta={worst}")
+                print(f"  [BitLab resultados] {iid} -> alerta={worst}")
             except Exception as e:
                 print(f"  [BitLab resultados] {iid}: {e}")
             time.sleep(0.1)
+
+    def enrich_snapshot_metadata(self, anterior: dict, atual: dict) -> None:
+        carry_fields = (
+            "owner_name",
+            "species_raw",
+            "sex_raw",
+            "species_sex",
+            "breed",
+            "patient_age",
+            "collected_at",
+            "protocol_number",
+        )
+        to_fetch: list[tuple[str, str]] = []
+
+        for rid, record in atual.items():
+            ant_rec = anterior.get(rid, {})
+            for field in carry_fields:
+                if ant_rec.get(field) and not record.get(field):
+                    record[field] = ant_rec[field]
+
+            if record.get("species_sex") and record.get("breed"):
+                continue
+
+            portal_id = record.get("portal_id")
+            if portal_id:
+                to_fetch.append((rid, portal_id))
+
+        if not to_fetch:
+            return
+
+        try:
+            token = self._login()
+        except Exception as e:
+            print(f"  [BitLab metadata] login failed: {e}")
+            return
+
+        for rid, portal_id in to_fetch:
+            try:
+                raw_pdf = self.buscar_requisicao_pdf(token, portal_id)
+                metadata = self.parse_requisicao_metadata(raw_pdf)
+                if metadata:
+                    atual[rid].update({k: v for k, v in metadata.items() if v})
+                    print(
+                        f"  [BitLab metadata] {rid} -> "
+                        f"species={atual[rid].get('species_sex') or '-'} "
+                        f"breed={atual[rid].get('breed') or '-'}"
+                    )
+            except Exception as e:
+                print(f"  [BitLab metadata] {rid}: {e}")
+            time.sleep(0.05)
 
     def snapshot(self) -> dict[str, dict]:
         token = self._login()

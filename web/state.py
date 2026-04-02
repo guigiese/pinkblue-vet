@@ -223,6 +223,8 @@ class AppState:
                         "item_id":     item.get("item_id"),
                         "alerta":      item.get("alerta"),
                         "resultado":   item.get("resultado") or [],
+                        "report_text": item.get("report_text") or item.get("resultado_texto") or "",
+                        "diagnosis_text": item.get("diagnosis_text") or "",
                     })
 
                 if not itens:
@@ -275,8 +277,17 @@ class AppState:
 
                 paciente = record["label"]
                 patient_name, tutor_name = _split_patient_label(paciente)
+                breed = record.get("breed") or record.get("raca") or ""
+                species_sex = (
+                    record.get("species_sex")
+                    or record.get("especie_sexo")
+                    or record.get("speciesSex")
+                )
 
-                if not _search_match(q, paciente):
+                search_blob = " ".join(
+                    part for part in [paciente, patient_name, tutor_name, species_sex, breed] if part
+                )
+                if not _search_match(q, search_blob):
                     continue
 
                 portal_id  = record.get("portal_id", "")
@@ -301,15 +312,12 @@ class AppState:
                         "item_id": i["item_id"],
                         "alerta":  i["alerta"],
                         "resultado": i["resultado"],
+                        "report_text": i.get("report_text") or i.get("resultado_texto") or "",
+                        "diagnosis_text": i.get("diagnosis_text") or "",
                     }
                     for i in itens
                 ]
 
-                species_sex = (
-                    record.get("species_sex")
-                    or record.get("especie_sexo")
-                    or record.get("speciesSex")
-                )
                 days_label, days_stale = _build_days_payload(dias_em_aberto)
                 time_display = _format_time(liberado_em_raw)
                 ready_ratio_text = f"{n_pronto}/{len(itens_clean)} prontos"
@@ -323,6 +331,8 @@ class AppState:
                         "release_at": liberado_em_raw if item["status"] in _STATUS_PRONTO else None,
                         "release_at_display": liberado_em if item["status"] in _STATUS_PRONTO else None,
                         "results": item["resultado"],
+                        "report_text": item.get("report_text") or item.get("resultado_texto") or "",
+                        "diagnosis_text": item.get("diagnosis_text") or "",
                     }
                     for idx, item in enumerate(itens_clean, start=1)
                 ]
@@ -335,6 +345,7 @@ class AppState:
                     "patient_name":    patient_name,
                     "tutor_name":      tutor_name,
                     "species_sex":     species_sex,
+                    "breed":           breed,
                     "data":            data_fmt,
                     "data_raw":        record["data"],
                     "date_display":    _format_date(record["data"]),
@@ -350,7 +361,7 @@ class AppState:
                     "items_total":     len(itens_clean),
                     "ready_ratio_text": ready_ratio_text,
                     "portal_url":      portal_url,
-                    "portal_id":       record_id,
+                    "portal_id":       portal_id,
                     "alerta_geral":    alerta_geral,
                     "criticality":     alerta_geral,
                     "protocol":        record_id,
