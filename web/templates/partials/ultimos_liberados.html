@@ -2,24 +2,7 @@
 {% if groups %}
 <div class="space-y-2.5">
   {% for g in groups %}
-  {% set completion_pct = ((g.items_ready / g.items_total) * 100) | round(0, 'floor') if g.items_total else 0 %}
-  {% if g.status_geral == 'Pronto' %}
-    {% set progress_border = 'border-green-200' %}
-    {% set progress_text = 'text-green-800' %}
-    {% set progress_fill = 'rgba(34, 197, 94, 0.28)' %}
-    {% set progress_rest = 'rgba(240, 253, 244, 0.96)' %}
-  {% elif g.status_geral == 'Parcial' %}
-    {% set progress_border = 'border-amber-200' %}
-    {% set progress_text = 'text-amber-800' %}
-    {% set progress_fill = 'rgba(245, 158, 11, 0.30)' %}
-    {% set progress_rest = 'rgba(255, 251, 235, 0.96)' %}
-  {% else %}
-    {% set progress_border = 'border-slate-200' %}
-    {% set progress_text = 'text-slate-700' %}
-    {% set progress_fill = 'rgba(148, 163, 184, 0.22)' %}
-    {% set progress_rest = 'rgba(248, 250, 252, 0.96)' %}
-  {% endif %}
-  <a href="/labmonitor/exames?q={{ g.paciente | urlencode }}"
+  <a href="/labmonitor/exames?q={{ (g.patient_name or g.paciente) | urlencode }}"
      class="block pb-group pb-family--aligned-2row pb-density--two-row-compact pb-rail-palette--vivid pb-rail-shape--organic-strong rounded-xl border shadow-sm overflow-hidden crit-{{ g.alerta_geral or 'none' }} transition-colors {% if g.alerta_geral == 'red' %}bg-red-50/80 border-red-200 hover:bg-red-50{% elif g.alerta_geral == 'yellow' %}bg-yellow-50/80 border-yellow-200 hover:bg-yellow-50{% else %}bg-white border-gray-100 hover:bg-gray-50{% endif %}">
     <div class="pb-summary">
       <div class="pb-summary__body">
@@ -52,16 +35,6 @@
           </div>
           {% endif %}
         </div>
-      </div>
-    </div>
-
-    <div class="px-4 pb-3 pt-0 flex items-center justify-between gap-3">
-      <span class="inline-flex min-w-[7.4rem] items-center justify-center rounded-full border px-2.5 py-1 text-[10px] font-semibold leading-none tracking-[0.02em] {{ progress_border }} {{ progress_text }}"
-            style="background: linear-gradient(90deg, {{ progress_fill }} 0%, {{ progress_fill }} {{ completion_pct }}%, {{ progress_rest }} {{ completion_pct }}%, {{ progress_rest }} 100%);">
-        {{ g.items_ready }}/{{ g.items_total }} prontos
-      </span>
-      <div class="text-[11px] leading-none text-gray-500">
-        <span class="font-mono text-[10px] uppercase tracking-[0.12em] text-gray-400">{{ g.record_id }}</span>
       </div>
     </div>
   </a>

@@ -45,6 +45,35 @@ class DashboardRenderingTests(unittest.TestCase):
         self.assertIn("2/4 prontos", body)
         self.assertIn("PARCIAL", body)
 
+    def test_ultimos_liberados_links_with_clean_patient_query(self):
+        fake_groups = [
+            {
+                "paciente": "PIDA - JINGWEI DU PROP: JINGWEI DU",
+                "patient_name": "PIDA",
+                "tutor_name": "Jingwei Du",
+                "species_sex": "gata",
+                "alerta_geral": "red",
+                "status_geral": "Pronto",
+                "items_ready": 6,
+                "items_total": 6,
+                "ready_ratio_text": "6/6 prontos",
+                "last_release_date_display": "02/04/2026",
+                "last_release_time_display": "17:42",
+                "date_display": "01/04/2026",
+                "data": "01/04/2026",
+                "lab": "Bioanálises",
+                "record_id": "08-00000001",
+            }
+        ]
+
+        with patch.object(state, "get_ultimos_liberados", return_value=fake_groups):
+            response = self.client.get("/labmonitor/partials/ultimos_liberados")
+
+        self.assertEqual(response.status_code, 200)
+        body = response.text
+        self.assertIn('/labmonitor/exames?q=PIDA"', body)
+        self.assertNotIn("PROP%3A", body)
+
     def test_lab_counts_cards_link_to_filtered_exams(self):
         fake_counts = {
             "bitlab": {
