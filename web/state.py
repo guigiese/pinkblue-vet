@@ -3,6 +3,13 @@ import unicodedata
 from datetime import datetime, timedelta
 from pathlib import Path
 
+from notification_settings import (
+    DEFAULT_NOTIFICATION_SETTINGS,
+    apply_notification_settings,
+    build_notification_preview_context,
+    render_notification_template,
+)
+
 CONFIG_FILE = Path(__file__).parent.parent / "config.json"
 
 STATUS_SHORT_LABELS: dict[str, str] = {
@@ -214,6 +221,7 @@ class AppState:
     def config(self) -> dict:
         if self._config is None:
             self._config = json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
+            apply_notification_settings(self._config)
         return self._config
 
     def save_config(self):
@@ -239,6 +247,44 @@ class AppState:
     def set_interval(self, minutes: int):
         self.config["interval_minutes"] = minutes
         self.save_config()
+
+    def get_notification_settings(self) -> dict:
+        return apply_notification_settings(self.config)
+
+    def update_notification_settings(
+        self,
+        *,
+        received_enabled: bool,
+        completed_enabled: bool,
+        received_template: str,
+        completed_template: str,
+    ) -> None:
+        settings = self.get_notification_settings()
+        settings["events"]["received"]["enabled"] = received_enabled
+        settings["events"]["completed"]["enabled"] = completed_enabled
+        settings["events"]["received"]["template"] = (
+            received_template.strip()
+            or DEFAULT_NOTIFICATION_SETTINGS["events"]["received"]["template"]
+        )
+        settings["events"]["completed"]["template"] = (
+            completed_template.strip()
+            or DEFAULT_NOTIFICATION_SETTINGS["events"]["completed"]["template"]
+        )
+        self.save_config()
+
+    def reset_notification_settings(self) -> None:
+        self.config["notification_settings"] = json.loads(
+            json.dumps(DEFAULT_NOTIFICATION_SETTINGS, ensure_ascii=False)
+        )
+        self.save_config()
+
+    def get_notification_previews(self) -> dict[str, str]:
+        settings = self.get_notification_settings()
+        context = build_notification_preview_context()
+        return {
+            event_key: render_notification_template(event_cfg["template"], context)
+            for event_key, event_cfg in settings["events"].items()
+        }
 
     def add_notification(self, lab_name: str, msg: str):
         now = datetime.now()
@@ -449,28 +495,54 @@ class AppState:
         status_geral per group: Pronto | Parcial | Em Andamento | Analisando | Recebido | Arquivado | Cancelado
         """
         result = {}
+        now = datetime.now()
+        recent_cutoff = now - timedelta(hours=24)
         for lab_cfg in self.config["labs"]:
             lid  = lab_cfg["id"]
             snap = self.snapshots.get(lid, {})
 
             pronto = parcial = andamento = total = 0
+            pending = overdue = released_last_24h = 0
+            oldest_pending_days = 0
 
             for record in snap.values():
                 itens = [
-                    normalize_status(item["status"])
+                    {
+                        "status": normalize_status(item["status"]),
+                        "liberado_em": item.get("liberado_em"),
+                    }
                     for item in record["itens"].values()
                     if item["nome"] not in EXCLUDE_EXAMES
                 ]
                 if not itens:
                     continue
                 total += 1
-                n_p = sum(1 for s in itens if s in _STATUS_PRONTO)
+                n_p = sum(1 for item in itens if item["status"] in _STATUS_PRONTO)
                 if n_p == len(itens):
                     pronto += 1
                 elif n_p > 0:
                     parcial += 1
+                    pending += 1
                 else:
                     andamento += 1
+                    pending += 1
+
+                received_at_raw = record.get("received_at") or record.get("collected_at") or record.get("data")
+                received_at_dt = _parse_datetime(received_at_raw)
+                if received_at_dt and n_p != len(itens):
+                    days_open = (now - received_at_dt).days
+                    oldest_pending_days = max(oldest_pending_days, days_open)
+                    if days_open > 7:
+                        overdue += 1
+
+                ready_releases = [
+                    _parse_datetime(item["liberado_em"])
+                    for item in itens
+                    if item["status"] in _STATUS_PRONTO and item.get("liberado_em")
+                ]
+                ready_releases = [dt for dt in ready_releases if dt]
+                if ready_releases and max(ready_releases) >= recent_cutoff:
+                    released_last_24h += 1
 
             result[lid] = {
                 "name":      lab_cfg["name"],
@@ -479,6 +551,10 @@ class AppState:
                 "parcial":   parcial,
                 "andamento": andamento,
                 "total":     total,
+                "pending":   pending,
+                "overdue":   overdue,
+                "oldest_pending_days": oldest_pending_days,
+                "released_last_24h": released_last_24h,
                 "last_check": self.last_check.get(lid, "—"),
                 "error":      self.last_error.get(lid, ""),
                 "checking":   self.is_checking.get(lid, False),

@@ -87,6 +87,10 @@ class DashboardRenderingTests(unittest.TestCase):
                 "parcial": 2,
                 "andamento": 3,
                 "total": 10,
+                "pending": 5,
+                "overdue": 1,
+                "oldest_pending_days": 9,
+                "released_last_24h": 4,
                 "last_check": "02/04/2026 18:00",
                 "checking": False,
                 "error": "",
@@ -104,6 +108,9 @@ class DashboardRenderingTests(unittest.TestCase):
         self.assertIn("Abrir lista filtrada", body)
         self.assertIn("EM CURSO", body)
         self.assertIn("updateCardLinks", body)
+        self.assertIn("Saúde operacional", body)
+        self.assertIn("Liberados 24h", body)
+        self.assertNotIn("progress-wrap", body)
 
     def test_labs_page_omits_connector_prefix(self):
         original_config = state._config
@@ -135,6 +142,17 @@ class DashboardRenderingTests(unittest.TestCase):
         self.assertIn("Bioanálises", body)
         self.assertIn(">bitlab<", body)
         self.assertNotIn("conector bitlab", body)
+
+    def test_notificacoes_page_renders_event_templates_and_preview(self):
+        response = self.client.get("/labmonitor/notificacoes")
+
+        self.assertEqual(response.status_code, 200)
+        body = response.text
+        self.assertIn("Template da mensagem", body)
+        self.assertIn("Recebimento", body)
+        self.assertIn("Conclusão em lote", body)
+        self.assertIn("{lab_name}", body)
+        self.assertIn("Salvar ajustes", body)
 
 
 if __name__ == "__main__":

@@ -4,7 +4,7 @@ import zlib
 import core
 from fastapi.testclient import TestClient
 from labs.bitlab import BitlabConnector
-from labs.nexio import NexioConnector
+from labs.nexio import NexioConnector, _build_exam_display_name
 from web import app as web_app
 from web.state import state
 
@@ -264,6 +264,14 @@ class ConnectorMetadataParsingTests(unittest.TestCase):
         self.assertEqual(metadata["owner_name"], "Anelise Vogt")
         self.assertEqual(metadata["received_at"], "2026-03-14")
         self.assertIn("hemangiossarcoma", metadata["diagnosis_text"].lower())
+
+    def test_nexio_builds_readable_display_name_from_diagnosis(self):
+        readable = _build_exam_display_name(
+            "AP000184/26",
+            "Características histológicas favorecem hemangiossarcoma cutâneo.",
+        )
+
+        self.assertEqual(readable, "Hemangiossarcoma cutâneo")
 
 
 class BitlabReferenceSelectionTests(unittest.TestCase):

@@ -25,7 +25,7 @@ class NotificationPolicyTests(unittest.TestCase):
         self.assertEqual(len(internal), 1)
         self.assertEqual(len(external), 1)
         self.assertEqual(external[0]["kind"], "received")
-        self.assertIn("Exame recebido no laboratorio", external[0]["message"])
+        self.assertIn("Exame recebido no laboratório", external[0]["message"])
 
     def test_ready_items_are_grouped_by_record(self):
         anterior = {
@@ -65,6 +65,63 @@ class NotificationPolicyTests(unittest.TestCase):
 
         self.assertTrue(core._should_send_external_event(signature))
         self.assertFalse(core._should_send_external_event(signature))
+
+    def test_notification_templates_can_be_customized(self):
+        anterior = {}
+        atual = {
+            "REQ-1": {
+                "label": "Bidu - Tutor",
+                "data": "2026-04-01",
+                "itens": {
+                    "I1": {"nome": "Hemograma", "status": "Recebido"},
+                },
+            }
+        }
+        settings = {
+            "events": {
+                "received": {
+                    "enabled": True,
+                    "template": "RX {lab_name} :: {record_id} :: {items_total}",
+                },
+                "completed": {
+                    "enabled": True,
+                    "template": "CX {record_id}",
+                },
+            }
+        }
+
+        _, external = core.build_notification_plan("bitlab", "BitLab", anterior, atual, settings)
+
+        self.assertEqual(len(external), 1)
+        self.assertEqual(external[0]["message"], "RX BitLab :: REQ-1 :: 1")
+
+    def test_notification_events_can_be_disabled(self):
+        anterior = {}
+        atual = {
+            "REQ-1": {
+                "label": "Bidu - Tutor",
+                "data": "2026-04-01",
+                "itens": {
+                    "I1": {"nome": "Hemograma", "status": "Recebido"},
+                },
+            }
+        }
+        settings = {
+            "events": {
+                "received": {
+                    "enabled": False,
+                    "template": "ignored",
+                },
+                "completed": {
+                    "enabled": True,
+                    "template": "CX {record_id}",
+                },
+            }
+        }
+
+        _, external = core.build_notification_plan("bitlab", "BitLab", anterior, atual, settings)
+
+        self.assertEqual(external, [])
 
 
 if __name__ == "__main__":

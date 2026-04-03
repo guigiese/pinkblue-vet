@@ -191,6 +191,25 @@ async def canais_page(request: Request):
                    telegram_users=get_users())
 
 
+@router.get("/notificacoes", response_class=HTMLResponse)
+async def notificacoes_page(request: Request, saved: str = "", reset: str = ""):
+    return _render(
+        request,
+        "notificacoes.html",
+        notification_settings=state.get_notification_settings(),
+        preview_messages=state.get_notification_previews(),
+        notification_variables=(
+            "lab_name",
+            "record_label",
+            "record_id",
+            "record_date",
+            "item_lines",
+            "items_total",
+        ),
+        save_state="saved" if saved else "reset" if reset else "",
+    )
+
+
 @router.get("/settings", response_class=HTMLResponse)
 async def settings_page(request: Request):
     return _render(request, "settings.html",
@@ -273,6 +292,28 @@ async def remove_telegram_user(request: Request, chat_id: str):
     remove_user(chat_id)
     return _render(request, "partials/telegram_users.html",
                    telegram_users=get_users())
+
+
+@router.post("/notificacoes/salvar")
+async def save_notificacoes(
+    received_enabled: str | None = Form(None),
+    completed_enabled: str | None = Form(None),
+    received_template: str = Form(...),
+    completed_template: str = Form(...),
+):
+    state.update_notification_settings(
+        received_enabled=received_enabled == "on",
+        completed_enabled=completed_enabled == "on",
+        received_template=received_template,
+        completed_template=completed_template,
+    )
+    return RedirectResponse("/labmonitor/notificacoes?saved=1", status_code=303)
+
+
+@router.post("/notificacoes/resetar")
+async def reset_notificacoes():
+    state.reset_notification_settings()
+    return RedirectResponse("/labmonitor/notificacoes?reset=1", status_code=303)
 
 
 @router.post("/settings/interval", response_class=HTMLResponse)
