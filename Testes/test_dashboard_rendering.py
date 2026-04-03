@@ -112,6 +112,15 @@ class DashboardRenderingTests(unittest.TestCase):
         self.assertIn("Liberados 24h", body)
         self.assertNotIn("progress-wrap", body)
 
+    def test_exames_page_uses_mobile_safe_filter_layout(self):
+        response = self.client.get("/labmonitor/exames")
+
+        self.assertEqual(response.status_code, 200)
+        body = response.text
+        self.assertIn('class="grid gap-2 mb-5 sm:flex sm:flex-wrap"', body)
+        self.assertIn('name="lab" class="w-full min-w-0 border rounded-lg px-3 py-2 text-sm bg-white sm:w-auto"', body)
+        self.assertIn('name="status" class="w-full min-w-0 border rounded-lg px-3 py-2 text-sm bg-white sm:w-auto"', body)
+
     def test_labs_page_omits_connector_prefix(self):
         original_config = state._config
         original_last_check = state.last_check
@@ -153,6 +162,26 @@ class DashboardRenderingTests(unittest.TestCase):
         self.assertIn("Conclusão em lote", body)
         self.assertIn("{lab_name}", body)
         self.assertIn("Salvar ajustes", body)
+        self.assertIn("overflow-wrap:anywhere", body)
+        self.assertIn("break-words", body)
+
+    def test_telegram_users_partial_stacks_action_on_mobile(self):
+        fake_users = [
+            {
+                "name": "Guilherme",
+                "username": "guigiese",
+                "chat_id": "123456",
+                "subscribed_at": "03/04/2026 00:52",
+            }
+        ]
+
+        with patch("web.app.get_users", return_value=fake_users):
+            response = self.client.get("/labmonitor/partials/telegram-users")
+
+        self.assertEqual(response.status_code, 200)
+        body = response.text
+        self.assertIn("sm:flex-row", body)
+        self.assertIn("w-full sm:w-auto", body)
 
 
 if __name__ == "__main__":

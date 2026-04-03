@@ -2,7 +2,7 @@
   {% if telegram_users %}
   <ul class="divide-y divide-gray-100">
     {% for u in telegram_users %}
-    <li class="flex items-center justify-between py-2.5 gap-3">
+    <li class="flex flex-col items-stretch gap-2 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
       <div class="min-w-0">
         <div class="flex items-center gap-2 flex-wrap">
           {% if u.name %}
@@ -26,7 +26,7 @@
               hx-target="#telegram-users-list"
               hx-swap="outerHTML"
               hx-confirm="Remover {{ u.name or u.chat_id }} da lista de notificações?"
-              class="shrink-0 text-xs px-2 py-1 rounded border border-red-200 text-red-500 hover:bg-red-50">
+              class="w-full sm:w-auto shrink-0 self-start text-xs px-2 py-1 rounded border border-red-200 text-red-500 hover:bg-red-50">
         Remover
       </button>
     </li>

@@ -6,9 +6,9 @@
 {% block content %}
 
 <!-- Filtros -->
-<form class="flex flex-wrap gap-2 mb-5" method="get">
+<form class="grid gap-2 mb-5 sm:flex sm:flex-wrap" method="get">
   <!-- Busca por nome -->
-  <div class="relative flex-1 min-w-[180px]">
+  <div class="relative min-w-0 sm:flex-1 sm:min-w-[180px]">
     <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none"
          fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -18,14 +18,14 @@
            class="w-full border rounded-lg pl-9 pr-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300">
   </div>
 
-  <select name="lab" class="border rounded-lg px-3 py-2 text-sm bg-white">
+  <select name="lab" class="w-full min-w-0 border rounded-lg px-3 py-2 text-sm bg-white sm:w-auto">
     <option value="">Todos os labs</option>
     {% for l in labs_cfg %}
     <option value="{{ l.id }}" {% if lab_filter == l.id %}selected{% endif %}>{{ l.name }}</option>
     {% endfor %}
   </select>
 
-  <select name="status" class="border rounded-lg px-3 py-2 text-sm bg-white">
+  <select name="status" class="w-full min-w-0 border rounded-lg px-3 py-2 text-sm bg-white sm:w-auto">
     <option value="">Todos os status</option>
     {% for s in statuses %}
     <option value="{{ s }}" {% if status_filter == s %}selected{% endif %}>{{ s }}</option>
@@ -33,12 +33,12 @@
   </select>
 
   <button type="submit"
-          class="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-indigo-700">
+          class="w-full sm:w-auto bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-indigo-700">
     Filtrar
   </button>
   {% if lab_filter or status_filter or q %}
   <a href="/labmonitor/exames"
-     class="px-4 py-2 rounded-lg text-sm border hover:bg-gray-50 text-gray-600">Limpar</a>
+     class="w-full sm:w-auto px-4 py-2 rounded-lg text-sm border hover:bg-gray-50 text-gray-600 text-center">Limpar</a>
   {% endif %}
 </form>
 
