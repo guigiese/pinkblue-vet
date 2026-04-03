@@ -66,6 +66,39 @@ def _extract_report_segment(text: str, start_pattern: str, end_pattern: str) -> 
     return text[start:end].strip()
 
 
+def _extract_diagnosis_text(text: str) -> str:
+    if not text:
+        return ""
+
+    normalized = _strip_accents(text)
+    starts = list(re.finditer(r"\bDIAGNOSTICO\b", normalized, re.I))
+    if not starts:
+        return ""
+
+    end_patterns = (
+        r"\bDESCRICAO MACROSCOPICA\b",
+        r"\bDESCRICAO MICROSCOPICA\b",
+        r"\bNOTA\b",
+        r"\bHISTORICO\b",
+        r"\bMETODO\b",
+        r"\bREFERENCIAS?\b",
+    )
+
+    for start_match in reversed(starts):
+        body_start = start_match.end()
+        tail = normalized[body_start:]
+        end_offsets = []
+        for pattern in end_patterns:
+            end_match = re.search(pattern, tail, re.I)
+            if end_match and end_match.start() > 0:
+                end_offsets.append(end_match.start())
+        body_end = body_start + min(end_offsets) if end_offsets else len(text)
+        diagnosis = text[body_start:body_end].strip(" \t\r\n:-")
+        if diagnosis:
+            return diagnosis
+    return ""
+
+
 def _build_exam_display_name(record_number: str, diagnosis: str) -> str:
     text = " ".join((diagnosis or "").split()).strip(" .:-")
     if not text:
@@ -195,11 +228,7 @@ class NexioConnector(LabConnector):
         breed = (breed_match.group(1).strip().title() if breed_match and breed_match.group(1).strip() else "")
         owner_name = (owner_match.group(1).strip().title() if owner_match else "")
         sex_raw = (sex_match.group(1).strip().upper() if sex_match else "")
-        diagnosis = _extract_report_segment(
-            report_text,
-            r"DIAGNOSTICO\s*",
-            r"\s*DESCRICAO MACROSCOPICA",
-        )
+        diagnosis = _extract_diagnosis_text(report_text)
 
         return {
             "owner_name": owner_name,
@@ -235,10 +264,22 @@ class NexioConnector(LabConnector):
                     current_item["report_text"] = ant_item["report_text"]
                 if ant_item.get("diagnosis_text") and not current_item.get("diagnosis_text"):
                     current_item["diagnosis_text"] = ant_item["diagnosis_text"]
-                if current_item.get("diagnosis_text"):
-                    current_item["nome"] = _build_exam_display_name(rid, current_item["diagnosis_text"])
 
-            if record.get("species_sex") and current_item and current_item.get("report_text"):
+            if current_item and current_item.get("report_text") and not current_item.get("diagnosis_text"):
+                cached = self.parse_report_text(current_item["report_text"])
+                if cached.get("diagnosis_text"):
+                    current_item["diagnosis_text"] = cached["diagnosis_text"]
+
+            if current_item and current_item.get("diagnosis_text") and current_item.get("nome", "").startswith("Patologia "):
+                current_item["nome"] = _build_exam_display_name(rid, current_item["diagnosis_text"])
+
+            if (
+                record.get("species_sex")
+                and current_item
+                and current_item.get("report_text")
+                and current_item.get("diagnosis_text")
+                and not current_item.get("nome", "").startswith("Patologia ")
+            ):
                 continue
 
             portal_id = record.get("portal_id")

@@ -265,6 +265,67 @@ class ConnectorMetadataParsingTests(unittest.TestCase):
         self.assertEqual(metadata["received_at"], "2026-03-14")
         self.assertIn("hemangiossarcoma", metadata["diagnosis_text"].lower())
 
+    def test_nexio_parse_report_text_handles_late_diagnosis_section(self):
+        report_text = """
+        DESCRIÇÃO MACROSCOPICA
+        Material: Nódulo cutâneo.
+        HISTÓRICO
+        Crescimento rápido.
+        DIAGNÓSTICO
+        Paniculite e dermatite profunda, piogranulomatosa, associada a fibrose.
+        NOTA
+        Recomenda-se correlação clínica.
+        """
+
+        metadata = NexioConnector.parse_report_text(report_text)
+
+        self.assertIn("Paniculite e dermatite profunda", metadata["diagnosis_text"])
+
+    def test_nexio_enrich_snapshot_metadata_reuses_cached_report_text_to_replace_raw_name(self):
+        connector = NexioConnector()
+        connector._login = lambda: (_ for _ in ()).throw(AssertionError("should not fetch remote metadata"))
+
+        anterior = {
+            "AP000802/25": {
+                "label": "Manjericão - Graziela Barth",
+                "species_sex": "cão",
+                "itens": {
+                    "AP000802/25": {
+                        "nome": "Patologia AP000802/25",
+                        "status": "Pronto",
+                        "report_text": (
+                            "DESCRIÇÃO MACROSCOPICA\nMaterial: Nódulo.\n"
+                            "DIAGNÓSTICO\nPaniculite e dermatite profunda, piogranulomatosa.\n"
+                            "NOTA\nCorrelação clínica.\n"
+                        ),
+                    }
+                },
+            }
+        }
+        atual = {
+            "AP000802/25": {
+                "label": "Manjericão - Graziela Barth",
+                "species_sex": "cão",
+                "itens": {
+                    "AP000802/25": {
+                        "nome": "Patologia AP000802/25",
+                        "status": "Pronto",
+                        "report_text": (
+                            "DESCRIÇÃO MACROSCOPICA\nMaterial: Nódulo.\n"
+                            "DIAGNÓSTICO\nPaniculite e dermatite profunda, piogranulomatosa.\n"
+                            "NOTA\nCorrelação clínica.\n"
+                        ),
+                    }
+                },
+            }
+        }
+
+        connector.enrich_snapshot_metadata(anterior, atual)
+
+        item = atual["AP000802/25"]["itens"]["AP000802/25"]
+        self.assertEqual(item["diagnosis_text"], "Paniculite e dermatite profunda, piogranulomatosa.")
+        self.assertEqual(item["nome"], "Paniculite e dermatite profunda, piogranulomatosa")
+
     def test_nexio_builds_readable_display_name_from_diagnosis(self):
         readable = _build_exam_display_name(
             "AP000184/26",
