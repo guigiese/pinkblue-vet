@@ -191,10 +191,10 @@ def _recent_layout_headers(
     sorted_tops: list[int],
     rows_by_top: dict[int, list[dict]],
     current_index: int,
-    window: int = 3,
+    window: int | None = None,
 ) -> list[str]:
     headers: list[str] = []
-    start = max(0, current_index - window)
+    start = 0 if window is None else max(0, current_index - window)
     for idx in range(start, current_index):
         top = sorted_tops[idx]
         text = " ".join(

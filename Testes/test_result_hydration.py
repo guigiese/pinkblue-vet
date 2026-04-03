@@ -367,6 +367,41 @@ class BitlabReferenceSelectionTests(unittest.TestCase):
         self.assertEqual(rows[0]["components"][0]["referencia"], "35 a 75")
         self.assertEqual(rows[0]["components"][1]["valor"], "3608/mm3")
         self.assertEqual(rows[0]["components"][1]["referencia"], "n/d")
+    def test_bitlab_hemograma_keeps_species_context_for_later_compound_rows(self):
+        html = """
+        <html><body>
+          <div style="left:22px;top:208px"><b>LEUCOGRAMA</b></div>
+          <div style="left:472px;top:224px">Caninos</div>
+          <div style="left:638px;top:224px">Felinos</div>
+          <div style="left:22px;top:240px">Linfocitos................:</div>
+          <div style="left:324px;top:240px"><b>44</b></div>
+          <div style="left:405px;top:240px"><b>3608</b></div>
+          <div style="left:466px;top:240px">20 a 55                    20 a 55</div>
+          <div style="left:22px;top:256px">Monocitos.................:</div>
+          <div style="left:324px;top:256px"><b>0</b></div>
+          <div style="left:405px;top:256px"><b>0</b></div>
+          <div style="left:466px;top:256px">0 a 3                      0 a 3</div>
+          <div style="left:22px;top:272px">Segmentados................:</div>
+          <div style="left:324px;top:272px"><b>44</b></div>
+          <div style="left:387px;top:272px"><b>3608</b></div>
+          <div style="left:466px;top:272px">60 a 77                    35 a 75</div>
+          <div style="left:22px;top:288px">Eosinofilos................:</div>
+          <div style="left:324px;top:288px"><b>12</b></div>
+          <div style="left:405px;top:288px"><b>984</b></div>
+          <div style="left:466px;top:288px">2 a 10                     2 a 12</div>
+        </body></html>
+        """.encode("latin-1")
+
+        rows = BitlabConnector.parse_resultado(
+            zlib.compress(html),
+            {"species_raw": "Felina", "sex_raw": "F", "species_sex": "gata", "patient_age": "7 Meses"},
+        )
+
+        eos = next(row for row in rows if "Eosino" in row["nome"])
+        self.assertEqual(eos["valor"], "12%")
+        self.assertEqual(eos["referencia"], "2 a 12")
+        self.assertEqual(eos["components"][0]["referencia"], "2 a 12")
+        self.assertEqual(eos["components"][1]["referencia"], "n/d")
 
     def test_bitlab_hemograma_prefers_first_range_when_row_has_percent_and_absolute_values(self):
         html = """
@@ -429,7 +464,7 @@ class BitlabReferenceSelectionTests(unittest.TestCase):
 
         rows = BitlabConnector.parse_resultado(
             zlib.compress(html),
-            {"species_raw": "Canina", "sex_raw": "F", "species_sex": "cadela", "patient_age": "n/e"},
+            {"species_raw": "Canina", "sex_raw": "F", "species_sex": "cadela", "patient_age": "n/d"},
         )
 
         self.assertEqual(rows[0]["referencia"], "6.000 a 17.000")
