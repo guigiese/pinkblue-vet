@@ -111,6 +111,8 @@ class DashboardRenderingTests(unittest.TestCase):
         self.assertIn("Saúde operacional", body)
         self.assertIn("Liberados 24h", body)
         self.assertNotIn("progress-wrap", body)
+        self.assertIn("grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4 sm:gap-3", body)
+        self.assertIn("min-w-0 bg-white rounded-xl", body)
 
     def test_exames_page_uses_mobile_safe_filter_layout(self):
         response = self.client.get("/labmonitor/exames")
@@ -182,6 +184,50 @@ class DashboardRenderingTests(unittest.TestCase):
         body = response.text
         self.assertIn("sm:flex-row", body)
         self.assertIn("w-full sm:w-auto", body)
+
+    def test_test_lab_prefers_light_connection_check(self):
+        class FakeConnector:
+            def test_connection(self):
+                return "✓ Conexão OK — teste leve"
+
+            def snapshot(self):
+                raise AssertionError("snapshot should not be called")
+
+        original_config = state._config
+        try:
+            state._config = {
+                "labs": [{"id": "bitlab", "name": "Bioanálises", "connector": "bitlab", "enabled": True}],
+                "notifiers": [],
+            }
+            with patch.dict("web.app.CONNECTORS", {"bitlab": FakeConnector}, clear=False):
+                response = self.client.post("/labmonitor/labs/bitlab/test")
+        finally:
+            state._config = original_config
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("teste leve", response.text)
+
+    def test_test_notifier_prefers_light_send_test(self):
+        class FakeNotifier:
+            def send_test(self, message: str):
+                self.message = message
+
+            def enviar(self, message: str):
+                raise AssertionError("enviar should not be called")
+
+        original_config = state._config
+        try:
+            state._config = {
+                "labs": [],
+                "notifiers": [{"id": "telegram", "type": "telegram", "enabled": True}],
+            }
+            with patch.dict("web.app.NOTIFIERS", {"telegram": FakeNotifier}, clear=False):
+                response = self.client.post("/labmonitor/canais/telegram/test")
+        finally:
+            state._config = original_config
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Mensagem enviada", response.text)
 
 
 if __name__ == "__main__":

@@ -388,11 +388,11 @@ class BitlabConnector(LabConnector):
         r.raise_for_status()
         return r.json()["token"]
 
-    def _buscar_requisicoes(self, token: str) -> list[dict]:
+    def _buscar_requisicoes(self, token: str, page_size: int = 500) -> list[dict]:
         hoje   = datetime.now().strftime("%Y-%m-%d")
         inicio = (datetime.now() - timedelta(days=self._dias_atras)).strftime("%Y-%m-%d")
         r = requests.post(
-            f"{self.BASE}/Requisicao?pageNumber=1&pageSize=500",
+            f"{self.BASE}/Requisicao?pageNumber=1&pageSize={page_size}",
             headers={"Authorization": f"Bearer {token}"},
             json={"dataInicial": inicio, "dataFinal": hoje},
             timeout=15,
@@ -400,6 +400,11 @@ class BitlabConnector(LabConnector):
         r.raise_for_status()
         data = r.json()
         return data.get("data", data) if isinstance(data, dict) else data
+
+    def test_connection(self) -> str:
+        token = self._login()
+        self._buscar_requisicoes(token, page_size=1)
+        return "✓ Conexão OK — API acessível"
 
     def _buscar_itens(self, token: str, cd_requisicao: int) -> list[dict]:
         r = requests.post(

@@ -18,3 +18,10 @@ class WhatsappNotifier(Notifier):
             )
         except Exception as e:
             print(f"[WhatsApp] Erro: {e}")
+
+    def send_test(self, mensagem: str) -> None:
+        requests.get(
+            "https://api.callmebot.com/whatsapp.php",
+            params={"phone": self._phone, "text": mensagem, "apikey": self._apikey},
+            timeout=8,
+        )

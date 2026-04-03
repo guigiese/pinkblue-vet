@@ -157,6 +157,12 @@ class NexioConnector(LabConnector):
         }, allow_redirects=True, timeout=15)
         return session
 
+    def test_connection(self) -> str:
+        session = self._login()
+        if not session.cookies:
+            raise ValueError("Sessão não foi estabelecida.")
+        return "✓ Conexão OK — sessão iniciada"
+
     def _buscar_exames(self, session: requests.Session) -> list[dict]:
         ts = int(time.time() * 1000)
         r = session.post(f"{self.LISTA}?timeReq={ts}", data={

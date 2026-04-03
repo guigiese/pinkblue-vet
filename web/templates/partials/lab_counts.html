@@ -50,79 +50,79 @@
 <div id="counts-card">
   <div id="lab-status-bar" class="flex items-center gap-2 mb-3 min-h-[20px]"></div>
 
-  <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+  <div class="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4 sm:gap-3">
     <a id="card-pronto"
        href="/labmonitor/exames?status=Pronto"
        data-status="Pronto"
-       class="bg-white rounded-xl border border-gray-100 shadow-sm p-4 flex items-center gap-3 hover:border-green-200 hover:bg-green-50/40 transition-colors">
+       class="min-w-0 bg-white rounded-xl border border-gray-100 shadow-sm p-3 sm:p-4 flex items-center gap-3 hover:border-green-200 hover:bg-green-50/40 transition-colors">
       <div class="w-9 h-9 rounded-lg bg-green-100 flex items-center justify-center shrink-0">
         <svg class="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
         </svg>
       </div>
-      <div>
+      <div class="min-w-0">
         <p id="cnt-pronto" class="text-2xl font-bold text-green-700 leading-none">{{ ns.pronto }}</p>
         <p class="text-xs text-gray-500 mt-0.5">PRONTO</p>
-        <p class="text-[11px] text-gray-400 mt-1">Abrir lista filtrada</p>
+        <p class="text-[11px] text-gray-400 mt-1 break-words">Abrir lista filtrada</p>
       </div>
     </a>
 
     <a id="card-parcial"
        href="/labmonitor/exames?status=Parcial"
        data-status="Parcial"
-       class="bg-white rounded-xl border border-gray-100 shadow-sm p-4 flex items-center gap-3 hover:border-blue-200 hover:bg-blue-50/40 transition-colors">
+       class="min-w-0 bg-white rounded-xl border border-gray-100 shadow-sm p-3 sm:p-4 flex items-center gap-3 hover:border-blue-200 hover:bg-blue-50/40 transition-colors">
       <div class="w-9 h-9 rounded-lg bg-blue-100 flex items-center justify-center shrink-0">
         <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-3-3v6m9-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
         </svg>
       </div>
-      <div>
+      <div class="min-w-0">
         <p id="cnt-parcial" class="text-2xl font-bold text-blue-700 leading-none">{{ ns.parcial }}</p>
         <p class="text-xs text-gray-500 mt-0.5">PARCIAL</p>
-        <p class="text-[11px] text-gray-400 mt-1">Ver pendências liberadas</p>
+        <p class="text-[11px] text-gray-400 mt-1 break-words">Ver pendências liberadas</p>
       </div>
     </a>
 
     <a id="card-andamento"
        href="/labmonitor/exames?status=Em%20Andamento"
        data-status="Em Andamento"
-       class="bg-white rounded-xl border border-gray-100 shadow-sm p-4 flex items-center gap-3 hover:border-amber-200 hover:bg-amber-50/40 transition-colors">
+       class="min-w-0 bg-white rounded-xl border border-gray-100 shadow-sm p-3 sm:p-4 flex items-center gap-3 hover:border-amber-200 hover:bg-amber-50/40 transition-colors">
       <div class="w-9 h-9 rounded-lg bg-amber-100 flex items-center justify-center shrink-0">
         <svg class="w-4 h-4 text-amber-600" style="animation: spin 1s linear infinite reverse;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
         </svg>
       </div>
-      <div>
+      <div class="min-w-0">
         <p id="cnt-andamento" class="text-2xl font-bold text-amber-700 leading-none">{{ ns.andamento }}</p>
         <p class="text-xs text-gray-500 mt-0.5">EM CURSO</p>
-        <p class="text-[11px] text-gray-400 mt-1">Acompanhar em processamento</p>
+        <p class="text-[11px] text-gray-400 mt-1 break-words">Acompanhar em processamento</p>
       </div>
     </a>
 
     <a id="card-total"
        href="/labmonitor/exames"
        data-status=""
-       class="bg-white rounded-xl border border-gray-100 shadow-sm p-4 flex items-center gap-3 hover:border-gray-300 hover:bg-gray-50 transition-colors">
+       class="min-w-0 bg-white rounded-xl border border-gray-100 shadow-sm p-3 sm:p-4 flex items-center gap-3 hover:border-gray-300 hover:bg-gray-50 transition-colors">
       <div class="w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center shrink-0">
         <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
         </svg>
       </div>
-      <div>
+      <div class="min-w-0">
         <p id="cnt-total" class="text-2xl font-bold text-gray-700 leading-none">{{ ns.total }}</p>
         <p class="text-xs text-gray-500 mt-0.5">Protocolos</p>
-        <p class="text-[11px] text-gray-400 mt-1">Abrir visão completa</p>
+        <p class="text-[11px] text-gray-400 mt-1 break-words">Abrir visão completa</p>
       </div>
     </a>
   </div>
 
   <div class="mt-4 rounded-2xl border border-gray-100 bg-white shadow-sm p-4">
-    <div class="flex items-center justify-between gap-3 flex-wrap">
+    <div class="flex items-start justify-between gap-3 flex-wrap">
       <div>
         <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Saúde operacional</p>
         <p class="text-sm text-gray-400 mt-0.5">Visão curta do que ainda exige atenção agora.</p>
       </div>
-      <span id="ops-summary" class="text-xs text-gray-400">
+      <span id="ops-summary" class="text-xs text-gray-400 w-full sm:w-auto break-words">
         {% if ns.overdue > 0 %}
           {{ ns.overdue }} atrasado(s) acima de 7 dias
         {% elif ns.pending > 0 %}
@@ -133,28 +133,28 @@
       </span>
     </div>
 
-    <div class="mt-4 grid grid-cols-2 xl:grid-cols-4 gap-3">
-      <div class="rounded-xl bg-slate-50 border border-slate-100 px-4 py-3">
+    <div class="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4 sm:gap-3">
+      <div class="min-w-0 rounded-xl bg-slate-50 border border-slate-100 px-3 py-3 sm:px-4">
         <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Pendentes</p>
         <p id="ops-pending" class="mt-1 text-xl font-bold text-slate-800 leading-none">{{ ns.pending }}</p>
-        <p class="mt-1 text-[11px] text-slate-400">parciais ou em curso</p>
+        <p class="mt-1 text-[11px] text-slate-400 break-words">parciais ou em curso</p>
       </div>
-      <div class="rounded-xl bg-red-50 border border-red-100 px-4 py-3">
+      <div class="min-w-0 rounded-xl bg-red-50 border border-red-100 px-3 py-3 sm:px-4">
         <p class="text-[11px] font-semibold uppercase tracking-wide text-red-500">Atrasados</p>
         <p id="ops-overdue" class="mt-1 text-xl font-bold text-red-700 leading-none">{{ ns.overdue }}</p>
-        <p class="mt-1 text-[11px] text-red-400">mais de 7 dias em aberto</p>
+        <p class="mt-1 text-[11px] text-red-400 break-words">mais de 7 dias em aberto</p>
       </div>
-      <div class="rounded-xl bg-amber-50 border border-amber-100 px-4 py-3">
+      <div class="min-w-0 rounded-xl bg-amber-50 border border-amber-100 px-3 py-3 sm:px-4">
         <p class="text-[11px] font-semibold uppercase tracking-wide text-amber-600">Mais antigo</p>
         <p id="ops-oldest" class="mt-1 text-xl font-bold text-amber-700 leading-none">
           {% if ns.oldest > 0 %}{{ ns.oldest }}d{% else %}—{% endif %}
         </p>
-        <p class="mt-1 text-[11px] text-amber-500">grupo pendente mais antigo</p>
+        <p class="mt-1 text-[11px] text-amber-500 break-words">grupo pendente mais antigo</p>
       </div>
-      <div class="rounded-xl bg-green-50 border border-green-100 px-4 py-3">
+      <div class="min-w-0 rounded-xl bg-green-50 border border-green-100 px-3 py-3 sm:px-4">
         <p class="text-[11px] font-semibold uppercase tracking-wide text-green-600">Liberados 24h</p>
         <p id="ops-released" class="mt-1 text-xl font-bold text-green-700 leading-none">{{ ns.released }}</p>
-        <p class="mt-1 text-[11px] text-green-500">grupos com liberação recente</p>
+        <p class="mt-1 text-[11px] text-green-500 break-words">grupos com liberação recente</p>
       </div>
     </div>
   </div>

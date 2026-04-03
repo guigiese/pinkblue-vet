@@ -86,18 +86,26 @@ class TelegramNotifier(Notifier):
     def __init__(self):
         self._token = os.environ.get("TELEGRAM_TOKEN", "8704375512:AAFs8ICnxKAphbFscOK9NKNbpzWwyYTB4tA")
 
+    def _send_to_chat(self, chat_id: str, mensagem: str, *, timeout: int = 15) -> None:
+        r = requests.post(
+            f"https://api.telegram.org/bot{self._token}/sendMessage",
+            json={"chat_id": chat_id, "text": mensagem, "parse_mode": "HTML"},
+            timeout=timeout,
+        )
+        resp = r.json()
+        if not resp.get("ok"):
+            raise RuntimeError(resp.get("description") or "Falha ao enviar mensagem.")
+
     def enviar(self, mensagem: str) -> None:
         for chat_id in get_user_ids():
             try:
-                r = requests.post(
-                    f"https://api.telegram.org/bot{self._token}/sendMessage",
-                    json={"chat_id": chat_id, "text": mensagem, "parse_mode": "HTML"},
-                    timeout=15,
-                )
-                resp = r.json()
-                if not resp.get("ok"):
-                    print(f"[Telegram] Falha ao enviar para {chat_id}: {resp.get('description')}")
-                else:
-                    print(f"[Telegram] Enviado para {chat_id} (msg_id={resp['result']['message_id']})")
+                self._send_to_chat(chat_id, mensagem, timeout=15)
+                print(f"[Telegram] Enviado para {chat_id}")
             except Exception as e:
                 print(f"[Telegram] Erro ao enviar para {chat_id}: {e}")
+
+    def send_test(self, mensagem: str) -> None:
+        user_ids = get_user_ids()
+        if not user_ids:
+            raise ValueError("Nenhum usuário Telegram inscrito para receber o teste.")
+        self._send_to_chat(user_ids[0], mensagem, timeout=8)

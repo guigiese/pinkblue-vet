@@ -1,3 +1,4 @@
+import asyncio
 import os
 import threading
 from contextlib import asynccontextmanager
@@ -268,8 +269,12 @@ async def test_lab(lab_id: str):
         return HTMLResponse('<span class="text-red-600 text-sm">Lab não encontrado</span>')
     try:
         connector = CONNECTORS[lab_cfg["connector"]]()
-        snap = connector.snapshot()
-        return HTMLResponse(f'<span class="text-green-600 text-sm">✓ Conexão OK — {len(snap)} registros</span>')
+        if hasattr(connector, "test_connection"):
+            message = await asyncio.to_thread(connector.test_connection)
+        else:
+            snap = await asyncio.to_thread(connector.snapshot)
+            message = f"✓ Conexão OK — {len(snap)} registros"
+        return HTMLResponse(f'<span class="text-green-600 text-sm">{message}</span>')
     except Exception as e:
         return HTMLResponse(f'<span class="text-red-600 text-sm">✗ Erro: {e}</span>')
 
@@ -281,7 +286,11 @@ async def test_notifier(notifier_id: str):
         return HTMLResponse('<span class="text-red-600 text-sm">Canal não encontrado</span>')
     try:
         notifier = NOTIFIERS[n_cfg["type"]]()
-        notifier.enviar("🔔 <b>Teste — Lab Monitor</b>\nCanal funcionando!")
+        message = "🔔 <b>Teste — Lab Monitor</b>\nCanal funcionando!"
+        if hasattr(notifier, "send_test"):
+            await asyncio.to_thread(notifier.send_test, message)
+        else:
+            await asyncio.to_thread(notifier.enviar, message)
         return HTMLResponse('<span class="text-green-600 text-sm">✓ Mensagem enviada</span>')
     except Exception as e:
         return HTMLResponse(f'<span class="text-red-600 text-sm">✗ Erro: {e}</span>')
