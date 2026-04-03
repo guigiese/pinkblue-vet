@@ -342,6 +342,69 @@ class BitlabReferenceSelectionTests(unittest.TestCase):
         self.assertEqual(item["resultado"][0]["referencia"], "Felino: 5 a 35 U/L")
         self.assertEqual(item["alerta"], "red")
 
+    def test_bitlab_hemograma_prefers_species_specific_range_from_combined_cell(self):
+        html = """
+        <html><body>
+          <div style="left:22px;top:208px"><b>LEUCOGRAMA</b></div>
+          <div style="left:472px;top:224px">Caninos</div>
+          <div style="left:638px;top:224px">Felinos</div>
+          <div style="left:22px;top:272px">Segmentados................:</div>
+          <div style="left:324px;top:272px"><b>44</b></div>
+          <div style="left:387px;top:272px"><b>3608</b></div>
+          <div style="left:466px;top:272px">60 a 77                    35 a 75</div>
+        </body></html>
+        """.encode("latin-1")
+
+        rows = BitlabConnector.parse_resultado(
+            zlib.compress(html),
+            {"species_raw": "Felina", "sex_raw": "F", "species_sex": "gata", "patient_age": "7 Meses"},
+        )
+
+        self.assertEqual(rows[0]["valor"], "44")
+        self.assertEqual(rows[0]["referencia"], "35 a 75")
+
+    def test_bitlab_hemograma_prefers_first_range_when_row_has_percent_and_absolute_values(self):
+        html = """
+        <html><body>
+          <div style="left:22px;top:208px"><b>LEUCOGRAMA</b></div>
+          <div style="left:484px;top:224px">Adultos</div>
+          <div style="left:610px;top:224px">Filhotes</div>
+          <div style="left:22px;top:272px">Segmentados................:</div>
+          <div style="left:324px;top:272px"><b>61</b></div>
+          <div style="left:378px;top:272px"><b>12261</b></div>
+          <div style="left:466px;top:272px">60 a 77        3.000 a 11.500</div>
+        </body></html>
+        """.encode("latin-1")
+
+        rows = BitlabConnector.parse_resultado(
+            zlib.compress(html),
+            {"species_raw": "Canina", "sex_raw": "F", "species_sex": "cadela", "patient_age": "5 Anos"},
+        )
+
+        self.assertEqual(rows[0]["valor"], "61")
+        self.assertEqual(rows[0]["referencia"], "60 a 77")
+
+    def test_bitlab_hemograma_selects_age_range_when_single_value_has_adult_and_puppy_columns(self):
+        html = """
+        <html><body>
+          <div style="left:22px;top:208px"><b>LEUCOGRAMA</b></div>
+          <div style="left:484px;top:224px">Adultos</div>
+          <div style="left:610px;top:224px">Filhotes</div>
+          <div style="left:22px;top:240px">Leucócitos por mm3.........:</div>
+          <div style="left:283px;top:240px"><b>20.100</b></div>
+          <div style="left:466px;top:240px">6.000 a 17.000</div>
+          <div style="left:565px;top:240px">mm3</div>
+          <div style="left:601px;top:240px">8.500 a 16.000mm3</div>
+        </body></html>
+        """.encode("latin-1")
+
+        rows = BitlabConnector.parse_resultado(
+            zlib.compress(html),
+            {"species_raw": "Canina", "sex_raw": "F", "species_sex": "cadela", "patient_age": "7 Meses"},
+        )
+
+        self.assertEqual(rows[0]["referencia"], "8.500 a 16.000mm3")
+
 
 class StatePresentationTests(unittest.TestCase):
     def test_get_exames_uses_received_at_for_card_date_and_latest_release_for_group(self):

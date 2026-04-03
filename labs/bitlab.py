@@ -167,6 +167,96 @@ def _select_reference_entries(entries: list[dict], patient_context: dict | None)
     return generic or selected
 
 
+def _normalize_age_bucket(*values: str) -> str:
+    for value in values:
+        norm = _strip_accents((value or "").strip().lower())
+        if not norm:
+            continue
+        months = re.search(r"(\d+)\s*(mes|meses)", norm)
+        if months:
+            return "juvenile" if int(months.group(1)) < 12 else "adult"
+        years = re.search(r"(\d+)\s*(ano|anos)", norm)
+        if years:
+            return "juvenile" if int(years.group(1)) < 1 else "adult"
+        if "filhote" in norm:
+            return "juvenile"
+        if "adult" in norm:
+            return "adult"
+    return ""
+
+
+def _recent_layout_headers(
+    sorted_tops: list[int],
+    rows_by_top: dict[int, list[dict]],
+    current_index: int,
+    window: int = 3,
+) -> list[str]:
+    headers: list[str] = []
+    start = max(0, current_index - window)
+    for idx in range(start, current_index):
+        top = sorted_tops[idx]
+        text = " ".join(
+            c["text"] for c in sorted(rows_by_top[top], key=lambda col: col["left"])
+        )
+        norm = _strip_accents(text).lower()
+        if norm:
+            headers.append(norm)
+    return headers
+
+
+def _extract_layout_a_reference_options(ref_candidates: list[dict]) -> list[str]:
+    options: list[str] = []
+    for col in sorted(ref_candidates, key=lambda entry: entry["left"]):
+        text = (col.get("text") or "").strip()
+        matches = [m.group().strip() for m in _REF_PAT.finditer(text)]
+        if len(matches) > 1:
+            options.extend(re.sub(r"\s+", " ", match).strip() for match in matches)
+        elif matches:
+            options.append(re.sub(r"\s+", " ", text).strip())
+    return options
+
+
+def _select_layout_a_reference(
+    ref_candidates: list[dict],
+    numeric_candidates: list[dict],
+    sorted_tops: list[int],
+    rows_by_top: dict[int, list[dict]],
+    current_index: int,
+    patient_context: dict | None,
+) -> str:
+    options = _extract_layout_a_reference_options(ref_candidates)
+    if not options:
+        return ""
+
+    patient_context = patient_context or {}
+    patient_species = _normalize_species_key(
+        patient_context.get("species_sex", ""),
+        patient_context.get("species_raw", ""),
+    )
+    patient_age_bucket = _normalize_age_bucket(
+        patient_context.get("patient_age", ""),
+        patient_context.get("idade", ""),
+    )
+    headers = _recent_layout_headers(sorted_tops, rows_by_top, current_index)
+    has_species_headers = any("caninos" in h and "felinos" in h for h in headers)
+    has_age_headers = any("adultos" in h and "filhotes" in h for h in headers)
+
+    if len(options) > 1 and has_species_headers and patient_species in {"canine", "feline"}:
+        species_idx = 0 if patient_species == "canine" else 1
+        if species_idx < len(options):
+            return options[species_idx]
+
+    if len(options) > 1 and len(numeric_candidates) > 1:
+        return options[0]
+
+    if len(options) > 1 and has_age_headers and patient_age_bucket:
+        age_idx = 1 if patient_age_bucket == "juvenile" else 0
+        if age_idx < len(options):
+            return options[age_idx]
+
+    return options[0]
+
+
 def _calc_alert_single(value_str: str, ref_str: str) -> str | None:
     """Alert for Layout A: single numeric range on same row."""
     try:
@@ -351,23 +441,35 @@ class BitlabConnector(LabConnector):
                 continue
 
             # Layout A: same-row reference "X a Y"
-            ref_col = next(
-                (c for c in sorted(cols, key=lambda c: -c["left"])
-                 if _REF_PAT.search(c["text"])),
-                None,
-            )
+            ref_candidates = [
+                c for c in cols
+                if c["left"] >= 250 and _REF_PAT.search(c["text"])
+            ]
 
-            if ref_col:
+            if ref_candidates:
                 # Layout A — value + reference on same row
-                val_candidates = [c for c in cols if c["left"] >= 250 and c is not ref_col]
+                val_candidates = [
+                    c for c in cols
+                    if c["left"] >= 250 and c not in ref_candidates
+                ]
+                numeric_candidates = [
+                    c for c in val_candidates if _try_float(c["text"]) is not None
+                ]
                 val_col = (
-                    next((c for c in val_candidates if c["bold"]), None)
-                    or next((c for c in val_candidates), None)
+                    next((c for c in numeric_candidates if c["bold"]), None)
+                    or next((c for c in numeric_candidates), None)
                 )
                 if not val_col:
                     continue
                 value_str = val_col["text"].strip()
-                ref_str   = ref_col["text"].strip()
+                ref_str = _select_layout_a_reference(
+                    ref_candidates,
+                    numeric_candidates,
+                    sorted_tops,
+                    rows_by_top,
+                    i,
+                    patient_context,
+                )
                 results.append({
                     "nome":       name,
                     "valor":      value_str,
