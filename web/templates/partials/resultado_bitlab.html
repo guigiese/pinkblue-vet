@@ -1,2 +1,8 @@
 {% import "partials/result_rows_macro.html" as result_macros %}
-{{ result_macros.result_rows(rows, "compact") }}
+{% if rows %}
+  {{ result_macros.result_rows(rows, "compact") }}
+{% elif report_text %}
+  {{ result_macros.report_text_block({"report_text": report_text, "diagnosis_text": diagnosis_text}) }}
+{% else %}
+  <p class="pb-item-result-empty">Resultado nao disponivel.</p>
+{% endif %}

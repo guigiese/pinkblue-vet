@@ -1,4 +1,4 @@
-# CONTEXT.md - PinkBlue Vet / Lab Monitor Module
+# CONTEXT.md - PinkBlue Vet / Platform Workspace
 > Documento técnico para onboarding de IAs e desenvolvedores.
 > Descreve o estado atual do projeto, arquitetura, contratos de dados e regras de extensão.
 > Atualizado em: 2026-04-01
@@ -7,14 +7,20 @@
 
 ## O que é este projeto
 
-Este repositório pertence ao guarda-chuva PinkBlue Vet e implementa o módulo Lab Monitor.
+Este repositório passou a ser tratado como o workspace atual da plataforma PinkBlue Vet.
 
 PinkBlue Vet é a plataforma principal.
-Lab Monitor é um dos módulos/produtos dentro dessa plataforma.
+Lab Monitor é o módulo ativo principal hoje, mas não é mais o ente principal do workspace.
 Nomes legados como `SimplesVet` podem aparecer em pastas locais ou referências antigas, mas não devem ser tratados como o nome da plataforma.
 
-O Lab Monitor é um monitor automatizado de exames laboratoriais para uma clínica veterinária (PinkBlue Vet).
-Faz scraping/API-calls em laboratórios parceiros, detecta novos exames e mudanças de status,
+Hoje o workspace cobre:
+- a home da plataforma em `/`;
+- o módulo Lab Monitor em `/labmonitor`;
+- o mapa operacional em `/ops-map/`;
+- sandboxes e superfícies auxiliares sob `/sandboxes/*`.
+
+O Lab Monitor continua sendo um monitor automatizado de exames laboratoriais para uma clínica veterinária (PinkBlue Vet).
+Ele faz scraping/API-calls em laboratórios parceiros, detecta novos exames e mudanças de status,
 e envia notificações via Telegram (e opcionalmente WhatsApp).
 
 Roda 24/7 na nuvem (Railway) como um único serviço Python que combina:
@@ -23,15 +29,42 @@ Roda 24/7 na nuvem (Railway) como um único serviço Python que combina:
 
 **URL de produção:** https://pinkblue-vet-production.up.railway.app
 
-A aplicação é servida sob o prefixo `/labmonitor`. A raiz `/` exibe uma landing page
-com os apps disponíveis sob o guarda-chuva PinkBlue Vet.
+A aplicação de exames é servida sob o prefixo `/labmonitor`. A raiz `/` exibe a home
+da plataforma com os módulos e superfícies disponíveis.
 
-Existe também um módulo operacional acessível em `/ops-map/`, que publica o mapa visual
+Existe também uma superfície operacional acessível em `/ops-map/`, que publica o mapa visual
 de sistemas, plataformas, integrações e sinais da operação PinkBlue.
 
 Para explorações visuais paralelas sem risco direto ao módulo principal, existe um
 espaço de sandbox separado em `/sandboxes/cards/`, usado para iterar variações de layout
 antes de decidir o que sobe para o Lab Monitor.
+
+## Direção estrutural
+
+O estado atual do código ainda é majoritariamente "flat" na raiz do repositório, o que
+foi aceitável enquanto o Lab Monitor dominava quase todo o escopo. A direção agora é
+evoluir o workspace de forma incremental para uma estrutura mais claramente modular.
+
+Estrutura-alvo de médio prazo:
+
+```
+/
+├── apps/                  # entradas web/runtime da plataforma
+├── pb_platform/           # auth, settings, persistence, shell visual, shared infra
+├── modules/
+│   ├── lab_monitor/
+│   ├── crm/
+│   └── financeiro/
+├── docs/
+├── infra/
+├── poc/
+└── scripts/
+```
+
+Importante:
+- esta estrutura-alvo nao precisa ser aplicada de forma destrutiva agora;
+- a migracao deve ser gradual e guiada por valor, nao por estetica;
+- o primeiro passo e alinhar docs, backlog e fronteiras de responsabilidade.
 
 ---
 
@@ -44,15 +77,21 @@ antes de decidir o que sobe para o Lab Monitor.
 | Templates | Jinja2 3.1 + HTMX (CDN) + TailwindCSS (CDN) |
 | HTTP scraping | requests 2.32 + BeautifulSoup4 4.13 |
 | Notificações | Telegram Bot API / Callmebot WhatsApp API |
+| Persistência fase 1 | SQLite (`sqlite3`) em `runtime-data/` / Railway Volume |
+| Auth fase 1 | Sessão por cookie + store compartilhada |
 | Deploy | Railway (Railpack, sem Docker customizado) |
 | Repositório | GitHub: guigiese/monitor-exames-bitlab |
 
-Hoje não há banco de dados. O estado vive em memória (`AppState`) e é resetado a cada restart do serviço.
-Esse desenho viabilizou a primeira fase do módulo, mas já é tratado como limitação estrutural e frente ativa de evolução.
+Hoje a plataforma já possui uma persistência fase 1:
+- `SQLite` via `sqlite3` da stdlib;
+- store compartilhada em `pb_platform/storage.py`;
+- usuários, sessões, snapshots, subscriptions e tolerâncias persistidos.
+
+O `AppState` continua existindo como cache quente do runtime, mas deixou de ser a única fonte de verdade do módulo.
 
 ---
 
-## Estrutura de arquivos
+## Estrutura de arquivos atual
 
 ```
 /
@@ -73,22 +112,33 @@ Esse desenho viabilizou a primeira fase do módulo, mas já é tratado como limi
 ├── notifiers/
 │   ├── base.py              # ABC Notifier — método enviar(msg: str)
 │   ├── __init__.py          # Registry: NOTIFIERS = {"telegram": ..., "whatsapp": ...}
-│   ├── telegram.py          # Telegram Bot API — multi-usuário via telegram_users.json
+│   ├── telegram.py          # Telegram Bot API — subscriptions persistidas na store + espelho legado
 │   ├── telegram_polling.py  # Thread de polling do bot: /assinar, /sair, /status, /start
 │   └── whatsapp.py          # Callmebot API (desabilitado por padrão)
 │
+├── pb_platform/
+│   ├── settings.py          # Configuração compartilhada da plataforma
+│   ├── security.py          # Hash de senha e tokens de sessão
+│   ├── storage.py           # Store SQLite fase 1 (usuários, sessões, snapshots, thresholds)
+│   └── auth.py              # Regras de proteção de rotas e helpers de sessão
+│
 ├── web/
-│   ├── app.py               # FastAPI: landing /, APIRouter prefix=/labmonitor
+│   ├── app.py               # FastAPI: auth, home, admin, /ops-map, /sandboxes e APIRouter /labmonitor
 │   ├── ops_map.py           # Runtime do mapa operacional (snapshot com cache curto)
 │   ├── state.py             # AppState singleton compartilhado entre thread e web
 │   └── templates/
-│       ├── index.html       # Landing page standalone (sem base.html)
+│       ├── index.html       # Home da plataforma
+│       ├── login.html       # Login da plataforma
+│       ├── admin_users.html # Gestão inicial de acessos
 │       ├── base.html        # Layout sidebar responsivo (Tailwind CDN + HTMX CDN)
+│       ├── platform_base.html # Shell visual compartilhado da plataforma
 │       ├── ops_map.html     # Wrapper do mapa operacional servido pelo próprio app
 │       ├── dashboard.html   # Contadores por lab + feed de notificações
 │       ├── exames.html      # Tabela de exames com filtros
 │       ├── labs.html        # Gerenciar labs (toggle, test connection)
 │       ├── canais.html      # Gerenciar canais + lista de usuários Telegram
+│       ├── notificacoes.html # Templates e política operacional de notificações
+│       ├── thresholds.html   # Tolerâncias por exame
 │       ├── settings.html    # Intervalo de verificação
 │       └── partials/        # Fragmentos HTMX (atualizados sem reload de página)
 │           ├── lab_counts.html
@@ -120,6 +170,11 @@ Esse desenho viabilizou a primeira fase do módulo, mas já é tratado como limi
         ├── index.html
         └── styles.css
 ```
+
+Leitura importante:
+- `config.json` e `telegram_users.json` ainda existem como legado e bootstrap, mas a persistência fase 1 já vive na store compartilhada;
+- `web/app.py` ainda acumula home da plataforma, auth, admin, modulo Lab Monitor, ops-map e sandboxes;
+- `labs/` e `notifiers/` ainda vivem no nível raiz porque a separação completa por módulo/shared capability ainda não foi executada.
 
 ---
 
@@ -238,10 +293,11 @@ Não é thread-safe com locks, mas as operações são atômicas o suficiente pa
 | `last_error` | `dict[lab_id, str]` | Último erro, se houver |
 | `is_checking` | `dict[lab_id, bool]` | Flag de verificação em andamento |
 | `notifications` | `list[dict]` | Últimas 50 notificações: `{time, lab, msg}` |
-| `_config` | `dict` | Lazy-loaded de config.json, recarregado a cada chamada ao loop |
+| `_config` | `dict` | Base carregada de `config.json` com overlay persistido da store |
 
-`config` é uma property que carrega do disco. Após qualquer escrita via `save_config()`,
-o próximo ciclo do loop pega o valor atualizado automaticamente.
+`config` é uma property que continua usando `config.json` como base versionada,
+mas agora aplica por cima a configuração persistida da plataforma.
+Após qualquer escrita via `save_config()`, o próximo ciclo do loop pega o valor atualizado automaticamente.
 
 ---
 
@@ -257,9 +313,8 @@ Usuários se inscrevem pelo próprio Telegram — sem necessidade de configurar 
 | `/sair` | Cancela a inscrição |
 | `/status` | Informa se está inscrito ou não |
 
-Os chat IDs inscritos são salvos em `telegram_users.json`.
-Hoje esse arquivo ainda precisa ser tratado como artefato operacional transitório, e a migração para persistência real continua aberta.
-**Limitação:** sem persistência dedicada, o cadastro pode se perder em cenários de redeploy / troca de imagem.
+Os chat IDs inscritos agora passam primeiro pela store compartilhada da plataforma.
+`telegram_users.json` permanece apenas como espelho legado/compatibilidade local.
 
 A UI em `/labmonitor/canais` exibe a lista de usuários inscritos com botão de remoção.
 A lista atualiza automaticamente a cada 10 segundos via HTMX polling.
@@ -321,11 +376,16 @@ Workflow correto:
 ## Arquitetura de rotas
 
 ```
-GET  /                              → Landing page (index.html, standalone)
+GET  /                              → Home autenticada da plataforma
+GET  /login                         → Login da plataforma
+GET  /logout                        → Encerrar sessão
+GET  /admin/usuarios                → Gestão inicial de acessos da plataforma
 GET  /labmonitor                    → Dashboard
 GET  /labmonitor/exames             → Tabela de exames com filtros
 GET  /labmonitor/labs               → Gerenciar laboratórios
 GET  /labmonitor/canais             → Gerenciar canais de notificação
+GET  /labmonitor/notificacoes       → Templates e política de notificações
+GET  /labmonitor/tolerancias        → Tolerâncias por exame
 GET  /labmonitor/settings           → Configurações gerais
 GET  /labmonitor/partials/notifications     → Fragmento HTMX
 GET  /labmonitor/partials/lab_counts        → Fragmento HTMX
@@ -336,7 +396,11 @@ POST /labmonitor/labs/{id}/test             → Testar conexão com lab
 POST /labmonitor/canais/{id}/toggle         → Toggle canal
 POST /labmonitor/canais/{id}/test           → Enviar mensagem de teste
 POST /labmonitor/canais/telegram/users/{chat_id}/remove  → Remover usuário Telegram
+POST /labmonitor/notificacoes/salvar        → Persistir templates e eventos
+POST /labmonitor/notificacoes/resetar       → Restaurar defaults dos templates
 POST /labmonitor/settings/interval          → Atualizar intervalo
+POST /labmonitor/tolerancias/salvar         → Salvar tolerância por exame
+POST /labmonitor/tolerancias/{slug}/remover → Remover tolerância
 ```
 
 Implementado via `APIRouter(prefix="/labmonitor")` em `web/app.py`.
@@ -380,16 +444,13 @@ O Nexio não tem URL pública estável por exame. O link abre o visualizador do 
 
 ---
 
-## Limitações conhecidas (v1)
+## Limitações conhecidas (fase atual)
 
-- **Estado em memória:** restart apaga histórico de notificações e snapshots anteriores.
-  Na prática isso significa que o primeiro ciclo pós-restart nunca notifica (comportamento intencional).
-- **telegram_users.json ainda fora de persistência real:** o cadastro de inscritos ainda não foi migrado para banco e pode divergir do comportamento desejado em cenários de deploy/rebuild.
-- **Sem autenticação na web:** qualquer um com a URL pode ver e controlar o monitor.
-- **Callmebot limitado:** 16 mensagens por 240 minutos. Desabilitado por padrão.
-- **Nexio:** o parsing é frágil (depende de posição de colunas HTML). Uma mudança de layout no Pathoweb quebra o conector.
-- **Config no container:** `config.json` é versionado e fica dentro da imagem. Mudanças via UI são salvas no disco do container — sobrevivem enquanto o container está vivo, mas são perdidas no redeploy.
+- **Persistência fase 1 ainda é uma ponte:** `sqlite3` resolve o agora, mas não substitui a trilha futura de banco/plataforma mais robusta.
 - **BitLab timeout:** o servidor `bitlabenterprise.com.br` pode apresentar timeouts intermitentes (connect timeout=15s). Erro capturado em `last_error` e exibido na UI de labs.
+- **Nexio:** o parsing é frágil (depende de posição de colunas HTML). Uma mudança de layout no Pathoweb quebra o conector.
+- **Sync incremental ainda é parcial:** o BitLab já usa contexto persistido para reduzir a janela de busca; o restante dos conectores ainda precisa amadurecer o mesmo comportamento.
+- **Callmebot limitado:** 16 mensagens por 240 minutos. Desabilitado por padrão.
 - **Segredos e remotos ainda precisam saneamento:** há artefatos e fallbacks sensíveis que devem sair do repositório/ambiente local antes da plataforma crescer.
 
 ---

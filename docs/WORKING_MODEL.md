@@ -5,6 +5,26 @@ This document defines the minimum operating model for the PinkBlue platform.
 It is intentionally practical.
 It should stay small, explicit, and easy for both humans and AIs to follow.
 
+## 0. Repository Scope
+
+This repository is no longer treated as "just the Lab Monitor repo".
+
+Operationally, it is the current PinkBlue platform workspace:
+- `PBEXM` owns the Lab Monitor module;
+- `PBCORE` owns shared capabilities such as auth, persistence, shell visual,
+  security, infra, and cross-module conventions;
+- `PBINC` owns future-module discovery.
+
+That means shared capabilities must not be modeled as if they belonged only to
+the exam module.
+Examples:
+- platform-wide auth belongs in `PBCORE`, while `PBEXM` may only keep module
+  integration details;
+- platform persistence belongs in `PBCORE`, while `PBEXM` keeps the exam-module
+  consumers and migration slices;
+- visual shell and navigation standards belong in `PBCORE`, while module-level
+  pages consume them.
+
 ## 1. Jira Structure
 
 There are currently 3 Jira projects:

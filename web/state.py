@@ -3,6 +3,8 @@ import unicodedata
 from datetime import datetime, timedelta
 from pathlib import Path
 
+from pb_platform.storage import store
+
 from notification_settings import (
     DEFAULT_NOTIFICATION_SETTINGS,
     apply_notification_settings,
@@ -210,9 +212,10 @@ _STATUS_PRIORITY: list[str] = [
 
 class AppState:
     def __init__(self):
-        self.snapshots:   dict[str, dict] = {}
-        self.last_check:  dict[str, str]  = {}
-        self.last_error:  dict[str, str]  = {}
+        snapshots, last_check, last_error = store.load_lab_runtime()
+        self.snapshots:   dict[str, dict] = snapshots
+        self.last_check:  dict[str, str]  = last_check
+        self.last_error:  dict[str, str]  = last_error
         self.is_checking: dict[str, bool] = {}
         self.notifications: list[dict]    = []
         self._config: dict | None         = None
@@ -221,14 +224,49 @@ class AppState:
     def config(self) -> dict:
         if self._config is None:
             self._config = json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
+            persisted = store.load_runtime_config() or {}
+            if persisted:
+                self._config = _deep_merge(self._config, persisted)
             apply_notification_settings(self._config)
         return self._config
 
     def save_config(self):
-        CONFIG_FILE.write_text(
-            json.dumps(self._config, ensure_ascii=False, indent=2),
-            encoding="utf-8"
+        store.save_runtime_config(self._config)
+
+    def save_lab_runtime(self, lab_id: str) -> None:
+        store.save_lab_snapshot(
+            lab_id,
+            self.snapshots.get(lab_id, {}),
+            last_check=self.last_check.get(lab_id, ""),
+            last_error=self.last_error.get(lab_id, ""),
         )
+
+    def sync_context(self, lab_id: str) -> dict:
+        snapshot = self.snapshots.get(lab_id, {})
+        open_dates: list[datetime] = []
+        for record in snapshot.values():
+            itens = [
+                normalize_status(item["status"])
+                for item in record.get("itens", {}).values()
+                if item.get("nome") not in EXCLUDE_EXAMES
+            ]
+            if not itens:
+                continue
+            if all(status in _STATUS_DONE for status in itens):
+                continue
+            received_at_raw = record.get("received_at") or record.get("collected_at") or record.get("data")
+            received_at_dt = _parse_datetime(received_at_raw)
+            if received_at_dt:
+                open_dates.append(received_at_dt)
+
+        oldest_open = min(open_dates) if open_dates else None
+        days_back = 14
+        if oldest_open:
+            days_back = max(14, (datetime.now() - oldest_open).days + 3)
+        return {
+            "oldest_open_received_at": oldest_open.isoformat() if oldest_open else "",
+            "days_back": days_back,
+        }
 
     def toggle_lab(self, lab_id: str):
         for lab in self.config["labs"]:
@@ -256,12 +294,15 @@ class AppState:
         *,
         received_enabled: bool,
         completed_enabled: bool,
+        status_update_enabled: bool,
         received_template: str,
         completed_template: str,
+        status_update_template: str,
     ) -> None:
         settings = self.get_notification_settings()
         settings["events"]["received"]["enabled"] = received_enabled
         settings["events"]["completed"]["enabled"] = completed_enabled
+        settings["events"]["status_update"]["enabled"] = status_update_enabled
         settings["events"]["received"]["template"] = (
             received_template.strip()
             or DEFAULT_NOTIFICATION_SETTINGS["events"]["received"]["template"]
@@ -270,6 +311,10 @@ class AppState:
             completed_template.strip()
             or DEFAULT_NOTIFICATION_SETTINGS["events"]["completed"]["template"]
         )
+        settings["events"]["status_update"]["template"] = (
+            status_update_template.strip()
+            or DEFAULT_NOTIFICATION_SETTINGS["events"]["status_update"]["template"]
+        )
         self.save_config()
 
     def reset_notification_settings(self) -> None:
@@ -277,6 +322,30 @@ class AppState:
             json.dumps(DEFAULT_NOTIFICATION_SETTINGS, ensure_ascii=False)
         )
         self.save_config()
+
+    def list_exam_thresholds(self) -> list[dict]:
+        return store.list_exam_thresholds()
+
+    def get_exam_threshold(self, exam_name: str) -> dict:
+        return store.get_exam_threshold(exam_name)
+
+    def save_exam_threshold(
+        self,
+        exam_name: str,
+        *,
+        warning_multiplier: float,
+        critical_multiplier: float,
+        updated_by: str = "",
+    ) -> None:
+        store.upsert_exam_threshold(
+            exam_name,
+            warning_multiplier=warning_multiplier,
+            critical_multiplier=critical_multiplier,
+            updated_by=updated_by,
+        )
+
+    def delete_exam_threshold(self, exam_slug: str) -> None:
+        store.delete_exam_threshold(exam_slug)
 
     def get_notification_previews(self) -> dict[str, str]:
         settings = self.get_notification_settings()
@@ -563,3 +632,13 @@ class AppState:
 
 
 state = AppState()
+
+
+def _deep_merge(base: dict, overrides: dict) -> dict:
+    merged = json.loads(json.dumps(base, ensure_ascii=False))
+    for key, value in (overrides or {}).items():
+        if isinstance(value, dict) and isinstance(merged.get(key), dict):
+            merged[key] = _deep_merge(merged[key], value)
+        else:
+            merged[key] = value
+    return merged

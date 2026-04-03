@@ -1,11 +1,13 @@
 import unittest
 
 import core
+from pb_platform.storage import store
 
 
 class NotificationPolicyTests(unittest.TestCase):
     def setUp(self):
         core._EXTERNAL_EVENT_CACHE.clear()
+        store.clear_notification_events()
 
     def test_new_record_generates_one_received_event(self):
         anterior = {}

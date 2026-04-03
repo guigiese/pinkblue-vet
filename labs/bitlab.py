@@ -11,6 +11,7 @@ import unicodedata
 import requests
 from datetime import datetime, timedelta
 from bs4 import BeautifulSoup
+from pb_platform.storage import store
 from .base import LabConnector
 
 _REF_PAT    = re.compile(r"[\d.,]+\s+a\s+[\d.,]+")
@@ -54,6 +55,21 @@ def _pdf_unescape(text: str) -> str:
         .replace(r"\\", "\\")
         .strip()
     )
+
+
+def _clean_report_text(text: str) -> str:
+    lines = [line.strip() for line in (text or "").splitlines()]
+    cleaned: list[str] = []
+    prev_blank = True
+    for line in lines:
+        if not line:
+            if not prev_blank:
+                cleaned.append("")
+            prev_blank = True
+            continue
+        cleaned.append(line)
+        prev_blank = False
+    return "\n".join(cleaned).strip()
 
 
 def _compose_species_sex(species_raw: str, sex_raw: str) -> str:
@@ -304,6 +320,7 @@ def _build_layout_a_components(
     rows_by_top: dict[int, list[dict]],
     current_index: int,
     patient_context: dict | None,
+    exam_name: str,
 ) -> list[dict]:
     numbers = [c["text"].strip() for c in sorted(numeric_candidates, key=lambda entry: entry["left"])]
     options = _extract_layout_a_reference_options(ref_candidates)
@@ -339,13 +356,33 @@ def _build_layout_a_components(
             "kind": component_kind,
             "valor": _format_layout_a_component_value(value_str, component_kind),
             "referencia": ref_str or "n/d",
-            "alerta": _calc_alert_single(value_str, ref_str),
+            "alerta": _calc_alert_single(value_str, ref_str, exam_name),
         })
     return components
 
 
-def _calc_alert_single(value_str: str, ref_str: str) -> str | None:
-    """Alert for Layout A: single numeric range on same row."""
+def _get_threshold_cutoffs(exam_name: str) -> tuple[float, float]:
+    threshold = store.get_exam_threshold(exam_name)
+    warning_cutoff = max(0.0, float(threshold["warning_multiplier"]) - 1.0)
+    critical_cutoff = max(warning_cutoff, float(threshold["critical_multiplier"]) - 1.0)
+    return warning_cutoff, critical_cutoff
+
+
+def _alert_from_range(numeric: float, rmin: float, rmax: float, exam_name: str) -> str | None:
+    if rmin <= numeric <= rmax:
+        return None
+    boundary = rmin if numeric < rmin else rmax
+    dev = abs(numeric - boundary) / boundary if boundary else 1.0
+    warning_cutoff, critical_cutoff = _get_threshold_cutoffs(exam_name)
+    if dev > critical_cutoff:
+        return "red"
+    if dev >= warning_cutoff:
+        return "yellow"
+    return None
+
+
+def _calc_alert_single(value_str: str, ref_str: str, exam_name: str) -> str | None:
+    """Alert for a single numeric range, using persisted per-exam thresholds when available."""
     try:
         numeric = _parse_num(value_str)
         ref_m = _REF_PAT.search(ref_str)
@@ -353,10 +390,7 @@ def _calc_alert_single(value_str: str, ref_str: str) -> str | None:
             parts = ref_m.group().split(" a ")
             rmin = _parse_num(parts[0])
             rmax = _parse_num(parts[1])
-            if numeric < rmin or numeric > rmax:
-                boundary = rmin if numeric < rmin else rmax
-                dev = abs(numeric - boundary) / boundary if boundary else 1.0
-                return "red" if dev > 0.20 else "yellow"
+            return _alert_from_range(numeric, rmin, rmax, exam_name)
     except (ValueError, ZeroDivisionError):
         pass
     return None
@@ -390,7 +424,10 @@ class BitlabConnector(LabConnector):
 
     def _buscar_requisicoes(self, token: str, page_size: int = 500) -> list[dict]:
         hoje   = datetime.now().strftime("%Y-%m-%d")
-        inicio = (datetime.now() - timedelta(days=self._dias_atras)).strftime("%Y-%m-%d")
+        sync_hints = getattr(self, "sync_hints", {}) or {}
+        days_back = int(sync_hints.get("days_back") or self._dias_atras)
+        days_back = max(7, min(days_back, self._dias_atras))
+        inicio = (datetime.now() - timedelta(days=days_back)).strftime("%Y-%m-%d")
         r = requests.post(
             f"{self.BASE}/Requisicao?pageNumber=1&pageSize={page_size}",
             headers={"Authorization": f"Bearer {token}"},
@@ -561,6 +598,7 @@ class BitlabConnector(LabConnector):
                         rows_by_top,
                         i,
                         patient_context,
+                        name,
                     )
                     worst = max(
                         (component["alerta"] for component in components),
@@ -589,7 +627,7 @@ class BitlabConnector(LabConnector):
                         "nome":       name,
                         "valor":      value_str,
                         "referencia": ref_str,
-                        "alerta":     _calc_alert_single(value_str, ref_str),
+                        "alerta":     _calc_alert_single(value_str, ref_str, name),
                     })
 
             else:
@@ -653,21 +691,15 @@ class BitlabConnector(LabConnector):
                 alert: str | None = None
                 numeric = _try_float(value_str)
                 if numeric is not None:
-                    outside_count = sum(
-                        1 for rmin, rmax in (entry["range"] for entry in selected_refs)
-                        if numeric < rmin or numeric > rmax
+                    alerts = [
+                        _alert_from_range(numeric, rmin, rmax, name)
+                        for rmin, rmax in (entry["range"] for entry in selected_refs)
+                    ]
+                    alert = max(
+                        (level for level in alerts),
+                        key=lambda level: _ALERT_RANK.get(level, 0),
+                        default=None,
                     )
-                    if outside_count == len(selected_refs) and outside_count > 0:
-                        max_dev = 0.0
-                        for rmin, rmax in (entry["range"] for entry in selected_refs):
-                            if numeric < rmin:
-                                dev = abs(numeric - rmin) / rmin if rmin else 1.0
-                            else:
-                                dev = abs(numeric - rmax) / rmax if rmax else 1.0
-                            max_dev = max(max_dev, dev)
-                        alert = "red" if max_dev > 0.20 else "yellow"
-                    elif outside_count > 0:
-                        alert = "yellow"
 
                 results.append({
                     "nome":       name,
@@ -677,6 +709,16 @@ class BitlabConnector(LabConnector):
                 })
 
         return results
+
+    @staticmethod
+    def parse_resultado_text(raw_bytes: bytes) -> str:
+        try:
+            html = zlib.decompress(raw_bytes).decode("latin-1")
+        except Exception:
+            return ""
+        soup = BeautifulSoup(html, "html.parser")
+        text = soup.get_text("\n", strip=True)
+        return _clean_report_text(text)
 
     def enrich_resultados(self, anterior: dict, atual: dict) -> None:
         """
@@ -715,6 +757,9 @@ class BitlabConnector(LabConnector):
             try:
                 raw = self.buscar_resultado_html(token, item_id)
                 rows = self.parse_resultado(raw, atual[rid])
+                report_text = ""
+                if not rows:
+                    report_text = self.parse_resultado_text(raw)
                 worst = max(
                     (r["alerta"] for r in rows),
                     key=lambda a: _ALERT_RANK.get(a, 0),
@@ -722,6 +767,8 @@ class BitlabConnector(LabConnector):
                 )
                 atual[rid]["itens"][iid]["alerta"]    = worst
                 atual[rid]["itens"][iid]["resultado"] = rows
+                if report_text:
+                    atual[rid]["itens"][iid]["report_text"] = report_text
                 print(f"  [BitLab resultados] {iid} -> alerta={worst}")
             except Exception as e:
                 print(f"  [BitLab resultados] {iid}: {e}")

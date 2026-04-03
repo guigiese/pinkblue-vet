@@ -2,6 +2,8 @@
 estado_exames.json
 __pycache__/
 *.pyc
+infra/.env
+infra/env/*.env
 
 # Architecture map local debug artifacts
 architecture-map-shot.png
@@ -13,3 +15,5 @@ poc/architecture-map/graph-shot-2.png
 poc/architecture-map/layout-debug.json
 poc/architecture-map/layout-debug-2.json
 poc/architecture-map/tmp-layout.html
+runtime-data/
+*.sqlite3

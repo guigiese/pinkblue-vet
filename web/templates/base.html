@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{% block title %}Lab Monitor{% endblock %}</title>
+  <title>{% block title %}{{ module_name }}{% endblock %}</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/htmx.org@1.9.10"></script>
   <style>
@@ -36,7 +36,11 @@
     </svg>
   </button>
   <a href="/" class="flex items-center gap-2 min-w-0">
-    <span class="text-lg font-bold text-indigo-600 truncate">PinkBlue Vet</span>
+    <span class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600 text-sm font-bold text-white">PB</span>
+    <div class="min-w-0">
+      <p class="truncate text-sm font-semibold text-gray-800">{{ platform_name }}</p>
+      <p class="truncate text-xs text-gray-400">{{ module_name }}</p>
+    </div>
   </a>
 </div>
 
@@ -46,23 +50,19 @@
 
 <div class="flex min-h-screen">
   <aside id="sidebar"
-         class="w-64 bg-white border-r border-gray-200 fixed h-full flex flex-col z-50
+         class="w-72 bg-white border-r border-gray-200 fixed h-full flex flex-col z-50
                 -translate-x-full md:translate-x-0 transition-transform duration-200 ease-in-out">
 
     <a href="/" class="flex items-center gap-3 p-5 border-b border-gray-100 group">
-      <div class="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center shrink-0 group-hover:bg-indigo-700 transition-colors">
-        <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
-        </svg>
+      <div class="w-9 h-9 bg-indigo-600 rounded-xl flex items-center justify-center shrink-0 group-hover:bg-indigo-700 transition-colors text-white font-bold">
+        PB
       </div>
       <div class="min-w-0">
-        <p class="text-sm font-bold text-gray-800 group-hover:text-indigo-600 transition-colors leading-tight">PinkBlue Vet</p>
-        <p class="text-xs text-gray-400 leading-tight">Lab Monitor</p>
+        <p class="text-sm font-bold text-gray-800 group-hover:text-indigo-600 transition-colors leading-tight">{{ platform_name }}</p>
+        <p class="text-xs text-gray-400 leading-tight">Módulo · {{ module_name }}</p>
       </div>
     </a>
 
-    <div class="md:hidden flex items-center justify-between px-4 py-2 border-b border-gray-100 -mt-px" style="display:none"></div>
     <button onclick="closeSidebar()"
             class="md:hidden absolute top-3 right-3 p-1 rounded-lg hover:bg-gray-100 text-gray-500 z-10">
       <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -77,6 +77,7 @@
         ("/labmonitor/labs","building-office","Laboratórios"),
         ("/labmonitor/canais","bell","Canais"),
         ("/labmonitor/notificacoes","chat-bubble-left-right","Notificações"),
+        ("/labmonitor/tolerancias","shield-check","Tolerâncias"),
         ("/labmonitor/settings","cog-6-tooth","Configurações"),
       ] %}
       {% for href, icon, label in nav %}
@@ -96,6 +97,8 @@
           {% elif icon == "chat-bubble-left-right" %}
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7.5 17.25h9A3.75 3.75 0 0020.25 13.5v-3A3.75 3.75 0 0016.5 6.75h-9A3.75 3.75 0 003.75 10.5v6l2.636-1.582A3.75 3.75 0 017.5 17.25z"/>
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.625 11.25h.008v.008h-.008v-.008zm3.75 0h.008v.008h-.008v-.008zm3.75 0h.008v.008h-.008v-.008z"/>
+          {% elif icon == "shield-check" %}
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12.75l2.25 2.25L15 9.75m6 2.626c0 5.523-4.477 10-10 10S1 17.899 1 12.376V6.624A1.624 1.624 0 012.624 5h16.752A1.624 1.624 0 0121 6.624v5.752z"/>
           {% elif icon == "cog-6-tooth" %}
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z"/>
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
@@ -105,9 +108,33 @@
       </a>
       {% endfor %}
     </nav>
+
+    <div class="border-t border-gray-100 p-4 space-y-3">
+      <a href="/" class="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50">
+        <span class="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-gray-100 text-[11px] font-bold text-gray-700">PB</span>
+        <span>Voltar para a home</span>
+      </a>
+      {% if platform_user %}
+      <div class="rounded-xl bg-gray-50 px-3 py-3">
+        <p class="text-[11px] uppercase tracking-wide text-gray-400">Sessão ativa</p>
+        <p class="mt-1 truncate text-sm font-semibold text-gray-800">{{ platform_user.email }}</p>
+        <div class="mt-2 flex items-center gap-2">
+          {% if platform_user.role == "admin" %}
+          <a href="/admin/usuarios" class="text-xs font-medium text-indigo-600 hover:underline">Administrar acessos</a>
+          {% endif %}
+          <a href="/logout" class="text-xs font-medium text-gray-500 hover:underline">Sair</a>
+        </div>
+      </div>
+      {% endif %}
+    </div>
   </aside>
 
-  <main class="w-full md:ml-64 flex-1 p-4 md:p-6 pt-16 md:pt-6 min-w-0">
+  <main class="w-full md:ml-72 flex-1 p-4 md:p-6 pt-16 md:pt-6 min-w-0">
+    {% if platform_user and platform_user.force_password_change %}
+    <div class="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+      A senha inicial ainda está ativa. Abra <a href="/admin/usuarios" class="font-semibold underline">Administrar acessos</a> para atualizar.
+    </div>
+    {% endif %}
     {% set _hdr %}{% block header %}{% endblock %}{% endset %}
     {% if _hdr | trim %}
     <h1 class="text-xl md:text-2xl font-bold text-gray-800 mb-4 md:mb-6">{{ _hdr }}</h1>

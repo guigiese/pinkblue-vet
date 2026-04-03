@@ -1,4 +1,4 @@
-# PinkBlue Vet - Lab Monitor Module
+# PinkBlue Vet - Platform Workspace
 
 Leia `SESSION_PRIMER.md` antes de qualquer ação.
 Ele contém seu contexto operacional completo, o protocolo de sessão e as

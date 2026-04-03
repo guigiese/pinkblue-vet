@@ -1,109 +1,89 @@
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PinkBlue Vet — Automações</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="bg-gray-50 text-gray-900 min-h-screen flex flex-col">
+{% extends "platform_base.html" %}
+{% block title %}{{ platform_name }} · Plataforma{% endblock %}
+{% block header %}Biblioteca de módulos{% endblock %}
+{% block subheader %}
+Entre uma vez e navegue pelos módulos ativos da plataforma, pelas ferramentas auxiliares e pelas superfícies de operação.
+{% endblock %}
+{% block content %}
 
-  <!-- Header -->
-  <header class="bg-white border-b border-gray-200 px-6 py-4">
-    <div class="max-w-4xl mx-auto flex items-center gap-3">
-      <span class="text-2xl">🐾</span>
-      <div>
-        <h1 class="text-xl font-bold text-pink-600">PinkBlue Vet</h1>
-        <p class="text-xs text-gray-500">Automações internas</p>
-      </div>
+<section class="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+  <a href="/labmonitor"
+     class="group flex min-h-[220px] flex-col gap-4 rounded-3xl border border-gray-200 bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:border-indigo-300 hover:shadow-md">
+    <div class="flex items-center justify-between gap-3">
+      <span class="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-50 text-2xl">🔬</span>
+      <span class="rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-700">Online</span>
     </div>
-  </header>
-
-  <!-- Main content -->
-  <main class="flex-1 max-w-4xl mx-auto w-full px-6 py-10">
-    <h2 class="text-lg font-semibold text-gray-700 mb-6">Aplicativos disponíveis</h2>
-
-    <div class="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-
-      <!-- Lab Monitor card -->
-      <a href="/labmonitor"
-         class="group bg-white rounded-2xl border border-gray-200 shadow-sm hover:shadow-md hover:border-indigo-300 transition-all p-6 flex flex-col gap-3">
-        <div class="flex items-center justify-between">
-          <span class="text-3xl">🔬</span>
-          <span class="text-xs px-2 py-1 rounded-full bg-green-100 text-green-700 font-medium">
-            Online
-          </span>
-        </div>
-        <div>
-          <h3 class="font-semibold text-gray-800 text-lg group-hover:text-indigo-600 transition-colors">
-            Lab Monitor
-          </h3>
-          <p class="text-sm text-gray-500 mt-1">
-            Monitoramento de exames laboratoriais em tempo real
-          </p>
-        </div>
-        <div class="mt-auto pt-2">
-          <span class="text-xs text-indigo-500 font-medium group-hover:underline">
-            Abrir →
-          </span>
-        </div>
-      </a>
-
-      <!-- Operations map card -->
-      <a href="/ops-map/"
-         class="group bg-white rounded-2xl border border-gray-200 shadow-sm hover:shadow-md hover:border-sky-300 transition-all p-6 flex flex-col gap-3">
-        <div class="flex items-center justify-between">
-          <span class="text-3xl">🗺️</span>
-          <span class="text-xs px-2 py-1 rounded-full bg-sky-100 text-sky-700 font-medium">
-            Mapa vivo
-          </span>
-        </div>
-        <div>
-          <h3 class="font-semibold text-gray-800 text-lg group-hover:text-sky-600 transition-colors">
-            Mapa Operacional
-          </h3>
-          <p class="text-sm text-gray-500 mt-1">
-            Topologia visual dos sistemas, plataformas, integrações e sinais da operação PinkBlue
-          </p>
-        </div>
-        <div class="mt-auto pt-2">
-          <span class="text-xs text-sky-500 font-medium group-hover:underline">
-            Abrir →
-          </span>
-        </div>
-      </a>
-
-      <!-- Sandbox card -->
-      <a href="/sandboxes/cards/"
-         class="group bg-white rounded-2xl border border-gray-200 shadow-sm hover:shadow-md hover:border-amber-300 transition-all p-6 flex flex-col gap-3">
-        <div class="flex items-center justify-between">
-          <span class="text-3xl">🧪</span>
-          <span class="text-xs px-2 py-1 rounded-full bg-amber-100 text-amber-700 font-medium">
-            Sandbox
-          </span>
-        </div>
-        <div>
-          <h3 class="font-semibold text-gray-800 text-lg group-hover:text-amber-600 transition-colors">
-            Cards Sandbox
-          </h3>
-          <p class="text-sm text-gray-500 mt-1">
-            Area separada para testar iteracoes visuais do Lab Monitor antes de levar ajustes ao produto
-          </p>
-        </div>
-        <div class="mt-auto pt-2">
-          <span class="text-xs text-amber-500 font-medium group-hover:underline">
-            Abrir →
-          </span>
-        </div>
-      </a>
-
+    <div class="space-y-2">
+      <p class="text-xs font-semibold uppercase tracking-[0.18em] text-indigo-500">Módulo ativo</p>
+      <h2 class="text-xl font-semibold text-gray-800 transition group-hover:text-indigo-600">Lab Monitor</h2>
+      <p class="text-sm leading-6 text-gray-500">
+        Monitoramento de protocolos, resultados, criticidade, laboratórios e notificações.
+      </p>
     </div>
-  </main>
+    <div class="mt-auto flex items-center justify-between text-sm">
+      <span class="font-medium text-indigo-600">Abrir módulo</span>
+      <span class="text-gray-300 transition group-hover:text-indigo-500">↗</span>
+    </div>
+  </a>
 
-  <!-- Footer -->
-  <footer class="border-t border-gray-200 px-6 py-4 text-center text-xs text-gray-400">
-    PinkBlue Vet Clínica Veterinária
-  </footer>
+  <a href="/ops-map/"
+     class="group flex min-h-[220px] flex-col gap-4 rounded-3xl border border-gray-200 bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:border-sky-300 hover:shadow-md">
+    <div class="flex items-center justify-between gap-3">
+      <span class="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-sky-50 text-2xl">🗺️</span>
+      <span class="rounded-full bg-sky-100 px-3 py-1 text-xs font-medium text-sky-700">Ferramenta</span>
+    </div>
+    <div class="space-y-2">
+      <p class="text-xs font-semibold uppercase tracking-[0.18em] text-sky-500">Observabilidade</p>
+      <h2 class="text-xl font-semibold text-gray-800 transition group-hover:text-sky-600">Mapa operacional</h2>
+      <p class="text-sm leading-6 text-gray-500">
+        Visão interativa dos sistemas, integrações, plataformas, IAs e sinais da operação PinkBlue.
+      </p>
+    </div>
+    <div class="mt-auto flex items-center justify-between text-sm">
+      <span class="font-medium text-sky-600">Abrir mapa</span>
+      <span class="text-gray-300 transition group-hover:text-sky-500">↗</span>
+    </div>
+  </a>
 
-</body>
-</html>
+  <a href="/sandboxes/cards/"
+     class="group flex min-h-[220px] flex-col gap-4 rounded-3xl border border-gray-200 bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:border-amber-300 hover:shadow-md">
+    <div class="flex items-center justify-between gap-3">
+      <span class="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-50 text-2xl">🧪</span>
+      <span class="rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-700">Sandbox</span>
+    </div>
+    <div class="space-y-2">
+      <p class="text-xs font-semibold uppercase tracking-[0.18em] text-amber-500">Exploração visual</p>
+      <h2 class="text-xl font-semibold text-gray-800 transition group-hover:text-amber-600">Cards sandbox</h2>
+      <p class="text-sm leading-6 text-gray-500">
+        Ambiente separado para validar variações de layout antes de levar ajustes ao produto.
+      </p>
+    </div>
+    <div class="mt-auto flex items-center justify-between text-sm">
+      <span class="font-medium text-amber-600">Abrir sandbox</span>
+      <span class="text-gray-300 transition group-hover:text-amber-500">↗</span>
+    </div>
+  </a>
+
+  {% if platform_user and platform_user.role == "admin" %}
+  <a href="/admin/usuarios"
+     class="group flex min-h-[220px] flex-col gap-4 rounded-3xl border border-gray-200 bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:border-violet-300 hover:shadow-md">
+    <div class="flex items-center justify-between gap-3">
+      <span class="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-violet-50 text-2xl">🔐</span>
+      <span class="rounded-full bg-violet-100 px-3 py-1 text-xs font-medium text-violet-700">Admin</span>
+    </div>
+    <div class="space-y-2">
+      <p class="text-xs font-semibold uppercase tracking-[0.18em] text-violet-500">Plataforma</p>
+      <h2 class="text-xl font-semibold text-gray-800 transition group-hover:text-violet-600">Gerenciar acessos</h2>
+      <p class="text-sm leading-6 text-gray-500">
+        Controle inicial de usuários, senhas e sessão para todos os módulos protegidos da plataforma.
+      </p>
+    </div>
+    <div class="mt-auto flex items-center justify-between text-sm">
+      <span class="font-medium text-violet-600">Abrir gestão</span>
+      <span class="text-gray-300 transition group-hover:text-violet-500">↗</span>
+    </div>
+  </a>
+  {% endif %}
+</section>
+
+{% endblock %}

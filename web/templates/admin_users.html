@@ -1,0 +1,83 @@
+{% extends "platform_base.html" %}
+{% block title %}Acessos · Plataforma{% endblock %}
+{% block header %}Administrar acessos{% endblock %}
+{% block subheader %}
+Controle inicial de usuários, senhas e status de acesso para a home e para todos os módulos protegidos da plataforma.
+{% endblock %}
+{% block content %}
+
+<div class="space-y-6">
+  {% if save_state %}
+  <div class="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+    Ajustes de acesso atualizados.
+  </div>
+  {% endif %}
+
+  <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+    <h2 class="text-base font-semibold text-gray-800">Novo usuário</h2>
+    <p class="mt-1 text-sm text-gray-500">Crie acessos simples por e-mail e senha. O admin master continua gerindo os demais.</p>
+    <form method="post" action="/admin/usuarios" class="mt-4 grid gap-3 md:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_170px_140px]">
+      <input name="email" type="email" required placeholder="email@exemplo.com"
+             class="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm">
+      <input name="password" type="text" required placeholder="Senha inicial"
+             class="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm">
+      <select name="role" class="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm">
+        <option value="viewer">viewer</option>
+        <option value="operator">operator</option>
+        <option value="admin">admin</option>
+      </select>
+      <button type="submit" class="rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-indigo-700">
+        Criar usuário
+      </button>
+    </form>
+  </section>
+
+  <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+    <div class="flex items-center justify-between gap-3">
+      <div>
+        <h2 class="text-base font-semibold text-gray-800">Usuários da plataforma</h2>
+        <p class="mt-1 text-sm text-gray-500">Esses acessos valem para a home e todos os módulos protegidos.</p>
+      </div>
+      <span class="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-500">{{ users|length }} acesso(s)</span>
+    </div>
+
+    <div class="mt-4 space-y-4">
+      {% for user in users %}
+      <div class="rounded-xl border border-gray-200 bg-gray-50/70 p-4">
+        <div class="flex flex-wrap items-start justify-between gap-3">
+          <div class="min-w-0">
+            <div class="flex items-center gap-2 flex-wrap">
+              <p class="truncate font-semibold text-gray-800">{{ user.email }}</p>
+              <span class="rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-indigo-700">{{ user.role }}</span>
+              {% if not user.is_active %}
+              <span class="rounded-full bg-gray-200 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-gray-600">Inativo</span>
+              {% endif %}
+              {% if user.force_password_change %}
+              <span class="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-amber-700">Troca pendente</span>
+              {% endif %}
+            </div>
+            <p class="mt-1 text-xs text-gray-400">Criado em {{ user.created_at }}</p>
+          </div>
+          <form method="post" action="/admin/usuarios/{{ user.id }}/toggle">
+            <button type="submit"
+                    class="rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50">
+              {% if user.is_active %}Desativar{% else %}Reativar{% endif %}
+            </button>
+          </form>
+        </div>
+
+        <form method="post" action="/admin/usuarios/{{ user.id }}/senha" class="mt-4 flex flex-col gap-2 sm:flex-row">
+          <input name="password" type="text" required placeholder="Nova senha"
+                 class="flex-1 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm">
+          <button type="submit"
+                  class="rounded-xl border border-indigo-200 bg-white px-4 py-2 text-sm font-medium text-indigo-600 hover:bg-indigo-50">
+            Atualizar senha
+          </button>
+        </form>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+</div>
+
+{% endblock %}

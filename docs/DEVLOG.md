@@ -744,3 +744,111 @@ The sandbox now behaves like a safe visual lab:
 The ops-map change matters for the same reason:
 - mobile should reach the graph quickly;
 - operational summary should support the graph, not delay access to it.
+
+---
+
+## Fase 19 - Platform workspace reframing and zero-cost persistence phase
+
+### Context
+The repository and part of the backlog were still telling an exam-first story,
+while the user direction had already moved to a platform-first story:
+
+- PinkBlue Vet as the platform;
+- Lab Monitor as one module under it;
+- future CRM and financial modules behind the same auth and shell;
+- persistence and auth treated as shared capabilities, not exam-only features.
+
+### What changed
+- Jira scope was realigned so platform auth stays in `PBCORE-16`;
+- `PBEXM-42` was narrowed to Lab Monitor integration with shared auth;
+- a new structural track was opened in `PBCORE-60`;
+- docs were updated to describe the repository as a platform workspace.
+
+### Phase-1 persistence decision
+For the current zero-cost phase, the recommended path shifted from
+"go straight to managed Postgres" to a simpler bridge:
+
+- `SQLite`
+- `SQLAlchemy`
+- `Alembic`
+- `Pydantic Settings`
+- file stored on `Railway Volume`
+
+### Why this was chosen
+This choice minimizes friction while still solving the immediate problems:
+
+- survive redeploys;
+- support shared auth;
+- persist operator settings;
+- enable incremental sync without full re-scrape;
+- keep a clean migration path toward a future managed relational database.
+
+### Guardrail
+This is a phase decision, not a final forever architecture.
+The long-term discoveries for richer persistence, deploy segmentation, and
+broader infra remain valid and intentionally stay open in Jira.
+
+---
+
+## Fase 20 - Plataforma compartilhada executavel: auth, persistencia e shell comum
+
+### Context
+Depois da discovery inicial da plataforma, a necessidade deixou de ser apenas "decidir a direcao".
+Precisavamos colocar uma primeira camada real no ar sem aumentar custo e sem quebrar o modulo estavel.
+
+### O que entrou de verdade
+- `pb_platform/settings.py` centralizou configuracao operacional da plataforma;
+- `pb_platform/storage.py` introduziu um store compartilhado em `SQLite` via `sqlite3`;
+- `pb_platform/security.py` passou a cuidar de hash de senha e tokens de sessao;
+- `pb_platform/auth.py` passou a proteger a home, o Lab Monitor, o ops-map e as sandboxes;
+- `web/app.py` ganhou login, logout, gestao simples de usuarios e rota de tolerancias;
+- `web/state.py` passou a persistir config, snapshots, erros e checks por laboratorio;
+- `notifiers/telegram.py` deixou de depender apenas de arquivo e passou a ler/escrever subscriptions pela store;
+- `core.py` passou a deduplicar eventos externos tambem de forma persistente.
+
+### Decisao pragmatica da fase 1
+A discovery anterior apontava `SQLite + SQLAlchemy + Alembic` como boa ponte.
+Na implementacao executavel, a escolha ficou ainda mais simples:
+
+- `SQLite`
+- `sqlite3` da stdlib
+- schema inicial criado pela aplicacao
+- sessao por cookie
+
+### Por que simplificamos ainda mais
+- entrava mais rapido;
+- mantinha custo zero real;
+- removia atrito de dependencia nova no momento em que o objetivo era validar auth + persistencia compartilhada;
+- continuava compativel com uma migracao futura para stack mais robusto.
+
+### Guardrail importante
+Esta decisao nao invalida a trilha futura de `SQLAlchemy`, `Alembic` e `Postgres`.
+Ela apenas evita overengineering na primeira camada funcional da plataforma.
+
+### Persistencia que passou a existir
+O store compartilhado agora cobre:
+- usuarios;
+- sessoes;
+- subscriptions do Telegram;
+- configuracoes persistidas do modulo;
+- snapshots e metadados por laboratorio;
+- log de eventos externos para dedupe;
+- tolerancias por exame.
+
+### Estrategia de sync
+O app agora trata a base local persistida como fonte principal de operacao.
+Os conectores passam a carregar contexto de sync para evitar depender sempre de uma revarredura cega,
+e o BitLab ja usa `days_back` derivado do contexto persistido.
+
+### Shell visual
+A plataforma passou a ter um shell proprio para:
+- login;
+- home;
+- administracao de acessos.
+
+O shell do Lab Monitor continua separado, mas conectado visualmente ao restante da plataforma.
+
+### Validacao
+- `python -m py_compile` nos modulos centrais alterados;
+- `python -m unittest discover -s Testes -v`;
+- smoke autenticado das rotas principais da plataforma e do modulo.

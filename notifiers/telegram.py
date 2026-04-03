@@ -5,6 +5,8 @@ from pathlib import Path
 
 import requests
 
+from pb_platform.storage import store
+
 from .base import Notifier
 
 USERS_FILE = Path(__file__).parent.parent / "telegram_users.json"
@@ -17,8 +19,12 @@ def _default_user() -> dict:
 
 def _load_raw() -> list[dict]:
     """Load users, handling both old format (list of strings) and new (list of dicts)."""
+    persisted = store.list_telegram_users()
+    if persisted:
+        return persisted
     if not USERS_FILE.exists():
         default = _default_user()
+        store.add_telegram_user(default["chat_id"])
         _write_users([default])
         return [default]
     try:
@@ -46,35 +52,21 @@ def get_user_ids() -> list[str]:
 
 def add_user(chat_id: str, name: str = "", username: str = "") -> bool:
     """Add user. Returns True if newly added, False if already existed (updates name)."""
-    chat_id = str(chat_id)
-    users = _load_raw()
-    for u in users:
-        if u["chat_id"] == chat_id:
-            if name:
-                u["name"] = name
-            if username:
-                u["username"] = username
-            _write_users(users)
-            return False
-    users.append({
-        "chat_id": chat_id,
-        "name": name,
-        "username": username,
-        "subscribed_at": datetime.now().strftime("%d/%m/%Y %H:%M"),
-    })
-    _write_users(users)
-    return True
+    added = store.add_telegram_user(
+        str(chat_id),
+        name=name,
+        username=username,
+        subscribed_at=datetime.now().strftime("%d/%m/%Y %H:%M"),
+    )
+    _write_users(store.list_telegram_users())
+    return added
 
 
 def remove_user(chat_id: str) -> bool:
     """Remove user by chat_id. Returns True if removed."""
-    chat_id = str(chat_id)
-    users = _load_raw()
-    new_users = [u for u in users if u["chat_id"] != chat_id]
-    if len(new_users) == len(users):
-        return False
-    _write_users(new_users)
-    return True
+    removed = store.remove_telegram_user(str(chat_id))
+    _write_users(store.list_telegram_users())
+    return removed
 
 
 def _write_users(users: list[dict]):

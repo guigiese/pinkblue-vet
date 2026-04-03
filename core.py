@@ -7,6 +7,7 @@ import hashlib
 import time
 from datetime import datetime
 
+from pb_platform.storage import store
 from labs import CONNECTORS
 from notifiers import NOTIFIERS
 from notification_settings import ensure_notification_settings, render_notification_template
@@ -61,6 +62,8 @@ def _should_send_external_event(signature: str) -> bool:
     now_ts = time.time()
     _cleanup_external_event_cache(now_ts)
     if signature in _EXTERNAL_EVENT_CACHE:
+        return False
+    if not store.remember_notification_event(signature, "external"):
         return False
     _EXTERNAL_EVENT_CACHE[signature] = now_ts
     return True
@@ -170,6 +173,7 @@ def build_notification_plan(
     External policy:
     - notify when a new record first appears in the lab
     - notify when items in a record transition to Pronto, grouped by record in the same cycle
+    - optional status_update template can emit grouped non-terminal transitions when enabled
     """
     internal_messages: list[str] = []
     external_events: list[dict] = []
@@ -224,6 +228,7 @@ def build_notification_plan(
             continue
 
         completed_items: list[tuple[str, dict]] = []
+        updated_items: list[tuple[str, dict]] = []
 
         for iid, item in itens.items():
             s_new = normalize_status(item["status"])
@@ -237,6 +242,8 @@ def build_notification_plan(
                 )
                 if s_new == "Pronto" and s_old != "Pronto":
                     completed_items.append((iid, item))
+                elif s_new not in {"Pronto", "Cancelado"}:
+                    updated_items.append((iid, item))
 
         if completed_items:
             completed_payload = [item for _, item in completed_items]
@@ -260,6 +267,26 @@ def build_notification_plan(
                 ),
                 "message": message,
             })
+        elif updated_items:
+            message = _build_external_message(
+                "status_update",
+                lab_name,
+                rid,
+                rec,
+                [item for _, item in updated_items],
+                effective_settings,
+            )
+            if message:
+                external_events.append({
+                    "kind": "status_update",
+                    "signature": _event_signature(
+                        lab_id,
+                        "status_update",
+                        rid,
+                        [iid for iid, _ in updated_items],
+                    ),
+                    "message": message,
+                })
 
     return internal_messages, external_events
 
@@ -291,6 +318,8 @@ def run_monitor_loop(state=None):
         for lab in labs:
             if state:
                 state.is_checking[lab.lab_id] = True
+                hints = state.sync_context(lab.lab_id)
+                setattr(lab, "sync_hints", hints)
             try:
                 print(f"[{datetime.now():%H:%M:%S}] Verificando {lab.lab_name}...")
                 atual = lab.snapshot()
@@ -333,6 +362,7 @@ def run_monitor_loop(state=None):
                     state.snapshots[lab.lab_id] = atual
                     state.last_check[lab.lab_id] = datetime.now().strftime("%H:%M:%S")
                     state.last_error.pop(lab.lab_id, None)
+                    state.save_lab_runtime(lab.lab_id)
 
                 print(f"  {lab.lab_name}: {len(atual)} registros")
 
@@ -340,6 +370,7 @@ def run_monitor_loop(state=None):
                 print(f"  {lab.lab_name}: erro - {e}")
                 if state:
                     state.last_error[lab.lab_id] = str(e)
+                    state.save_lab_runtime(lab.lab_id)
             finally:
                 if state:
                     state.is_checking[lab.lab_id] = False

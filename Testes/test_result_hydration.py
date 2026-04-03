@@ -615,7 +615,12 @@ class StatePresentationTests(unittest.TestCase):
 class ResultTemplateRenderingTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        web_app.app.state.disable_auth = True
         cls.client = TestClient(web_app.app)
+
+    @classmethod
+    def tearDownClass(cls):
+        web_app.app.state.disable_auth = False
 
     def test_partial_resultado_renders_compound_rows(self):
         original_snapshots = state.snapshots

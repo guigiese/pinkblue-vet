@@ -9,13 +9,23 @@ Its job is simple:
 
 ## 1. Mission
 
-This repository is part of the PinkBlue platform.
+This repository is the current workspace of the PinkBlue platform.
 
-Right now, the active product module is the exam monitoring system.
-Future modules will be incubated separately and may later become their own products.
+Right now, the active product module is the Lab Monitor exam monitoring system.
+The same workspace also carries platform surfaces such as the home page, ops-map,
+and sandboxes, and it is expected to grow into a shared entrypoint for future
+modules.
+
+Future modules will be incubated separately and may later become their own
+products or remain modules under the same platform shell.
 
 The AI must not assume the whole platform is called "SimplesVet".
-That name may appear in legacy paths or local folder names, but it is not the platform name.
+That name may appear in legacy paths, local folder names, or repository history,
+but it is not the platform name.
+
+The current repository name is still exam-oriented, but the operating model,
+Jira structure, and documentation now treat it as a platform workspace with
+module boundaries.
 
 ## 2. Mandatory Reading Order
 
@@ -175,12 +185,14 @@ Update `docs/WORKING_MODEL.md` when:
 - the Jira operating model changes;
 - workflow rules change;
 - AI working agreements change;
-- project structure changes.
+- project structure changes;
+- module boundaries or shared platform responsibilities change.
 
 Update `docs/CONTEXT.md` when:
 - the current technical behavior changes;
 - architecture changes;
-- data flow or module boundaries change.
+- data flow or module boundaries change;
+- shared platform surfaces or auth/persistence responsibilities change.
 
 Update `docs/DEVLOG.md` when:
 - a decision matters for future reasoning;

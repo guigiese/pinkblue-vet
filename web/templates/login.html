@@ -1,0 +1,70 @@
+{% extends "platform_base.html" %}
+{% block title %}Entrar · {{ platform_name }}{% endblock %}
+{% block shell_caption %}Acesso centralizado{% endblock %}
+{% block content %}
+
+<div class="grid gap-8 lg:grid-cols-[1.1fr_0.9fr] lg:items-start">
+  <section class="space-y-5">
+    <span class="inline-flex rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-indigo-600">
+      Login da plataforma
+    </span>
+    <div class="space-y-3">
+      <h1 class="text-3xl font-semibold leading-tight text-gray-900 md:text-4xl">
+        Entre uma vez e acesse todos os módulos da PinkBlue.
+      </h1>
+      <p class="max-w-2xl text-sm leading-7 text-gray-500 md:text-base">
+        O acesso central protege a home, o Lab Monitor, o mapa operacional, as sandboxes e os próximos módulos
+        da plataforma. A gestão inicial de usuários fica concentrada no administrador master.
+      </p>
+    </div>
+
+    <div class="grid gap-3 sm:grid-cols-3">
+      <div class="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+        <p class="text-xs font-semibold uppercase tracking-[0.16em] text-gray-400">Home</p>
+        <p class="mt-2 text-sm font-medium text-gray-700">Biblioteca central de módulos</p>
+      </div>
+      <div class="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+        <p class="text-xs font-semibold uppercase tracking-[0.16em] text-gray-400">Lab Monitor</p>
+        <p class="mt-2 text-sm font-medium text-gray-700">Operação de exames laboratoriais</p>
+      </div>
+      <div class="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+        <p class="text-xs font-semibold uppercase tracking-[0.16em] text-gray-400">Ferramentas</p>
+        <p class="mt-2 text-sm font-medium text-gray-700">Mapa operacional e sandboxes</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm md:p-7">
+    <div class="space-y-2">
+      <p class="text-xs font-semibold uppercase tracking-[0.18em] text-gray-400">Entrar</p>
+      <h2 class="text-2xl font-semibold text-gray-900">Autenticação da plataforma</h2>
+      <p class="text-sm leading-6 text-gray-500">Use seu e-mail e senha para acessar os módulos protegidos.</p>
+    </div>
+
+    {% if error %}
+    <div class="mt-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+      {{ error }}
+    </div>
+    {% endif %}
+
+    <form method="post" action="/login" class="mt-6 space-y-4">
+      <input type="hidden" name="next" value="{{ next or '/' }}">
+      <label class="block">
+        <span class="mb-1.5 block text-sm font-medium text-gray-700">E-mail</span>
+        <input name="email" type="email" required
+               class="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100">
+      </label>
+      <label class="block">
+        <span class="mb-1.5 block text-sm font-medium text-gray-700">Senha</span>
+        <input name="password" type="password" required
+               class="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100">
+      </label>
+      <button type="submit"
+              class="w-full rounded-2xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-indigo-700">
+        Entrar na plataforma
+      </button>
+    </form>
+  </section>
+</div>
+
+{% endblock %}

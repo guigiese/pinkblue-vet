@@ -10,7 +10,12 @@ from web.state import state
 class DashboardRenderingTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        app.state.disable_auth = True
         cls.client = TestClient(app)
+
+    @classmethod
+    def tearDownClass(cls):
+        app.state.disable_auth = False
 
     def test_ultimos_liberados_uses_exam_card_language(self):
         fake_groups = [

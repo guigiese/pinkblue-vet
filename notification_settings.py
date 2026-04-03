@@ -8,7 +8,7 @@ DEFAULT_NOTIFICATION_SETTINGS: dict = {
         "received": {
             "enabled": True,
             "template": (
-                "📥 <b>Exame recebido no laboratório - {lab_name}</b>\n"
+                "🧪 <b>Exame recebido no laboratório - {lab_name}</b>\n"
                 "👤 {record_label}\n"
                 "📋 {record_id} | {record_date}\n"
                 "🔬 Exames\n"
@@ -25,16 +25,55 @@ DEFAULT_NOTIFICATION_SETTINGS: dict = {
                 "{item_lines}"
             ),
         },
+        "status_update": {
+            "enabled": False,
+            "template": (
+                "🔄 <b>Status atualizado - {lab_name}</b>\n"
+                "👤 {record_label}\n"
+                "📋 {record_id} | {record_date}\n"
+                "📍 {status_summary}\n"
+                "{item_lines}"
+            ),
+        },
     }
 }
 
-NOTIFICATION_TEMPLATE_VARIABLES: tuple[str, ...] = (
-    "lab_name",
-    "record_label",
-    "record_id",
-    "record_date",
-    "item_lines",
-    "items_total",
+NOTIFICATION_TEMPLATE_VARIABLES: tuple[dict[str, str], ...] = (
+    {
+        "name": "lab_name",
+        "description": "Nome exibido do laboratório de origem.",
+        "example": "Bioanálises",
+    },
+    {
+        "name": "record_label",
+        "description": "Identificação resumida do protocolo, normalmente paciente e tutor.",
+        "example": "PIDA - Jingwei Du",
+    },
+    {
+        "name": "record_id",
+        "description": "Número do protocolo/requisição usado para rastrear o bloco.",
+        "example": "08-00030473",
+    },
+    {
+        "name": "record_date",
+        "description": "Data operacional exibida no agrupador do protocolo.",
+        "example": "31/03/2026 16:55",
+    },
+    {
+        "name": "item_lines",
+        "description": "Lista formatada dos exames envolvidos naquele envio.",
+        "example": "• Hemograma\\n• TGP\\n• Creatinina",
+    },
+    {
+        "name": "items_total",
+        "description": "Quantidade total de exames incluídos no bloco da notificação.",
+        "example": "3",
+    },
+    {
+        "name": "status_summary",
+        "description": "Resumo agregado das mudanças de status quando o template de atualização estiver ativo.",
+        "example": "2 exame(s) passaram para EM CURSO",
+    },
 )
 
 
@@ -73,7 +112,8 @@ def build_notification_preview_context() -> dict:
         "lab_name": "Bioanálises",
         "record_label": "PIDA - Jingwei Du",
         "record_id": "08-00030473",
-        "record_date": "31/03/2026",
+        "record_date": "31/03/2026 16:55",
         "item_lines": "• Hemograma\n• TGP\n• Creatinina",
         "items_total": 3,
+        "status_summary": "2 exame(s) passaram para EM CURSO",
     }

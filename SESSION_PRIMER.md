@@ -1,7 +1,8 @@
-# PinkBlue Vet - Lab Monitor Module - Session Primer
+# PinkBlue Vet - Platform Workspace - Session Primer
 
-Você está no repositório do módulo Lab Monitor da PinkBlue Vet.
-PinkBlue Vet é o guarda-chuva da plataforma; Lab Monitor é apenas um dos módulos.
+Você está no workspace da plataforma PinkBlue Vet.
+O Lab Monitor é o módulo ativo principal neste repositório, mas ele não é mais o ente principal da plataforma.
+Novos módulos como CRM e conciliação financeira devem entrar sob a mesma camada compartilhada de auth, persistência e shell visual.
 Leia este arquivo inteiro. Depois execute a tarefa recebida.
 Consulte os arquivos referenciados abaixo apenas se a tarefa exigir.
 
@@ -9,10 +10,16 @@ Consulte os arquivos referenciados abaixo apenas se a tarefa exigir.
 
 ## Projeto
 
-Monitor automatizado de exames laboratoriais veterinários para a PinkBlue Vet.
-Stack: Python 3.13 / FastAPI 0.115 / Jinja2 3.1 / HTMX 1.9 / TailwindCSS CDN / Railway.
+Workspace da plataforma PinkBlue Vet.
+
+Estado atual:
+- módulo ativo de produto: Lab Monitor
+- superfícies auxiliares: home da plataforma, ops-map, sandboxes
+- módulos futuros incubados: CRM, conciliação financeira, automação de atendimento
+
+Stack atual: Python 3.13 / FastAPI 0.115 / Jinja2 3.1 / HTMX 1.9 / TailwindCSS CDN / Railway.
 Produção: https://pinkblue-vet-production.up.railway.app
-Repositório: github.com/guigiese/monitor-exames-bitlab
+Repositório atual: github.com/guigiese/monitor-exames-bitlab
 
 Deploy: abrir PR de `session/*` → GitHub Actions faz merge + deploy automaticamente.
 Nunca fazer push direto em `main`.
@@ -21,6 +28,7 @@ Referências de detalhe (ler só quando a tarefa exigir):
 - Arquitetura completa: `docs/CONTEXT.md`
 - Histórico de decisões: `docs/DEVLOG.md`
 - Protocolo completo de sessões e governança: `AI_START_HERE.md`
+- Estrutura alvo da plataforma e persistência fase 1: `docs/discovery/2026-04-03-platform-structure-and-phase1-persistence.md`
 
 ---
 
@@ -30,7 +38,7 @@ Antes de tocar qualquer arquivo:
 
 **1. Busque cards existentes**
 Jira: https://guigiese.atlassian.net | Credenciais: `~/.codex/jira-auth.json`
-Projetos: PBEXM (produto/exames) · PBCORE (plataforma/infra) · PBINC (discovery)
+Projetos: PBEXM (módulo exames) · PBCORE (plataforma/infra/shared capabilities) · PBINC (discovery)
 Busque palavras-chave do problema descrito pelo usuário.
 
 **2. Avalie os resultados**
