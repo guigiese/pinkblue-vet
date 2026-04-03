@@ -51,6 +51,42 @@ def _clean_report_text(text: str) -> str:
     return "\n".join(cleaned).strip()
 
 
+def _extract_report_segment(text: str, start_pattern: str, end_pattern: str) -> str:
+    if not text:
+        return ""
+    normalized = _strip_accents(text)
+    match = re.search(
+        rf"{start_pattern}(.*?){end_pattern}",
+        normalized,
+        re.I | re.S,
+    )
+    if not match:
+        return ""
+    start, end = match.span(1)
+    return text[start:end].strip()
+
+
+def _build_exam_display_name(record_number: str, diagnosis: str) -> str:
+    text = " ".join((diagnosis or "").split()).strip(" .:-")
+    if not text:
+        return f"Patologia {record_number}"
+
+    text = re.sub(
+        (
+            r"^Caracter[ií]sticas histol[oó]gicas "
+            r"(favorecem|sugerem|sugestivas de|compat[ií]veis com|compat[ií]vel com|"
+            r"indicativas de|compat[ií]vel a)\s+"
+        ),
+        "",
+        text,
+        flags=re.I,
+    )
+    text = text.strip(" .:-")
+    if not text:
+        return f"Patologia {record_number}"
+    return text[0].upper() + text[1:]
+
+
 def _extract_received_at(raw_text: str) -> str:
     match = re.search(r"\b(\d{2}/\d{2}/\d{4})\b", raw_text or "")
     if not match:
@@ -155,17 +191,15 @@ class NexioConnector(LabConnector):
         breed_match = re.search(r"RACA:\s*(.*?)\s*DATA DE RECEBIMENTO:", plain_text, re.I | re.S)
         owner_match = re.search(r"RESPONSAVEL:\s*([^\n]+)", plain_text, re.I)
         sex_match = re.search(r"([MF])SEXO:", plain_text, re.I)
-        diagnosis_match = re.search(
-            r"DIAGNOSTICO\s*(.*?)\s*DESCRICAO MACROSCOPICA",
-            plain_text,
-            re.I | re.S,
-        )
-
         species_raw = (species_match.group(1).strip().title() if species_match else "")
         breed = (breed_match.group(1).strip().title() if breed_match and breed_match.group(1).strip() else "")
         owner_name = (owner_match.group(1).strip().title() if owner_match else "")
         sex_raw = (sex_match.group(1).strip().upper() if sex_match else "")
-        diagnosis = (diagnosis_match.group(1).strip() if diagnosis_match else "")
+        diagnosis = _extract_report_segment(
+            report_text,
+            r"DIAGNOSTICO\s*",
+            r"\s*DESCRICAO MACROSCOPICA",
+        )
 
         return {
             "owner_name": owner_name,
@@ -191,10 +225,18 @@ class NexioConnector(LabConnector):
             current_item = next(iter(record.get("itens", {}).values()), None)
             ant_item = next(iter(ant_rec.get("itens", {}).values()), None)
             if current_item is not None and ant_item:
+                if (
+                    ant_item.get("nome")
+                    and current_item.get("nome", "").startswith("Patologia ")
+                    and not ant_item.get("nome", "").startswith("Patologia ")
+                ):
+                    current_item["nome"] = ant_item["nome"]
                 if ant_item.get("report_text") and not current_item.get("report_text"):
                     current_item["report_text"] = ant_item["report_text"]
                 if ant_item.get("diagnosis_text") and not current_item.get("diagnosis_text"):
                     current_item["diagnosis_text"] = ant_item["diagnosis_text"]
+                if current_item.get("diagnosis_text"):
+                    current_item["nome"] = _build_exam_display_name(rid, current_item["diagnosis_text"])
 
             if record.get("species_sex") and current_item and current_item.get("report_text"):
                 continue
@@ -224,6 +266,7 @@ class NexioConnector(LabConnector):
                             current_item["report_text"] = metadata["report_text"]
                         if metadata.get("diagnosis_text"):
                             current_item["diagnosis_text"] = metadata["diagnosis_text"]
+                            current_item["nome"] = _build_exam_display_name(rid, metadata["diagnosis_text"])
                     print(
                         f"  [Nexio metadata] {rid} -> "
                         f"species={atual[rid].get('species_sex') or '-'} "

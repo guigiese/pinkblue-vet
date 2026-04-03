@@ -25,5 +25,17 @@
       "type": "whatsapp",
       "enabled": false
     }
-  ]
+  ],
+  "notification_settings": {
+    "events": {
+      "received": {
+        "enabled": true,
+        "template": "📥 <b>Exame recebido no laboratório - {lab_name}</b>\n👤 {record_label}\n📋 {record_id} | {record_date}\n🔬 Exames\n{item_lines}"
+      },
+      "completed": {
+        "enabled": true,
+        "template": "✅ <b>Exames concluídos - {lab_name}</b>\n👤 {record_label}\n📋 {record_id} | {record_date}\n🔬 Liberados neste lote\n{item_lines}"
+      }
+    }
+  }
 }

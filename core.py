@@ -9,6 +9,7 @@ from datetime import datetime
 
 from labs import CONNECTORS
 from notifiers import NOTIFIERS
+from notification_settings import ensure_notification_settings, render_notification_template
 from web.state import normalize_status
 
 _EXTERNAL_EVENT_CACHE: dict[str, float] = {}
@@ -81,21 +82,33 @@ def _format_item_lines(items: list[dict]) -> str:
     return "\n".join(f"• {name}" for name in names)
 
 
-def _build_received_message(lab_name: str, record_id: str, record: dict) -> str:
-    return (
-        f"📥 <b>Exame recebido no laboratorio - {lab_name}</b>\n"
-        f"👤 {record['label']}\n"
-        f"📋 {record_id} | {record['data']}\n"
-        f"🔬 Exames\n{_format_item_lines(list(record['itens'].values()))}"
-    )
+def _notification_context(lab_name: str, record_id: str, record: dict, items: list[dict]) -> dict:
+    return {
+        "lab_name": lab_name,
+        "record_label": record["label"],
+        "record_id": record_id,
+        "record_date": record["data"],
+        "item_lines": _format_item_lines(items),
+        "items_total": len(items),
+    }
 
 
-def _build_completed_message(lab_name: str, record_id: str, record: dict, items: list[dict]) -> str:
-    return (
-        f"✅ <b>Exames concluidos - {lab_name}</b>\n"
-        f"👤 {record['label']}\n"
-        f"📋 {record_id} | {record['data']}\n"
-        f"🔬 Liberados neste lote\n{_format_item_lines(items)}"
+def _build_external_message(
+    event_kind: str,
+    lab_name: str,
+    record_id: str,
+    record: dict,
+    items: list[dict],
+    notification_settings: dict,
+) -> str | None:
+    settings = ensure_notification_settings({"notification_settings": notification_settings})
+    event_cfg = settings["events"].get(event_kind) or {}
+    if not event_cfg.get("enabled", True):
+        return None
+    template = event_cfg.get("template") or ""
+    return render_notification_template(
+        template,
+        _notification_context(lab_name, record_id, record, items),
     )
 
 
@@ -142,7 +155,13 @@ def _hydrate_snapshot_results(lab, anterior: dict, atual: dict) -> None:
         lab.enrich_resultados(anterior, atual)
 
 
-def build_notification_plan(lab_id: str, lab_name: str, anterior: dict, atual: dict) -> tuple[list[str], list[dict]]:
+def build_notification_plan(
+    lab_id: str,
+    lab_name: str,
+    anterior: dict,
+    atual: dict,
+    notification_settings: dict | None = None,
+) -> tuple[list[str], list[dict]]:
     """
     Returns two streams:
     - internal_messages: fine-grained feed for the app state
@@ -154,6 +173,7 @@ def build_notification_plan(lab_id: str, lab_name: str, anterior: dict, atual: d
     """
     internal_messages: list[str] = []
     external_events: list[dict] = []
+    effective_settings = ensure_notification_settings({"notification_settings": notification_settings or {}})
 
     for rid, rec in atual.items():
         itens = rec.get("itens", {})
@@ -170,16 +190,36 @@ def build_notification_plan(lab_id: str, lab_name: str, anterior: dict, atual: d
             statuses = {normalize_status(item.get('status', '')) for item in itens.values()}
             item_ids = list(itens.keys())
             if itens and statuses == {"Pronto"}:
+                message = _build_external_message(
+                    "completed",
+                    lab_name,
+                    rid,
+                    rec,
+                    list(itens.values()),
+                    effective_settings,
+                )
+                if not message:
+                    continue
                 external_events.append({
                     "kind": "completed",
                     "signature": _event_signature(lab_id, "completed", rid, item_ids),
-                    "message": _build_completed_message(lab_name, rid, rec, list(itens.values())),
+                    "message": message,
                 })
             else:
+                message = _build_external_message(
+                    "received",
+                    lab_name,
+                    rid,
+                    rec,
+                    list(itens.values()),
+                    effective_settings,
+                )
+                if not message:
+                    continue
                 external_events.append({
                     "kind": "received",
                     "signature": _event_signature(lab_id, "received", rid, item_ids),
-                    "message": _build_received_message(lab_name, rid, rec),
+                    "message": message,
                 })
             continue
 
@@ -199,6 +239,17 @@ def build_notification_plan(lab_id: str, lab_name: str, anterior: dict, atual: d
                     completed_items.append((iid, item))
 
         if completed_items:
+            completed_payload = [item for _, item in completed_items]
+            message = _build_external_message(
+                "completed",
+                lab_name,
+                rid,
+                rec,
+                completed_payload,
+                effective_settings,
+            )
+            if not message:
+                continue
             external_events.append({
                 "kind": "completed",
                 "signature": _event_signature(
@@ -207,12 +258,7 @@ def build_notification_plan(lab_id: str, lab_name: str, anterior: dict, atual: d
                     rid,
                     [iid for iid, _ in completed_items],
                 ),
-                "message": _build_completed_message(
-                    lab_name,
-                    rid,
-                    rec,
-                    [item for _, item in completed_items],
-                ),
+                "message": message,
             })
 
     return internal_messages, external_events
@@ -229,6 +275,7 @@ def run_monitor_loop(state=None):
     while True:
         config = state.config if state else _load_config_file()
         interval = config.get("interval_minutes", 5) * 60
+        notification_settings = ensure_notification_settings(config)
 
         labs = [
             CONNECTORS[l["connector"]]()
@@ -264,6 +311,7 @@ def run_monitor_loop(state=None):
                         lab.lab_name,
                         anterior,
                         atual,
+                        notification_settings,
                     )
                     _hydrate_snapshot_metadata(lab, anterior, atual, ts_now)
                     _hydrate_snapshot_results(lab, anterior, atual)

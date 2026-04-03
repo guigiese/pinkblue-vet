@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}Notificações — Lab Monitor{% endblock %}
+{% block header %}Notificações{% endblock %}
+{% block content %}
+
+<div class="space-y-5">
+  {% if save_state == "saved" %}
+  <div class="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+    Configuração de notificações atualizada no arquivo local do app.
+  </div>
+  {% elif save_state == "reset" %}
+  <div class="rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-700">
+    Templates e eventos restaurados para o padrão atual do módulo.
+  </div>
+  {% endif %}
+
+  <div class="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-800">
+    <p class="font-semibold">Escopo atual</p>
+    <p class="mt-1">
+      Esta primeira versão controla apenas as notificações externas do fluxo operacional atual:
+      recebimento no laboratório e conclusão em lote por protocolo.
+    </p>
+    <p class="mt-2 text-amber-700">
+      Persistência: as alterações ficam salvas no arquivo de configuração do app. Elas sobrevivem a reinícios do processo,
+      mas ainda não são persistência oficial entre deploys até a trilha de banco/plataforma ser concluída.
+    </p>
+  </div>
+
+  <form method="post" action="/labmonitor/notificacoes/salvar" class="grid gap-5 xl:grid-cols-[minmax(0,1.4fr)_minmax(300px,0.8fr)]">
+    <div class="space-y-5">
+      {% for event_key, event_cfg in notification_settings.events.items() %}
+      {% set title = "Recebimento" if event_key == "received" else "Conclusão em lote" %}
+      {% set description = "Dispara quando um novo protocolo aparece no laboratório." if event_key == "received" else "Dispara quando exames do mesmo protocolo passam para pronto no mesmo ciclo." %}
+      <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <h2 class="text-base font-semibold text-gray-800">{{ title }}</h2>
+            <p class="mt-1 text-sm text-gray-500">{{ description }}</p>
+          </div>
+          <label class="toggle-switch mt-1" title="{{ 'Habilitado' if event_cfg.enabled else 'Desabilitado' }}">
+            <input type="checkbox" name="{{ event_key }}_enabled" {% if event_cfg.enabled %}checked{% endif %}>
+            <span class="toggle-track"></span>
+            <span class="toggle-thumb"></span>
+          </label>
+        </div>
+
+        <div class="mt-4">
+          <label for="{{ event_key }}_template" class="block text-xs font-semibold uppercase tracking-wide text-gray-500">
+            Template da mensagem
+          </label>
+          <textarea id="{{ event_key }}_template"
+                    name="{{ event_key }}_template"
+                    rows="6"
+                    class="mt-2 w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-3 text-sm text-gray-800 font-mono focus:border-indigo-400 focus:bg-white focus:outline-none">{{ event_cfg.template }}</textarea>
+        </div>
+      </section>
+      {% endfor %}
+
+      <div class="flex flex-wrap items-center gap-3">
+        <button type="submit"
+                class="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-indigo-700 transition-colors">
+          Salvar ajustes
+        </button>
+        <button type="submit"
+                formmethod="post"
+                formaction="/labmonitor/notificacoes/resetar"
+                class="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+          Restaurar padrão
+        </button>
+      </div>
+    </div>
+
+    <aside class="space-y-5">
+      <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+        <h2 class="text-sm font-semibold text-gray-800">Variáveis disponíveis</h2>
+        <ul class="mt-3 space-y-2 text-sm text-gray-600">
+          {% for variable in notification_variables %}
+          <li class="flex items-center gap-2">
+            <code class="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-700">{{ '{' ~ variable ~ '}' }}</code>
+          </li>
+          {% endfor %}
+        </ul>
+      </section>
+
+      <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+        <h2 class="text-sm font-semibold text-gray-800">Prévia</h2>
+        <div class="mt-3 space-y-4">
+          {% for event_key, preview in preview_messages.items() %}
+          <div class="rounded-xl border border-gray-100 bg-gray-50 px-3 py-3">
+            <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">
+              {{ "Recebimento" if event_key == "received" else "Conclusão em lote" }}
+            </p>
+            <pre class="mt-2 whitespace-pre-wrap text-xs leading-5 text-gray-700 font-sans">{{ preview }}</pre>
+          </div>
+          {% endfor %}
+        </div>
+      </section>
+    </aside>
+  </form>
+</div>
+
+{% endblock %}
