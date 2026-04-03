@@ -2,18 +2,12 @@
 <p class="text-gray-400 text-center py-8 text-sm">Aguardando primeiro ciclo de verificação…</p>
 {% else %}
 
-{% set ns = namespace(pronto=0, parcial=0, andamento=0, total=0, pending=0, overdue=0, released=0, oldest=0) %}
+{% set ns = namespace(pronto=0, parcial=0, andamento=0, total=0) %}
 {% for info in lab_counts.values() %}
   {% set ns.pronto = ns.pronto + info.pronto %}
   {% set ns.parcial = ns.parcial + info.parcial %}
   {% set ns.andamento = ns.andamento + info.andamento %}
   {% set ns.total = ns.total + info.total %}
-  {% set ns.pending = ns.pending + info.pending %}
-  {% set ns.overdue = ns.overdue + info.overdue %}
-  {% set ns.released = ns.released + info.released_last_24h %}
-  {% if info.oldest_pending_days > ns.oldest %}
-    {% set ns.oldest = info.oldest_pending_days %}
-  {% endif %}
 {% endfor %}
 
 <div class="flex flex-wrap gap-2 mb-5" id="lab-filter-tabs">
@@ -50,7 +44,7 @@
 <div id="counts-card">
   <div id="lab-status-bar" class="flex items-center gap-2 mb-3 min-h-[20px]"></div>
 
-  <div class="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4 sm:gap-3">
+  <div class="grid grid-cols-2 gap-2 xl:grid-cols-4 sm:gap-3">
     <a id="card-pronto"
        href="/labmonitor/exames?status=Pronto"
        data-status="Pronto"
@@ -116,48 +110,6 @@
     </a>
   </div>
 
-  <div class="mt-4 rounded-2xl border border-gray-100 bg-white shadow-sm p-4">
-    <div class="flex items-start justify-between gap-3 flex-wrap">
-      <div>
-        <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Saúde operacional</p>
-        <p class="text-sm text-gray-400 mt-0.5">Visão curta do que ainda exige atenção agora.</p>
-      </div>
-      <span id="ops-summary" class="text-xs text-gray-400 w-full sm:w-auto break-words">
-        {% if ns.overdue > 0 %}
-          {{ ns.overdue }} atrasado(s) acima de 7 dias
-        {% elif ns.pending > 0 %}
-          Fila pendente sob controle
-        {% else %}
-          Sem fila pendente
-        {% endif %}
-      </span>
-    </div>
-
-    <div class="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4 sm:gap-3">
-      <div class="min-w-0 rounded-xl bg-slate-50 border border-slate-100 px-3 py-3 sm:px-4">
-        <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Pendentes</p>
-        <p id="ops-pending" class="mt-1 text-xl font-bold text-slate-800 leading-none">{{ ns.pending }}</p>
-        <p class="mt-1 text-[11px] text-slate-400 break-words">parciais ou em curso</p>
-      </div>
-      <div class="min-w-0 rounded-xl bg-red-50 border border-red-100 px-3 py-3 sm:px-4">
-        <p class="text-[11px] font-semibold uppercase tracking-wide text-red-500">Atrasados</p>
-        <p id="ops-overdue" class="mt-1 text-xl font-bold text-red-700 leading-none">{{ ns.overdue }}</p>
-        <p class="mt-1 text-[11px] text-red-400 break-words">mais de 7 dias em aberto</p>
-      </div>
-      <div class="min-w-0 rounded-xl bg-amber-50 border border-amber-100 px-3 py-3 sm:px-4">
-        <p class="text-[11px] font-semibold uppercase tracking-wide text-amber-600">Mais antigo</p>
-        <p id="ops-oldest" class="mt-1 text-xl font-bold text-amber-700 leading-none">
-          {% if ns.oldest > 0 %}{{ ns.oldest }}d{% else %}—{% endif %}
-        </p>
-        <p class="mt-1 text-[11px] text-amber-500 break-words">grupo pendente mais antigo</p>
-      </div>
-      <div class="min-w-0 rounded-xl bg-green-50 border border-green-100 px-3 py-3 sm:px-4">
-        <p class="text-[11px] font-semibold uppercase tracking-wide text-green-600">Liberados 24h</p>
-        <p id="ops-released" class="mt-1 text-xl font-bold text-green-700 leading-none">{{ ns.released }}</p>
-        <p class="mt-1 text-[11px] text-green-500 break-words">grupos com liberação recente</p>
-      </div>
-    </div>
-  </div>
 </div>
 
 <script>
@@ -167,10 +119,6 @@
     parcial: {{ ns.parcial }},
     andamento: {{ ns.andamento }},
     total: {{ ns.total }},
-    pending: {{ ns.pending }},
-    overdue: {{ ns.overdue }},
-    oldest: {{ ns.oldest }},
-    released: {{ ns.released }},
   };
 
   function updateCard(pronto, parcial, andamento, total) {
@@ -178,22 +126,6 @@
     document.getElementById('cnt-parcial').textContent = parcial;
     document.getElementById('cnt-andamento').textContent = andamento;
     document.getElementById('cnt-total').textContent = total;
-  }
-
-  function updateOperational(pending, overdue, oldest, released) {
-    document.getElementById('ops-pending').textContent = pending;
-    document.getElementById('ops-overdue').textContent = overdue;
-    document.getElementById('ops-oldest').textContent = oldest > 0 ? `${oldest}d` : '—';
-    document.getElementById('ops-released').textContent = released;
-
-    const summary = document.getElementById('ops-summary');
-    if (overdue > 0) {
-      summary.textContent = `${overdue} atrasado(s) acima de 7 dias`;
-    } else if (pending > 0) {
-      summary.textContent = 'Fila pendente sob controle';
-    } else {
-      summary.textContent = 'Sem fila pendente';
-    }
   }
 
   function updateStatusBar(btn) {
@@ -246,7 +178,6 @@
 
     if (labId === 'all') {
       updateCard(combined.pronto, combined.parcial, combined.andamento, combined.total);
-      updateOperational(combined.pending, combined.overdue, combined.oldest, combined.released);
       updateStatusBar(null);
     } else {
       updateCard(
@@ -254,12 +185,6 @@
         parseInt(btn.dataset.parcial || 0, 10),
         parseInt(btn.dataset.andamento || 0, 10),
         parseInt(btn.dataset.total || 0, 10),
-      );
-      updateOperational(
-        parseInt(btn.dataset.pending || 0, 10),
-        parseInt(btn.dataset.overdue || 0, 10),
-        parseInt(btn.dataset.oldest || 0, 10),
-        parseInt(btn.dataset.released || 0, 10),
       );
       updateStatusBar(btn);
     }

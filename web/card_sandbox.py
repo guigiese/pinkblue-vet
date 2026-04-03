@@ -92,7 +92,7 @@ CARD_SANDBOX_VARIANTS = [
         "name": "V0 - Consolidada final",
         "note": "Consolida protocolo apenas no expandido, simbolo inline antes do nome e textos condicionais centralizados em relacao ao badge.",
         "family": "aligned-2row",
-        "signals_align": "center",
+        "signals_align": "right",
         "date_mode": "inline-meta",
         "rail_palette": "vivid",
         "item_alert_style": "triangle-alert-only",

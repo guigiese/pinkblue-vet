@@ -45,6 +45,7 @@ class DashboardRenderingTests(unittest.TestCase):
         self.assertIn("2/4 prontos", body)
         self.assertIn("PARCIAL", body)
         self.assertIn("pb-species-symbol is-inline", body)
+        self.assertIn("pb-signals pb-signals--right", body)
         self.assertNotIn("pb-species-badge", body)
 
     def test_ultimos_liberados_links_with_clean_patient_query_and_without_footer_noise(self):
@@ -63,7 +64,7 @@ class DashboardRenderingTests(unittest.TestCase):
                 "last_release_time_display": "17:42",
                 "date_display": "01/04/2026",
                 "data": "01/04/2026",
-                "lab": "BioanÃ¡lises",
+                "lab": "Bioanálises",
                 "record_id": "08-00000001",
             }
         ]
@@ -108,11 +109,43 @@ class DashboardRenderingTests(unittest.TestCase):
         self.assertIn("Abrir lista filtrada", body)
         self.assertIn("EM CURSO", body)
         self.assertIn("updateCardLinks", body)
-        self.assertIn("Saúde operacional", body)
-        self.assertIn("Liberados 24h", body)
+        self.assertNotIn("Saude operacional", body)
+        self.assertNotIn("Liberados 24h", body)
         self.assertNotIn("progress-wrap", body)
-        self.assertIn("grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4 sm:gap-3", body)
+        self.assertIn("grid grid-cols-2 gap-2 xl:grid-cols-4 sm:gap-3", body)
         self.assertIn("min-w-0 bg-white rounded-xl", body)
+
+    def test_exames_partial_keeps_right_aligned_signals_and_chevron(self):
+        fake_groups = [
+            {
+                "patient_name": "PIDA",
+                "tutor_name": "Jingwei Du",
+                "species_sex": "gata",
+                "lab": "Bioanálises",
+                "date_display": "03/04/2026",
+                "time_display": "10:45",
+                "status_geral": "Parcial",
+                "ready_ratio_text": "2/4 prontos",
+                "days_label": None,
+                "days_stale": False,
+                "criticality": "yellow",
+                "alerta_geral": "yellow",
+                "protocol": "08-00000001",
+                "portal_url": "https://example.com",
+                "last_release_display": None,
+                "patient_age_display": "n/d",
+                "breed": "",
+                "items_view": [],
+            }
+        ]
+
+        with patch.object(state, "get_exames", return_value=fake_groups):
+            response = self.client.get("/labmonitor/partials/exames")
+
+        self.assertEqual(response.status_code, 200)
+        body = response.text
+        self.assertIn("pb-chevron", body)
+        self.assertIn("pb-signals--right", body)
 
     def test_exames_page_uses_mobile_safe_filter_layout(self):
         response = self.client.get("/labmonitor/exames")
