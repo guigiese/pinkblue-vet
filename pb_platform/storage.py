@@ -15,6 +15,35 @@ ROOT = Path(__file__).resolve().parent.parent
 CONFIG_FILE = ROOT / "config.json"
 TELEGRAM_USERS_FILE = ROOT / "telegram_users.json"
 
+DEFAULT_ROLE_PERMISSIONS: dict[str, dict[str, bool]] = {
+    "admin": {
+        "platform_access": True,
+        "labmonitor_access": True,
+        "manage_labmonitor": True,
+        "ops_tools": True,
+        "manage_users": True,
+    },
+    "operator": {
+        "platform_access": True,
+        "labmonitor_access": True,
+        "manage_labmonitor": True,
+        "ops_tools": True,
+        "manage_users": False,
+    },
+    "viewer": {
+        "platform_access": True,
+        "labmonitor_access": True,
+        "manage_labmonitor": False,
+        "ops_tools": False,
+        "manage_users": False,
+    },
+}
+
+DEFAULT_GLOBAL_THRESHOLDS: dict[str, float] = {
+    "warning_multiplier": 1.0,
+    "critical_multiplier": 1.2,
+}
+
 
 def _utcnow() -> str:
     return datetime.utcnow().isoformat(timespec="seconds")
@@ -176,6 +205,64 @@ class PlatformStore:
 
     def save_runtime_config(self, config: dict) -> None:
         self.save_json_setting("lab_monitor.runtime_config", config)
+
+    def list_roles(self) -> list[str]:
+        return list(DEFAULT_ROLE_PERMISSIONS.keys())
+
+    def get_role_permissions(self) -> dict[str, dict[str, bool]]:
+        current = self.load_json_setting("platform.role_permissions", {}) or {}
+        result: dict[str, dict[str, bool]] = {}
+        for role, defaults in DEFAULT_ROLE_PERMISSIONS.items():
+            persisted = current.get(role) if isinstance(current, dict) else {}
+            result[role] = {
+                key: bool((persisted or {}).get(key, default))
+                for key, default in defaults.items()
+            }
+        return result
+
+    def save_role_permissions(self, role: str, permissions: dict[str, bool]) -> None:
+        role = role.strip().lower()
+        matrix = self.get_role_permissions()
+        if role not in matrix:
+            raise ValueError(f"role desconhecido: {role}")
+        matrix[role] = {
+            key: bool(permissions.get(key, False))
+            for key in DEFAULT_ROLE_PERMISSIONS[role].keys()
+        }
+        if role == "admin":
+            matrix[role] = {key: True for key in matrix[role].keys()}
+        self.save_json_setting("platform.role_permissions", matrix)
+
+    def get_global_thresholds(self) -> dict[str, float]:
+        current = self.load_json_setting("lab_monitor.global_thresholds", {}) or {}
+        try:
+            warning = float(current.get("warning_multiplier", DEFAULT_GLOBAL_THRESHOLDS["warning_multiplier"]))
+        except Exception:
+            warning = DEFAULT_GLOBAL_THRESHOLDS["warning_multiplier"]
+        try:
+            critical = float(current.get("critical_multiplier", DEFAULT_GLOBAL_THRESHOLDS["critical_multiplier"]))
+        except Exception:
+            critical = DEFAULT_GLOBAL_THRESHOLDS["critical_multiplier"]
+        critical = max(critical, warning)
+        return {
+            "warning_multiplier": warning,
+            "critical_multiplier": critical,
+        }
+
+    def save_global_thresholds(self, *, warning_multiplier: float, critical_multiplier: float) -> None:
+        self.save_json_setting(
+            "lab_monitor.global_thresholds",
+            {
+                "warning_multiplier": float(warning_multiplier),
+                "critical_multiplier": float(max(critical_multiplier, warning_multiplier)),
+            },
+        )
+
+    def get_lab_sync_state(self, lab_id: str) -> dict:
+        return self.load_json_setting(f"lab_monitor.sync_state.{lab_id}", {}) or {}
+
+    def save_lab_sync_state(self, lab_id: str, payload: dict) -> None:
+        self.save_json_setting(f"lab_monitor.sync_state.{lab_id}", payload or {})
 
     def load_lab_runtime(self) -> tuple[dict[str, dict], dict[str, str], dict[str, str]]:
         snapshots: dict[str, dict] = {}
@@ -354,6 +441,18 @@ class PlatformStore:
             )
             conn.commit()
 
+    def set_user_role(self, user_id: int, role: str) -> None:
+        role = role.strip().lower()
+        if role not in DEFAULT_ROLE_PERMISSIONS:
+            raise ValueError(f"role desconhecido: {role}")
+        now = _utcnow()
+        with self._lock, self._connect() as conn:
+            conn.execute(
+                "UPDATE users SET role = ?, updated_at = ? WHERE id = ?",
+                (role, now, user_id),
+            )
+            conn.commit()
+
     def create_session(self, user_id: int) -> str:
         raw = secrets.token_urlsafe(32)
         hashed = token_hash(raw)
@@ -484,12 +583,13 @@ class PlatformStore:
                 """,
                 (slug,),
             ).fetchone()
+        defaults = self.get_global_thresholds()
         if not row:
             return {
                 "exam_slug": slug,
                 "display_name": exam_name,
-                "warning_multiplier": 1.0,
-                "critical_multiplier": 1.2,
+                "warning_multiplier": defaults["warning_multiplier"],
+                "critical_multiplier": defaults["critical_multiplier"],
                 "updated_at": "",
                 "updated_by": "",
             }

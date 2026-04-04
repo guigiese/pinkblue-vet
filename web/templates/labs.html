@@ -4,19 +4,47 @@
 {% block content %}
 
 <div class="space-y-4">
+  <section class="rounded-2xl border border-indigo-100 bg-indigo-50/70 px-5 py-4 shadow-sm">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <h2 class="text-sm font-semibold text-indigo-800">Sincronização histórica</h2>
+        <p class="mt-1 text-sm text-indigo-700">
+          O histórico amplo é carregado em segundo plano e preservado na base local para evitar revarreduras desnecessárias.
+        </p>
+      </div>
+      <button hx-post="/labmonitor/sync/historico"
+              hx-target="#history-sync-feedback"
+              hx-swap="innerHTML"
+              class="rounded-xl border border-indigo-200 bg-white px-4 py-2 text-sm font-medium text-indigo-700 hover:bg-indigo-50">
+        Atualizar base histórica agora
+      </button>
+    </div>
+    <div id="history-sync-feedback" class="mt-2 min-h-[20px] text-sm"></div>
+  </section>
+
   {% for lab in labs %}
   {% set enabled = lab.get("enabled", true) %}
+  {% set lab_sync = sync_state.get(lab.id, {}) %}
   <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
     <div class="flex items-start justify-between flex-wrap gap-4">
-
-      <!-- Info -->
       <div class="min-w-0">
         <div class="flex items-center gap-2 flex-wrap">
           <h3 class="font-semibold text-gray-800 text-base">{{ lab.name }}</h3>
           <span class="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 font-mono">{{ lab.connector }}</span>
+          {% if lab_sync.history_complete %}
+          <span class="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">Histórico completo</span>
+          {% elif lab_sync.next_backfill_end or lab_sync.last_window_start %}
+          <span class="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-medium">Backfill em andamento</span>
+          {% endif %}
         </div>
         {% if last_check.get(lab.id) %}
         <p class="text-xs text-gray-400 mt-1">Último check: {{ last_check[lab.id] }}</p>
+        {% endif %}
+        {% if lab_sync.last_window_start and lab_sync.last_window_end %}
+        <p class="text-xs text-gray-400 mt-1">
+          Última janela histórica: {{ lab_sync.last_window_start }} → {{ lab_sync.last_window_end }}
+          {% if lab_sync.last_window_records is not none %}· {{ lab_sync.last_window_records }} protocolo(s){% endif %}
+        </p>
         {% endif %}
         {% if last_error.get(lab.id) %}
         <p class="text-xs text-red-500 mt-1 flex items-center gap-1">
@@ -28,9 +56,7 @@
         {% endif %}
       </div>
 
-      <!-- Controls -->
       <div class="flex items-center gap-4 flex-wrap">
-        <!-- Toggle switch -->
         <div id="toggle-{{ lab.id }}">
           <div class="flex items-center gap-3">
             <label class="toggle-switch" title="{{ 'Habilitado' if enabled else 'Desabilitado' }}">
@@ -48,13 +74,11 @@
           </div>
         </div>
 
-        <!-- Test connection -->
         <div class="flex items-center gap-2">
           <button hx-post="/labmonitor/labs/{{ lab.id }}/test"
                   hx-target="#test-result-{{ lab.id }}"
                   hx-indicator="#spinner-{{ lab.id }}"
-                  class="text-sm px-3 py-1.5 rounded-lg border border-indigo-200 text-indigo-600
-                         hover:bg-indigo-50 transition-colors flex items-center gap-1.5">
+                  class="text-sm px-3 py-1.5 rounded-lg border border-indigo-200 text-indigo-600 hover:bg-indigo-50 transition-colors flex items-center gap-1.5">
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
             </svg>
@@ -63,7 +87,6 @@
           <span id="spinner-{{ lab.id }}" class="htmx-indicator text-xs text-gray-400">…</span>
         </div>
       </div>
-
     </div>
     <div id="test-result-{{ lab.id }}" class="mt-2 min-h-[20px]"></div>
   </div>

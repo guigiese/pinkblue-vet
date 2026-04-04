@@ -696,6 +696,126 @@ class ResultTemplateRenderingTests(unittest.TestCase):
             state.snapshots = original_snapshots
             state._config = original_config
 
+    def test_textual_result_modal_renders_sections(self):
+        original_snapshots = state.snapshots
+        try:
+            state.snapshots = {
+                "bitlab": {
+                    "REQ-1": {
+                        "label": "Bidu - Tutor",
+                        "data": "2026-04-01",
+                        "itens": {
+                            "I1": {
+                                "nome": "PCR Qualitativo",
+                                "status": "Pronto",
+                                "item_id": "item-text-1",
+                                "report_text": "DADOS DO PACIENTE\nNome: Bidu\nDIAGNOSTICO\nNao detectado.\nMETODOLOGIA\nPCR em tempo real.",
+                                "diagnosis_text": "Não detectado.",
+                            }
+                        },
+                    }
+                }
+            }
+
+            response = self.client.get("/labmonitor/partials/resultado-texto/item-text-1")
+
+            self.assertEqual(response.status_code, 200)
+            body = response.text
+            self.assertIn("Laudo textual", body)
+            self.assertIn("Diagnóstico", body)
+            self.assertIn("<strong><u>", body)
+            self.assertNotIn("DADOS DO PACIENTE", body)
+        finally:
+            state.snapshots = original_snapshots
+
+    def test_partial_exames_supports_pagination_sentinel(self):
+        original_snapshots = state.snapshots
+        original_config = state._config
+        try:
+            state._config = {
+                "labs": [{"id": "bitlab", "name": "Bioanálises", "enabled": True}],
+                "notifiers": [],
+                "interval_minutes": 5,
+            }
+            state.snapshots = {
+                "bitlab": {
+                    f"REQ-{idx:02d}": {
+                        "label": f"Paciente {idx} - Tutor {idx}",
+                        "data": "2026-04-01",
+                        "itens": {
+                            "I1": {"nome": "Hemograma", "status": "Pronto", "item_id": f"item-{idx}"},
+                        },
+                    }
+                    for idx in range(1, 25)
+                }
+            }
+
+            response = self.client.get("/labmonitor/partials/exames")
+
+            self.assertEqual(response.status_code, 200)
+            body = response.text
+            self.assertIn("Carregando mais exames", body)
+            self.assertIn("offset=20", body)
+        finally:
+            state.snapshots = original_snapshots
+            state._config = original_config
+
+    def test_patient_history_partial_renders_series(self):
+        original_snapshots = state.snapshots
+        original_config = state._config
+        try:
+            state._config = {
+                "labs": [{"id": "bitlab", "name": "Bioanálises", "enabled": True}],
+                "notifiers": [],
+                "interval_minutes": 5,
+            }
+            state.snapshots = {
+                "bitlab": {
+                    "REQ-1": {
+                        "label": "Bidu - Tutor",
+                        "data": "2026-04-01",
+                        "received_at": "2026-04-01T10:00:00",
+                        "itens": {
+                            "I1": {
+                                "nome": "TGP",
+                                "status": "Pronto",
+                                "item_id": "item-1",
+                                "resultado": [
+                                    {"nome": "TGP", "valor": "40", "referencia": "10 a 80", "alerta": None}
+                                ],
+                            }
+                        },
+                    },
+                    "REQ-2": {
+                        "label": "Bidu - Tutor",
+                        "data": "2026-04-02",
+                        "received_at": "2026-04-02T10:00:00",
+                        "itens": {
+                            "I1": {
+                                "nome": "TGP",
+                                "status": "Pronto",
+                                "item_id": "item-2",
+                                "resultado": [
+                                    {"nome": "TGP", "valor": "95", "referencia": "10 a 80", "alerta": "yellow"}
+                                ],
+                            }
+                        },
+                    },
+                }
+            }
+
+            response = self.client.get("/labmonitor/partials/historico-paciente?patient_name=Bidu&tutor_name=Tutor")
+
+            self.assertEqual(response.status_code, 200)
+            body = response.text
+            self.assertIn("Evolução histórica", body)
+            self.assertIn("TGP", body)
+            self.assertIn("95", body)
+            self.assertIn("Atenção", body)
+        finally:
+            state.snapshots = original_snapshots
+            state._config = original_config
+
 
 if __name__ == "__main__":
     unittest.main()

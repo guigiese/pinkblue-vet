@@ -5,9 +5,7 @@
 {% block header %}Exames{% endblock %}
 {% block content %}
 
-<!-- Filtros -->
 <form class="grid gap-2 mb-5 sm:flex sm:flex-wrap" method="get">
-  <!-- Busca por nome -->
   <div class="relative min-w-0 sm:flex-1 sm:min-w-[180px]">
     <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none"
          fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -42,20 +40,60 @@
   {% endif %}
 </form>
 
-<!-- Contagem -->
-{% if groups %}
+{% if page.total %}
 <p class="text-xs text-gray-400 mb-3">
-  {{ groups | length }} requisição{% if groups | length != 1 %}ões{% endif %}
+  {{ page.total }} requisição{% if page.total != 1 %}ões{% endif %}
   {% if q %} para "<span class="font-medium text-gray-600">{{ q }}</span>"{% endif %}
 </p>
 {% endif %}
 
-<!-- Lista de grupos (atualiza a cada 15min preservando filtros) -->
-<div id="exames-table"
-     hx-get="/labmonitor/partials/exames?lab={{ lab_filter }}&status={{ status_filter }}&q={{ q }}"
-     hx-trigger="load delay:20s, every 15m"
-     hx-swap="innerHTML">
+{% if page.history_patient %}
+<div class="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-indigo-100 bg-indigo-50/70 px-4 py-3">
+  <div>
+    <p class="text-sm font-medium text-indigo-800">Paciente único identificado no filtro atual</p>
+    <p class="text-xs text-indigo-600">Gere uma evolução histórica dos resultados numéricos deste paciente.</p>
+  </div>
+  <button type="button"
+          hx-get="/labmonitor/partials/historico-paciente?patient_name={{ page.history_patient.patient_name | urlencode }}&tutor_name={{ page.history_patient.tutor_name | urlencode }}"
+          hx-target="#patient-history-panel"
+          hx-swap="innerHTML"
+          class="rounded-xl border border-indigo-200 bg-white px-4 py-2 text-sm font-medium text-indigo-700 hover:bg-indigo-50">
+    Gerar evolução histórica
+  </button>
+</div>
+<div id="patient-history-panel" class="mb-4"></div>
+{% endif %}
+
+<div id="exames-table">
   {% include "partials/exames_table.html" %}
 </div>
+
+<div id="report-modal-root"></div>
+
+<script>
+  window.pbvCloseReportModal = function () {
+    const root = document.getElementById("report-modal-root");
+    if (root) {
+      root.innerHTML = "";
+    }
+    document.body.classList.remove("overflow-hidden");
+  };
+
+  document.body.addEventListener("htmx:afterSwap", function (event) {
+    if (event.target && event.target.id === "report-modal-root") {
+      if (event.target.innerHTML.trim()) {
+        document.body.classList.add("overflow-hidden");
+      } else {
+        document.body.classList.remove("overflow-hidden");
+      }
+    }
+  });
+
+  document.addEventListener("keydown", function (event) {
+    if (event.key === "Escape") {
+      window.pbvCloseReportModal();
+    }
+  });
+</script>
 
 {% endblock %}

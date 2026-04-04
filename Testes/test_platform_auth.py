@@ -17,7 +17,7 @@ class PlatformAuthTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertIn("Autenticação da plataforma", response.text)
-        self.assertIn("Entre uma vez e acesse todos os módulos", response.text)
+        self.assertIn("Use seu e-mail e senha para entrar", response.text)
 
     def test_unauthenticated_module_access_redirects_to_login(self):
         response = self.client.get("/labmonitor/exames", follow_redirects=False)
@@ -47,6 +47,7 @@ class PlatformAuthTests(unittest.TestCase):
         admin = self.client.get("/admin/usuarios")
         self.assertEqual(admin.status_code, 200)
         self.assertIn("Usuários da plataforma", admin.text)
+        self.assertIn("Permissões por perfil", admin.text)
 
         self.client.get("/logout")
 

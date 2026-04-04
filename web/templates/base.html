@@ -71,15 +71,22 @@
     </button>
 
     <nav class="flex-1 p-3 space-y-0.5 text-sm overflow-y-auto pt-2">
-      {% set nav = [
-        ("/labmonitor","grid","Dashboard"),
-        ("/labmonitor/exames","beaker","Exames"),
-        ("/labmonitor/labs","building-office","Laboratórios"),
-        ("/labmonitor/canais","bell","Canais"),
-        ("/labmonitor/notificacoes","chat-bubble-left-right","Notificações"),
-        ("/labmonitor/tolerancias","shield-check","Tolerâncias"),
-        ("/labmonitor/settings","cog-6-tooth","Configurações"),
-      ] %}
+      {% set nav = [] %}
+      {% if platform_permissions.labmonitor_access %}
+        {% set nav = nav + [
+          ("/labmonitor","grid","Dashboard"),
+          ("/labmonitor/exames","beaker","Exames"),
+        ] %}
+      {% endif %}
+      {% if platform_permissions.manage_labmonitor %}
+        {% set nav = nav + [
+          ("/labmonitor/labs","building-office","Laboratórios"),
+          ("/labmonitor/canais","bell","Canais"),
+          ("/labmonitor/notificacoes","chat-bubble-left-right","Notificações"),
+          ("/labmonitor/tolerancias","shield-check","Tolerâncias"),
+          ("/labmonitor/settings","cog-6-tooth","Configurações"),
+        ] %}
+      {% endif %}
       {% for href, icon, label in nav %}
       {% set active = request.url.path == href or request.url.path == href + '/' %}
       <a href="{{ href }}" onclick="closeSidebar()"
@@ -119,7 +126,7 @@
         <p class="text-[11px] uppercase tracking-wide text-gray-400">Sessão ativa</p>
         <p class="mt-1 truncate text-sm font-semibold text-gray-800">{{ platform_user.email }}</p>
         <div class="mt-2 flex items-center gap-2">
-          {% if platform_user.role == "admin" %}
+          {% if platform_permissions.manage_users %}
           <a href="/admin/usuarios" class="text-xs font-medium text-indigo-600 hover:underline">Administrar acessos</a>
           {% endif %}
           <a href="/logout" class="text-xs font-medium text-gray-500 hover:underline">Sair</a>
@@ -130,11 +137,6 @@
   </aside>
 
   <main class="w-full md:ml-72 flex-1 p-4 md:p-6 pt-16 md:pt-6 min-w-0">
-    {% if platform_user and platform_user.force_password_change %}
-    <div class="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-      A senha inicial ainda está ativa. Abra <a href="/admin/usuarios" class="font-semibold underline">Administrar acessos</a> para atualizar.
-    </div>
-    {% endif %}
     {% set _hdr %}{% block header %}{% endblock %}{% endset %}
     {% if _hdr | trim %}
     <h1 class="text-xl md:text-2xl font-bold text-gray-800 mb-4 md:mb-6">{{ _hdr }}</h1>

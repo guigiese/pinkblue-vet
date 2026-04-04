@@ -9,7 +9,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from core import run_monitor_loop
+from core import run_historical_backfill_until_complete, run_monitor_loop
 from labs import CONNECTORS
 from labs.bitlab import BitlabConnector
 from notifiers import NOTIFIERS
@@ -19,9 +19,12 @@ from notification_settings import NOTIFICATION_TEMPLATE_VARIABLES
 from pb_platform.auth import (
     attach_user_to_request,
     auth_bypassed,
-    is_admin,
+    forbidden_response,
+    has_permission,
     path_requires_auth,
+    required_permission,
     redirect_to_login,
+    user_permissions,
 )
 from pb_platform.settings import settings
 from pb_platform.storage import store
@@ -35,18 +38,27 @@ from web.card_sandbox import (
 )
 from web.ops_map import OPS_MAP_DIR, get_ops_map_runtime
 from web.state import state
+from web.text_reports import build_report_sections
 
 TEMPLATES_DIR = Path(__file__).parent / "templates"
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 APP_URL = os.environ.get("APP_URL", "https://pinkblue-vet-production.up.railway.app")
 STANDARD_STATUSES = ["Pronto", "Parcial", "Em Andamento", "Analisando", "Recebido", "Cancelado"]
+EXAMES_PAGE_SIZE = 20
 
 
 @asynccontextmanager
 async def lifespan(app):
     monitor_thread = threading.Thread(target=run_monitor_loop, args=(state,), daemon=True)
     monitor_thread.start()
+    history_thread = threading.Thread(
+        target=run_historical_backfill_until_complete,
+        args=(state,),
+        kwargs={"max_windows_per_lab": 2},
+        daemon=True,
+    )
+    history_thread.start()
     register_webhook(APP_URL)
     yield
 
@@ -67,10 +79,14 @@ async def platform_auth_middleware(request: Request, call_next):
         return redirect_to_login(request)
     if user and request.url.path == "/login":
         return RedirectResponse(url="/", status_code=303)
+    permission = required_permission(request.url.path, request.method)
+    if permission and user and not has_permission(request, permission):
+        return forbidden_response(request)
     return await call_next(request)
 
 
 def _render(request: Request, template: str, **ctx):
+    platform_user = getattr(request.state, "user", None)
     return templates.TemplateResponse(
         request,
         template,
@@ -78,7 +94,8 @@ def _render(request: Request, template: str, **ctx):
             "request": request,
             "platform_name": settings.app_name,
             "module_name": settings.module_name,
-            "platform_user": getattr(request.state, "user", None),
+            "platform_user": platform_user,
+            "platform_permissions": user_permissions(platform_user) if platform_user else {},
             **ctx,
         },
     )
@@ -137,9 +154,16 @@ async def landing(request: Request):
 
 @app.get("/admin/usuarios", response_class=HTMLResponse)
 async def users_admin(request: Request, saved: str = ""):
-    if not is_admin(request):
+    if not has_permission(request, "manage_users"):
         return RedirectResponse(url="/", status_code=303)
-    return _render(request, "admin_users.html", users=store.list_users(), save_state=saved)
+    return _render(
+        request,
+        "admin_users.html",
+        users=store.list_users(),
+        roles=store.list_roles(),
+        permissions=store.get_role_permissions(),
+        save_state=saved,
+    )
 
 
 @app.post("/admin/usuarios")
@@ -149,9 +173,21 @@ async def create_platform_user(
     password: str = Form(...),
     role: str = Form("viewer"),
 ):
-    if not is_admin(request):
+    if not has_permission(request, "manage_users"):
         return RedirectResponse(url="/", status_code=303)
     store.create_user(email=email, password=password, role=role)
+    return RedirectResponse(url="/admin/usuarios?saved=1", status_code=303)
+
+
+@app.post("/admin/usuarios/{user_id}/role")
+async def update_platform_user_role(
+    request: Request,
+    user_id: int,
+    role: str = Form(...),
+):
+    if not has_permission(request, "manage_users"):
+        return RedirectResponse(url="/", status_code=303)
+    store.set_user_role(user_id, role)
     return RedirectResponse(url="/admin/usuarios?saved=1", status_code=303)
 
 
@@ -161,7 +197,7 @@ async def update_platform_user_password(
     user_id: int,
     password: str = Form(...),
 ):
-    if not is_admin(request):
+    if not has_permission(request, "manage_users"):
         return RedirectResponse(url="/", status_code=303)
     store.set_user_password(user_id, password, force_password_change=False)
     return RedirectResponse(url="/admin/usuarios?saved=1", status_code=303)
@@ -169,11 +205,32 @@ async def update_platform_user_password(
 
 @app.post("/admin/usuarios/{user_id}/toggle")
 async def toggle_platform_user(request: Request, user_id: int):
-    if not is_admin(request):
+    if not has_permission(request, "manage_users"):
         return RedirectResponse(url="/", status_code=303)
     user = store.get_user_by_id(user_id)
     if user:
         store.set_user_active(user_id, not user["is_active"])
+    return RedirectResponse(url="/admin/usuarios?saved=1", status_code=303)
+
+
+@app.post("/admin/permissoes")
+async def update_role_permissions(
+    request: Request,
+    role: str = Form(...),
+):
+    if not has_permission(request, "manage_users"):
+        return RedirectResponse(url="/", status_code=303)
+    permissions = {
+        "platform_access": False,
+        "labmonitor_access": False,
+        "manage_labmonitor": False,
+        "ops_tools": False,
+        "manage_users": False,
+    }
+    form = await request.form()
+    for permission in permissions.keys():
+        permissions[permission] = form.get(permission) == "on"
+    store.save_role_permissions(role, permissions)
     return RedirectResponse(url="/admin/usuarios?saved=1", status_code=303)
 
 
@@ -262,12 +319,15 @@ async def dashboard_slash(request: Request):
 @router.get("/exames", response_class=HTMLResponse)
 async def exames(request: Request, lab: str = "", status: str = "", q: str = ""):
     variant_cfg = get_card_sandbox_variant("v0-reference-current")
+    page = state.get_exames_page(lab, status, q, offset=0, limit=EXAMES_PAGE_SIZE)
     return _render(
         request,
         "exames.html",
-        groups=state.get_exames(lab, status, q),
+        page=page,
+        groups=page["groups"],
         variant_cfg=variant_cfg,
         result_fetch_prefix="/labmonitor/partials/resultado",
+        result_text_fetch_prefix="/labmonitor/partials/resultado-texto",
         labs_cfg=state.config["labs"],
         statuses=STANDARD_STATUSES,
         lab_filter=lab,
@@ -284,6 +344,7 @@ async def labs_page(request: Request):
         labs=state.config["labs"],
         last_check=state.last_check,
         last_error=state.last_error,
+        sync_state={lab["id"]: state.get_lab_sync_state(lab["id"]) for lab in state.config["labs"]},
     )
 
 
@@ -316,13 +377,23 @@ async def settings_page(request: Request):
 
 @router.get("/tolerancias", response_class=HTMLResponse)
 async def thresholds_page(request: Request, saved: str = ""):
+    defaults = store.get_global_thresholds()
+    thresholds = []
+    for item in state.list_exam_thresholds():
+        thresholds.append(
+            {
+                **item,
+                "warning_percent": round(float(item["warning_multiplier"]) * 100, 2),
+                "critical_percent": round(float(item["critical_multiplier"]) * 100, 2),
+            }
+        )
     return _render(
         request,
         "thresholds.html",
-        thresholds=state.list_exam_thresholds(),
+        thresholds=thresholds,
         save_state=saved,
-        default_warning=1.0,
-        default_critical=1.2,
+        default_warning_percent=round(float(defaults["warning_multiplier"]) * 100, 2),
+        default_critical_percent=round(float(defaults["critical_multiplier"]) * 100, 2),
     )
 
 
@@ -337,14 +408,26 @@ async def partial_lab_counts(request: Request):
 
 
 @router.get("/partials/exames", response_class=HTMLResponse)
-async def partial_exames(request: Request, lab: str = "", status: str = "", q: str = ""):
+async def partial_exames(
+    request: Request,
+    lab: str = "",
+    status: str = "",
+    q: str = "",
+    offset: int = 0,
+):
     variant_cfg = get_card_sandbox_variant("v0-reference-current")
+    page = state.get_exames_page(lab, status, q, offset=offset, limit=EXAMES_PAGE_SIZE)
     return _render(
         request,
         "partials/exames_table.html",
-        groups=state.get_exames(lab, status, q),
+        page=page,
+        groups=page["groups"],
         variant_cfg=variant_cfg,
         result_fetch_prefix="/labmonitor/partials/resultado",
+        result_text_fetch_prefix="/labmonitor/partials/resultado-texto",
+        lab_filter=lab,
+        status_filter=status,
+        q=q,
     )
 
 
@@ -447,15 +530,27 @@ async def save_interval(minutes: int = Form(...)):
 async def save_threshold(
     request: Request,
     exam_name: str = Form(...),
-    warning_multiplier: float = Form(...),
-    critical_multiplier: float = Form(...),
+    warning_percent: float = Form(...),
+    critical_percent: float = Form(...),
 ):
     updated_by = (getattr(request.state, "user", None) or {}).get("email", "")
     state.save_exam_threshold(
         exam_name.strip(),
-        warning_multiplier=warning_multiplier,
-        critical_multiplier=critical_multiplier,
+        warning_multiplier=max(warning_percent, 0) / 100.0,
+        critical_multiplier=max(critical_percent, 0) / 100.0,
         updated_by=updated_by,
+    )
+    return RedirectResponse("/labmonitor/tolerancias?saved=1", status_code=303)
+
+
+@router.post("/tolerancias/geral")
+async def save_global_thresholds(
+    warning_percent: float = Form(...),
+    critical_percent: float = Form(...),
+):
+    store.save_global_thresholds(
+        warning_multiplier=max(warning_percent, 0) / 100.0,
+        critical_multiplier=max(critical_percent, 0) / 100.0,
     )
     return RedirectResponse("/labmonitor/tolerancias?saved=1", status_code=303)
 
@@ -464,6 +559,18 @@ async def save_threshold(
 async def delete_threshold(exam_slug: str):
     state.delete_exam_threshold(exam_slug)
     return RedirectResponse("/labmonitor/tolerancias?saved=1", status_code=303)
+
+
+@router.post("/sync/historico", response_class=HTMLResponse)
+async def trigger_history_sync():
+    thread = threading.Thread(
+        target=run_historical_backfill_until_complete,
+        args=(state,),
+        kwargs={"max_windows_per_lab": 3},
+        daemon=True,
+    )
+    thread.start()
+    return HTMLResponse('<span class="text-green-600 text-sm">Backfill historico iniciado em segundo plano.</span>')
 
 
 def _toggle_html(route: str, id: str, enabled: bool, label: str) -> str:
@@ -487,27 +594,10 @@ def _toggle_html(route: str, id: str, enabled: bool, label: str) -> str:
 
 @router.get("/partials/resultado/{item_id:path}", response_class=HTMLResponse)
 async def partial_resultado(request: Request, item_id: str):
-    connector = BitlabConnector()
-    rows, report_text, diagnosis_text = _find_cached_resultado(item_id)
-    record = _find_result_record(item_id)
-
-    if rows is None and not report_text:
-        try:
-            token = connector._login()
-            raw = connector.buscar_resultado_html(token, item_id)
-            rows = connector.parse_resultado(raw, record)
-            report_text = ""
-            diagnosis_text = ""
-            if not rows:
-                report_text = connector.parse_resultado_text(raw)
-            _cache_resultado(
-                item_id,
-                rows or [],
-                report_text=report_text,
-                diagnosis_text=diagnosis_text,
-            )
-        except Exception as e:
-            return HTMLResponse(f'<p class="text-red-500 text-xs p-3">Erro ao carregar resultado: {e}</p>')
+    try:
+        rows, report_text, diagnosis_text, _record = _load_resultado_payload(item_id)
+    except Exception as e:
+        return HTMLResponse(f'<p class="text-red-500 text-xs p-3">Erro ao carregar resultado: {e}</p>')
 
     return _render(
         request,
@@ -516,6 +606,37 @@ async def partial_resultado(request: Request, item_id: str):
         report_text=report_text or "",
         diagnosis_text=diagnosis_text or "",
     )
+
+
+@router.get("/partials/resultado-texto/{item_id:path}", response_class=HTMLResponse)
+async def partial_text_report(request: Request, item_id: str):
+    try:
+        rows, report_text, diagnosis_text, record = _load_resultado_payload(item_id)
+    except Exception as e:
+        return HTMLResponse(f'<p class="text-red-500 text-xs p-3">Erro ao carregar laudo: {e}</p>')
+
+    if rows and not report_text:
+        return HTMLResponse('<p class="text-gray-500 text-sm p-4">Esse exame possui resultado numerico inline.</p>')
+
+    sections = build_report_sections(report_text or "", diagnosis_text or "")
+    item = _find_result_item(item_id)
+    return _render(
+        request,
+        "partials/report_text_modal.html",
+        item=item or {},
+        record=record or {},
+        sections=sections,
+    )
+
+
+@router.get("/partials/historico-paciente", response_class=HTMLResponse)
+async def partial_patient_history(
+    request: Request,
+    patient_name: str = "",
+    tutor_name: str = "",
+):
+    history = state.get_patient_history(patient_name, tutor_name)
+    return _render(request, "partials/patient_history.html", history=history)
 
 
 def _find_cached_resultado(item_id: str) -> tuple[list[dict] | None, str, str]:
@@ -532,13 +653,48 @@ def _find_cached_resultado(item_id: str) -> tuple[list[dict] | None, str, str]:
     return None, "", ""
 
 
-def _find_result_record(item_id: str) -> dict | None:
+def _find_result_record(item_id: str) -> tuple[str, dict] | tuple[None, None]:
+    for lab_id, snap in state.snapshots.items():
+        for record in snap.values():
+            for item in record["itens"].values():
+                if item.get("item_id") == item_id:
+                    return lab_id, record
+    return None, None
+
+
+def _find_result_item(item_id: str) -> dict | None:
     for snap in state.snapshots.values():
         for record in snap.values():
             for item in record["itens"].values():
                 if item.get("item_id") == item_id:
-                    return record
+                    return item
     return None
+
+
+def _load_resultado_payload(item_id: str) -> tuple[list[dict], str, str, dict | None]:
+    rows, report_text, diagnosis_text = _find_cached_resultado(item_id)
+    lab_id, record = _find_result_record(item_id)
+    if rows is not None or report_text:
+        return rows or [], report_text or "", diagnosis_text or "", record
+
+    if lab_id != "bitlab":
+        return [], report_text or "", diagnosis_text or "", record
+
+    connector = BitlabConnector()
+    token = connector._login()
+    raw = connector.buscar_resultado_html(token, item_id)
+    rows = connector.parse_resultado(raw, record)
+    report_text = ""
+    diagnosis_text = ""
+    if not rows:
+        report_text = connector.parse_resultado_text(raw)
+    _cache_resultado(
+        item_id,
+        rows or [],
+        report_text=report_text,
+        diagnosis_text=diagnosis_text,
+    )
+    return rows or [], report_text or "", diagnosis_text or "", record
 
 
 def _cache_resultado(

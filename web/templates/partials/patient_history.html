@@ -1,0 +1,63 @@
+{% if history.blocks %}
+<section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+  <div class="flex flex-wrap items-center justify-between gap-3">
+    <div>
+      <h2 class="text-base font-semibold text-gray-800">Evolução histórica</h2>
+      <p class="mt-1 text-sm text-gray-500">
+        {{ history.patient_name }}{% if history.tutor_name %} · {{ history.tutor_name }}{% endif %}
+      </p>
+    </div>
+    <span class="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-500">{{ history.blocks|length }} série(s)</span>
+  </div>
+
+  <div class="mt-4 space-y-4">
+    {% for block in history.blocks %}
+    <section class="overflow-hidden rounded-2xl border border-gray-100">
+      <div class="border-b border-gray-100 bg-gray-50 px-4 py-3">
+        <p class="text-sm font-semibold text-gray-800">{{ block.exam_name }}</p>
+        <p class="mt-1 text-xs text-gray-500">
+          {{ block.parameter_name }}
+          {% if block.component_kind == "percent" %} · percentual
+          {% elif block.component_kind == "absolute" %} · absoluto
+          {% endif %}
+        </p>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="min-w-full text-sm">
+          <thead class="bg-white">
+            <tr class="border-b border-gray-100 text-left text-xs uppercase tracking-wide text-gray-500">
+              <th class="px-4 py-2.5 font-semibold">Data</th>
+              <th class="px-4 py-2.5 font-semibold text-right">Resultado</th>
+              <th class="px-4 py-2.5 font-semibold text-right">Referência</th>
+              <th class="px-4 py-2.5 font-semibold text-right">Criticidade</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-50">
+            {% for entry in block.entries %}
+            <tr class="{% if entry.alert == 'red' %}bg-red-50/70{% elif entry.alert == 'yellow' %}bg-yellow-50/70{% endif %}">
+              <td class="px-4 py-2.5 text-gray-600">{{ entry.date }}{% if entry.time %} {{ entry.time }}{% endif %}</td>
+              <td class="px-4 py-2.5 text-right font-mono font-semibold text-gray-800">{{ entry.value }}</td>
+              <td class="px-4 py-2.5 text-right text-gray-500">{{ entry.reference or "n/d" }}</td>
+              <td class="px-4 py-2.5 text-right">
+                {% if entry.alert == "red" %}
+                <span class="rounded-full bg-red-100 px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-red-700">Crítico</span>
+                {% elif entry.alert == "yellow" %}
+                <span class="rounded-full bg-yellow-100 px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-yellow-700">Atenção</span>
+                {% else %}
+                <span class="rounded-full bg-gray-100 px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500">Normal</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+    {% endfor %}
+  </div>
+</section>
+{% else %}
+<div class="rounded-2xl border border-gray-200 bg-white px-5 py-4 text-sm text-gray-500 shadow-sm">
+  Não há séries numéricas suficientes para montar uma evolução histórica deste paciente.
+</div>
+{% endif %}

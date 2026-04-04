@@ -1,4 +1,5 @@
 import json
+import re
 import unicodedata
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -181,6 +182,19 @@ def _iso_sort_key(raw: str | None) -> str:
     return dt.isoformat() if dt else (raw or "")
 
 
+def _parse_numeric_value(raw: str | None) -> float | None:
+    if not raw:
+        return None
+    text = str(raw).strip().replace(".", "").replace(",", ".")
+    match = re.search(r"-?\d+(?:\.\d+)?", text)
+    if not match:
+        return None
+    try:
+        return float(match.group(0))
+    except Exception:
+        return None
+
+
 def status_card_title(status: str) -> str:
     label = STATUS_SHORT_LABELS.get(status, status.upper())
     return label.capitalize()
@@ -346,6 +360,21 @@ class AppState:
 
     def delete_exam_threshold(self, exam_slug: str) -> None:
         store.delete_exam_threshold(exam_slug)
+
+    def get_global_thresholds(self) -> dict:
+        return store.get_global_thresholds()
+
+    def save_global_thresholds(self, *, warning_multiplier: float, critical_multiplier: float) -> None:
+        store.save_global_thresholds(
+            warning_multiplier=warning_multiplier,
+            critical_multiplier=critical_multiplier,
+        )
+
+    def get_lab_sync_state(self, lab_id: str) -> dict:
+        return store.get_lab_sync_state(lab_id)
+
+    def save_lab_sync_state(self, lab_id: str, payload: dict) -> None:
+        store.save_lab_sync_state(lab_id, payload)
 
     def get_notification_previews(self) -> dict[str, str]:
         settings = self.get_notification_settings()
@@ -557,6 +586,93 @@ class AppState:
             reverse=True,
         )
         return groups[:n]
+
+    def get_exames_page(
+        self,
+        lab_filter: str = "",
+        status_filter: str = "",
+        q: str = "",
+        *,
+        offset: int = 0,
+        limit: int = 20,
+    ) -> dict:
+        groups = self.get_exames(lab_filter, status_filter, q)
+        total = len(groups)
+        page_groups = groups[offset: offset + limit]
+        next_offset = offset + limit if (offset + limit) < total else None
+        unique_patient_keys = {
+            (g["patient_name"].strip().lower(), g["tutor_name"].strip().lower())
+            for g in groups
+            if g["patient_name"]
+        }
+        history_patient = None
+        if len(unique_patient_keys) == 1 and groups:
+            first = groups[0]
+            history_patient = {
+                "patient_name": first["patient_name"],
+                "tutor_name": first["tutor_name"],
+            }
+        return {
+            "groups": page_groups,
+            "total": total,
+            "offset": offset,
+            "limit": limit,
+            "next_offset": next_offset,
+            "history_patient": history_patient,
+        }
+
+    def get_patient_history(self, patient_name: str, tutor_name: str = "") -> dict:
+        target_patient = (patient_name or "").strip().lower()
+        target_tutor = (tutor_name or "").strip().lower()
+        series: dict[tuple[str, str, str], list[dict]] = {}
+        for group in self.get_exames():
+            if group["patient_name"].strip().lower() != target_patient:
+                continue
+            if target_tutor and group["tutor_name"].strip().lower() != target_tutor:
+                continue
+            for item in group["items_view"]:
+                for row in item.get("results") or []:
+                    if row.get("components"):
+                        for component in row["components"]:
+                            numeric = _parse_numeric_value(component.get("valor"))
+                            if numeric is None:
+                                continue
+                            key = (item["name"], row["nome"], component.get("kind") or "valor")
+                            series.setdefault(key, []).append({
+                                "date": group["date_display"],
+                                "time": group["time_display"],
+                                "sort_key": group["data_raw"],
+                                "value": component.get("valor"),
+                                "reference": component.get("referencia"),
+                                "alert": component.get("alerta"),
+                            })
+                    else:
+                        numeric = _parse_numeric_value(row.get("valor"))
+                        if numeric is None:
+                            continue
+                        key = (item["name"], row["nome"], "valor")
+                        series.setdefault(key, []).append({
+                            "date": group["date_display"],
+                            "time": group["time_display"],
+                            "sort_key": group["data_raw"],
+                            "value": row.get("valor"),
+                            "reference": row.get("referencia"),
+                            "alert": row.get("alerta"),
+                        })
+
+        blocks = []
+        for (exam_name, parameter_name, component_kind), entries in sorted(series.items()):
+            blocks.append({
+                "exam_name": exam_name,
+                "parameter_name": parameter_name,
+                "component_kind": component_kind,
+                "entries": sorted(entries, key=lambda entry: entry["sort_key"], reverse=True),
+            })
+        return {
+            "patient_name": patient_name,
+            "tutor_name": tutor_name,
+            "blocks": blocks,
+        }
 
     def get_lab_counts(self) -> dict:
         """

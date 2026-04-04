@@ -422,21 +422,42 @@ class BitlabConnector(LabConnector):
         r.raise_for_status()
         return r.json()["token"]
 
+    def _buscar_requisicoes_interval(
+        self,
+        token: str,
+        data_inicial: str,
+        data_final: str,
+        *,
+        page_size: int = 500,
+    ) -> list[dict]:
+        page = 1
+        collected: list[dict] = []
+        while True:
+            r = requests.post(
+                f"{self.BASE}/Requisicao?pageNumber={page}&pageSize={page_size}",
+                headers={"Authorization": f"Bearer {token}"},
+                json={"dataInicial": data_inicial, "dataFinal": data_final},
+                timeout=20,
+            )
+            r.raise_for_status()
+            data = r.json()
+            batch = data.get("data", data) if isinstance(data, dict) else data
+            if not batch:
+                break
+            collected.extend(batch)
+            if len(batch) < page_size:
+                break
+            page += 1
+            time.sleep(0.15)
+        return collected
+
     def _buscar_requisicoes(self, token: str, page_size: int = 500) -> list[dict]:
-        hoje   = datetime.now().strftime("%Y-%m-%d")
+        hoje = datetime.now().strftime("%Y-%m-%d")
         sync_hints = getattr(self, "sync_hints", {}) or {}
         days_back = int(sync_hints.get("days_back") or self._dias_atras)
-        days_back = max(7, min(days_back, self._dias_atras))
+        days_back = max(7, days_back)
         inicio = (datetime.now() - timedelta(days=days_back)).strftime("%Y-%m-%d")
-        r = requests.post(
-            f"{self.BASE}/Requisicao?pageNumber=1&pageSize={page_size}",
-            headers={"Authorization": f"Bearer {token}"},
-            json={"dataInicial": inicio, "dataFinal": hoje},
-            timeout=15,
-        )
-        r.raise_for_status()
-        data = r.json()
-        return data.get("data", data) if isinstance(data, dict) else data
+        return self._buscar_requisicoes_interval(token, inicio, hoje, page_size=page_size)
 
     def test_connection(self) -> str:
         token = self._login()
@@ -824,11 +845,10 @@ class BitlabConnector(LabConnector):
                 print(f"  [BitLab metadata] {rid}: {e}")
             time.sleep(0.05)
 
-    def snapshot(self) -> dict[str, dict]:
-        token = self._login()
+    def _snapshot_from_requests(self, token: str, requests_payload: list[dict]) -> dict[str, dict]:
         resultado = {}
 
-        for req in self._buscar_requisicoes(token):
+        for req in requests_payload:
             itens_raw = self._buscar_itens(token, req["cdRequisicao"])
             itens = {
                 e["cdExame"]: {
@@ -850,3 +870,13 @@ class BitlabConnector(LabConnector):
             time.sleep(0.2)
 
         return resultado
+
+    def snapshot_between(self, start_date: str, end_date: str) -> dict[str, dict]:
+        token = self._login()
+        payload = self._buscar_requisicoes_interval(token, start_date, end_date)
+        return self._snapshot_from_requests(token, payload)
+
+    def snapshot(self) -> dict[str, dict]:
+        token = self._login()
+        payload = self._buscar_requisicoes(token)
+        return self._snapshot_from_requests(token, payload)

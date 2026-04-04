@@ -178,7 +178,21 @@
 {% endmacro %}
 
 {% macro item_toggle(item, table_width) %}
-  {% if item.status == "Pronto" %}
+  {% set report_endpoint = result_text_fetch_prefix | default("") %}
+  {% if item.status == "Pronto" and (item.report_text or item.diagnosis_text) and item.item_id and report_endpoint %}
+  <button type="button"
+          class="pb-item-row-toggle is-text-modal"
+          hx-get="{{ report_endpoint }}/{{ item.item_id | urlencode }}"
+          hx-target="#report-modal-root"
+          hx-swap="innerHTML">
+    <span class="pb-item-row-toggle__label">{{ item.name }}</span>
+    <span class="pb-item-row-toggle__icon" aria-hidden="true">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M8 10h8M8 14h5m-7 6l-3-3V6a2 2 0 012-2h14a2 2 0 012 2v9a2 2 0 01-2 2H8z"></path>
+      </svg>
+    </span>
+  </button>
+  {% elif item.status == "Pronto" %}
   {% set can_fetch_result = result_fetch_prefix and item.item_id and not item.results and not item.report_text %}
   <details class="pb-item-result-row"
            {% if item.alert %}data-has-alert="{{ item.alert }}"{% endif %}

@@ -1,1 +1,14 @@
 {% include "partials/cards_sandbox_table.html" %}
+
+{% if page and page.next_offset is not none %}
+<div
+  hx-get="/labmonitor/partials/exames?lab={{ lab_filter | urlencode }}&status={{ status_filter | urlencode }}&q={{ q | urlencode }}&offset={{ page.next_offset }}"
+  hx-trigger="revealed"
+  hx-swap="outerHTML"
+  class="py-4 text-center text-xs text-gray-400"
+>
+  Carregando mais exames...
+</div>
+{% elif page and page.total > (page.offset + (page.groups | length)) %}
+<div class="py-4 text-center text-xs text-gray-400">Carregando mais exames...</div>
+{% endif %}

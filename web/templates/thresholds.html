@@ -11,20 +11,40 @@
   {% endif %}
 
   <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+    <h2 class="text-base font-semibold text-gray-800">Regra geral</h2>
+    <p class="mt-1 text-sm text-gray-500">
+      Esses percentuais valem para todos os exames sem exceção cadastrada. A leitura continua em percentual além do limite violado:
+      <span class="font-medium text-gray-700">100</span> = qualquer saída da faixa já vira Atenção;
+      <span class="font-medium text-gray-700">120</span> = a partir de 20% além do limite vira Crítico.
+    </p>
+    <form method="post" action="/labmonitor/tolerancias/geral" class="mt-4 grid gap-3 md:grid-cols-[180px_180px_160px]">
+      <input name="warning_percent" type="number" step="0.01" min="100" value="{{ default_warning_percent }}"
+             class="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm"
+             placeholder="100">
+      <input name="critical_percent" type="number" step="0.01" min="100" value="{{ default_critical_percent }}"
+             class="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm"
+             placeholder="120">
+      <button type="submit" class="rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-indigo-700">
+        Salvar regra geral
+      </button>
+    </form>
+  </section>
+
+  <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
     <h2 class="text-base font-semibold text-gray-800">Cadastro rápido</h2>
     <p class="mt-1 text-sm text-gray-500">
-      O padrão do sistema continua sendo Atenção = {{ default_warning }} e Crítico = {{ default_critical }}.
-      Cadastre apenas exceções por exame.
+      O padrão do sistema continua sendo Atenção = {{ default_warning_percent }} e Crítico = {{ default_critical_percent }}.
+      Cadastre apenas exceções por exame ou parâmetro quando quiser fugir da regra geral.
     </p>
     <form method="post" action="/labmonitor/tolerancias/salvar" class="mt-4 grid gap-3 md:grid-cols-[minmax(0,1.5fr)_150px_150px_150px]">
-      <input name="exam_name" type="text" required placeholder="Nome do exame"
+      <input name="exam_name" type="text" required placeholder="Nome do exame ou parâmetro"
              class="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm">
-      <input name="warning_multiplier" type="number" step="0.01" min="1" value="{{ default_warning }}"
+      <input name="warning_percent" type="number" step="0.01" min="100" value="{{ default_warning_percent }}"
              class="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm">
-      <input name="critical_multiplier" type="number" step="0.01" min="1" value="{{ default_critical }}"
+      <input name="critical_percent" type="number" step="0.01" min="100" value="{{ default_critical_percent }}"
              class="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm">
       <button type="submit" class="rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-indigo-700">
-        Salvar
+        Salvar exceção
       </button>
     </form>
   </section>
@@ -33,42 +53,32 @@
     <div class="flex items-center justify-between gap-3">
       <div>
         <h2 class="text-base font-semibold text-gray-800">Exceções cadastradas</h2>
-        <p class="mt-1 text-sm text-gray-500">Essas regras sobrescrevem apenas o cálculo de criticidade do exame correspondente.</p>
+        <p class="mt-1 text-sm text-gray-500">Essas regras sobrescrevem apenas o cálculo de criticidade do exame ou parâmetro correspondente.</p>
       </div>
       <span class="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-500">{{ thresholds|length }} regra(s)</span>
     </div>
 
-    <div class="mt-4 overflow-x-auto">
-      <table class="min-w-full text-sm">
-        <thead>
-          <tr class="border-b border-gray-200 text-left text-xs uppercase tracking-wide text-gray-400">
-            <th class="py-2 pr-4">Exame</th>
-            <th class="py-2 pr-4">Atenção</th>
-            <th class="py-2 pr-4">Crítico</th>
-            <th class="py-2 pr-4">Atualizado</th>
-            <th class="py-2">Ações</th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-gray-100">
-          {% for item in thresholds %}
-          <tr>
-            <td class="py-3 pr-4 font-medium text-gray-800">{{ item.display_name }}</td>
-            <td class="py-3 pr-4 text-gray-600">{{ item.warning_multiplier }}</td>
-            <td class="py-3 pr-4 text-gray-600">{{ item.critical_multiplier }}</td>
-            <td class="py-3 pr-4 text-gray-500">{{ item.updated_at or "—" }}</td>
-            <td class="py-3">
-              <form method="post" action="/labmonitor/tolerancias/{{ item.exam_slug }}/remover">
-                <button type="submit" class="text-xs font-medium text-red-600 hover:underline">Remover</button>
-              </form>
-            </td>
-          </tr>
-          {% else %}
-          <tr>
-            <td colspan="5" class="py-6 text-center text-sm text-gray-400">Nenhuma exceção cadastrada ainda.</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+    <div class="mt-4 space-y-3">
+      {% for item in thresholds %}
+      <form method="post" action="/labmonitor/tolerancias/salvar" class="rounded-xl border border-gray-200 bg-gray-50/70 p-4">
+        <div class="grid gap-3 md:grid-cols-[minmax(0,1.6fr)_140px_140px_1fr_1fr_auto] md:items-center">
+          <input name="exam_name" type="text" value="{{ item.display_name }}"
+                 class="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-800">
+          <input name="warning_percent" type="number" step="0.01" min="100" value="{{ item.warning_percent }}"
+                 class="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700">
+          <input name="critical_percent" type="number" step="0.01" min="100" value="{{ item.critical_percent }}"
+                 class="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700">
+          <span class="text-xs text-gray-500">{{ item.updated_at or "—" }}</span>
+          <span class="text-xs text-gray-500">{{ item.updated_by or "—" }}</span>
+          <div class="flex items-center gap-3">
+            <button type="submit" class="text-xs font-medium text-indigo-600 hover:underline">Salvar</button>
+            <button formaction="/labmonitor/tolerancias/{{ item.exam_slug }}/remover" class="text-xs font-medium text-red-600 hover:underline">Remover</button>
+          </div>
+        </div>
+      </form>
+      {% else %}
+      <div class="py-6 text-center text-sm text-gray-400">Nenhuma exceção cadastrada ainda.</div>
+      {% endfor %}
     </div>
   </section>
 </div>

@@ -44,6 +44,11 @@ class PlatformStoreTests(unittest.TestCase):
                 store.save_runtime_config({"interval_minutes": 7, "notification_settings": {"events": {}}})
                 self.assertEqual(store.load_runtime_config()["interval_minutes"], 7)
 
+                store.save_global_thresholds(warning_multiplier=1.05, critical_multiplier=1.3)
+                defaults = store.get_global_thresholds()
+                self.assertEqual(defaults["warning_multiplier"], 1.05)
+                self.assertEqual(defaults["critical_multiplier"], 1.3)
+
                 store.upsert_exam_threshold(
                     "Hemograma Veterinário",
                     warning_multiplier=1.1,
@@ -53,6 +58,25 @@ class PlatformStoreTests(unittest.TestCase):
                 threshold = store.get_exam_threshold("Hemograma Veterinário")
                 self.assertEqual(threshold["warning_multiplier"], 1.1)
                 self.assertEqual(threshold["critical_multiplier"], 1.35)
+
+                perms = store.get_role_permissions()
+                self.assertTrue(perms["admin"]["manage_users"])
+                store.save_role_permissions(
+                    "viewer",
+                    {
+                        "platform_access": True,
+                        "labmonitor_access": True,
+                        "manage_labmonitor": False,
+                        "ops_tools": True,
+                        "manage_users": False,
+                    },
+                )
+                perms = store.get_role_permissions()
+                self.assertTrue(perms["viewer"]["ops_tools"])
+
+                store.save_lab_sync_state("bitlab", {"history_complete": False, "next_backfill_end": "2026-03-01"})
+                sync_state = store.get_lab_sync_state("bitlab")
+                self.assertEqual(sync_state["next_backfill_end"], "2026-03-01")
 
                 self.assertTrue(store.remember_notification_event("sig-1", "external"))
                 self.assertFalse(store.remember_notification_event("sig-1", "external"))

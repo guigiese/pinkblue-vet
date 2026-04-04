@@ -4,8 +4,10 @@ Pode rodar standalone (monitor.py) ou embutido na web (web/app.py).
 """
 
 import hashlib
+import threading
 import time
-from datetime import datetime
+from copy import deepcopy
+from datetime import datetime, timedelta
 
 from pb_platform.storage import store
 from labs import CONNECTORS
@@ -15,6 +17,7 @@ from web.state import normalize_status
 
 _EXTERNAL_EVENT_CACHE: dict[str, float] = {}
 _EXTERNAL_EVENT_TTL_SECONDS = 60 * 60 * 72
+_SYNC_LOCK = threading.RLock()
 
 
 def _parse_iso_like(raw: str | None) -> datetime | None:
@@ -72,6 +75,151 @@ def _should_send_external_event(signature: str) -> bool:
 def _event_signature(lab_id: str, kind: str, record_id: str, item_ids: list[str]) -> str:
     base = "|".join([lab_id, kind, record_id, *sorted(item_ids)])
     return hashlib.sha1(base.encode("utf-8")).hexdigest()
+
+
+def _merge_snapshots(previous: dict, fresh: dict) -> dict:
+    merged = deepcopy(previous or {})
+    for record_id, record in (fresh or {}).items():
+        current = merged.setdefault(record_id, {})
+        for key, value in record.items():
+            if key == "itens":
+                current_items = current.setdefault("itens", {})
+                for item_id, item_payload in value.items():
+                    current_items[item_id] = {
+                        **current_items.get(item_id, {}),
+                        **item_payload,
+                    }
+            elif value not in ("", None, [], {}):
+                current[key] = value
+    return merged
+
+
+def _history_anchor_date(snapshot: dict) -> datetime | None:
+    candidates: list[datetime] = []
+    for record in snapshot.values():
+        raw = record.get("received_at") or record.get("collected_at") or record.get("data")
+        parsed = _parse_iso_like(raw)
+        if parsed:
+            candidates.append(parsed)
+    return min(candidates) if candidates else None
+
+
+def _history_window_for_lab(lab_id: str, snapshot: dict) -> tuple[datetime, datetime] | None:
+    sync_state = store.get_lab_sync_state(lab_id)
+    if sync_state.get("history_complete"):
+        return None
+
+    next_end_raw = sync_state.get("next_backfill_end")
+    if next_end_raw:
+        next_end = _parse_iso_like(next_end_raw)
+    else:
+        anchor = _history_anchor_date(snapshot)
+        next_end = (anchor - timedelta(days=1)) if anchor else None
+
+    if not next_end:
+        return None
+    if next_end.year < 2010:
+        sync_state["history_complete"] = True
+        store.save_lab_sync_state(lab_id, sync_state)
+        return None
+
+    window_start = next_end - timedelta(days=59)
+    return window_start, next_end
+
+
+def _update_history_sync_state(lab_id: str, window_start: datetime, window_end: datetime, batch: dict) -> None:
+    sync_state = store.get_lab_sync_state(lab_id)
+    empty_windows = int(sync_state.get("empty_windows") or 0)
+    if batch:
+        oldest = _history_anchor_date(batch)
+        next_end = (oldest - timedelta(days=1)) if oldest else (window_start - timedelta(days=1))
+        sync_state.update({
+            "history_complete": False,
+            "empty_windows": 0,
+            "last_window_start": window_start.date().isoformat(),
+            "last_window_end": window_end.date().isoformat(),
+            "last_window_records": len(batch),
+            "next_backfill_end": next_end.date().isoformat(),
+        })
+    else:
+        empty_windows += 1
+        next_end = window_start - timedelta(days=1)
+        sync_state.update({
+            "history_complete": empty_windows >= 2,
+            "empty_windows": empty_windows,
+            "last_window_start": window_start.date().isoformat(),
+            "last_window_end": window_end.date().isoformat(),
+            "last_window_records": 0,
+            "next_backfill_end": next_end.date().isoformat(),
+        })
+    store.save_lab_sync_state(lab_id, sync_state)
+
+
+def run_historical_backfill(state, max_windows_per_lab: int = 1) -> dict[str, dict]:
+    summary: dict[str, dict] = {}
+    labs = [
+        CONNECTORS[l["connector"]]()
+        for l in state.config["labs"]
+        if l.get("enabled") and l["connector"] in CONNECTORS
+    ]
+
+    with _SYNC_LOCK:
+        for lab in labs:
+            current = state.snapshots.get(lab.lab_id, {})
+            processed = 0
+            added_records = 0
+            while processed < max_windows_per_lab:
+                window = _history_window_for_lab(lab.lab_id, current)
+                if not window or not hasattr(lab, "snapshot_between"):
+                    if not window:
+                        sync_state = store.get_lab_sync_state(lab.lab_id)
+                        if current and "history_complete" not in sync_state:
+                            sync_state["history_complete"] = True
+                            store.save_lab_sync_state(lab.lab_id, sync_state)
+                    break
+                start_dt, end_dt = window
+                previous = deepcopy(current)
+                batch = lab.snapshot_between(start_dt.strftime("%Y-%m-%d"), end_dt.strftime("%Y-%m-%d"))
+                before_count = len(current)
+                current = _merge_snapshots(current, batch)
+                if batch:
+                    _hydrate_snapshot_details(lab, previous, current, datetime.now().isoformat())
+                added_records += max(0, len(current) - before_count)
+                _update_history_sync_state(lab.lab_id, start_dt, end_dt, batch)
+                processed += 1
+                time.sleep(0.2)
+
+            if processed:
+                state.snapshots[lab.lab_id] = current
+                state.save_lab_runtime(lab.lab_id)
+            summary[lab.lab_id] = {
+                "windows": processed,
+                "records": len(current),
+                "added_records": added_records,
+                "sync_state": store.get_lab_sync_state(lab.lab_id),
+            }
+    return summary
+
+
+def run_historical_backfill_until_complete(
+    state,
+    *,
+    max_windows_per_lab: int = 2,
+    pause_seconds: float = 2.0,
+) -> None:
+    while True:
+        summary = run_historical_backfill(state, max_windows_per_lab=max_windows_per_lab)
+        if not summary:
+            return
+
+        incomplete = [
+            lab_id
+            for lab_id, payload in summary.items()
+            if not (payload.get("sync_state") or {}).get("history_complete")
+        ]
+        if not incomplete:
+            return
+        time.sleep(pause_seconds)
 
 
 def _format_item_lines(items: list[dict]) -> str:
@@ -316,64 +464,70 @@ def run_monitor_loop(state=None):
         ]
 
         for lab in labs:
-            if state:
-                state.is_checking[lab.lab_id] = True
-                hints = state.sync_context(lab.lab_id)
-                setattr(lab, "sync_hints", hints)
+            with _SYNC_LOCK:
+                if state:
+                    state.is_checking[lab.lab_id] = True
+                    hints = state.sync_context(lab.lab_id)
+                    setattr(lab, "sync_hints", hints)
+                try:
+                    print(f"[{datetime.now():%H:%M:%S}] Verificando {lab.lab_name}...")
+                    fresh = lab.snapshot()
+                    anterior = state.snapshots.get(lab.lab_id, {}) if state else {}
+                    atual = _merge_snapshots(anterior, fresh) if state else fresh
+                    ts_now = datetime.now().isoformat()
+                    if state:
+                        state.snapshots[lab.lab_id] = atual
+
+                    if not anterior:
+                        _hydrate_snapshot_metadata(lab, anterior, atual, ts_now)
+                        _hydrate_snapshot_results(lab, anterior, atual)
+                        print("  Primeira execucao - estado salvo.")
+                    else:
+                        internal_messages, external_events = build_notification_plan(
+                            lab.lab_id,
+                            lab.lab_name,
+                            anterior,
+                            atual,
+                            notification_settings,
+                        )
+                        _hydrate_snapshot_metadata(lab, anterior, atual, ts_now)
+                        _hydrate_snapshot_results(lab, anterior, atual)
+
+                        for msg in internal_messages:
+                            print(f"  -> {msg[:80]}")
+                            if state:
+                                state.add_notification(lab.lab_name, msg)
+
+                        for event in external_events:
+                            if not _should_send_external_event(event["signature"]):
+                                print(f"  -> evento externo duplicado suprimido ({event['kind']})")
+                                continue
+                            print(f"  -> envio externo {event['kind']}")
+                            for notifier in notifiers:
+                                notifier.enviar(event["message"])
+
+                    if state:
+                        state.snapshots[lab.lab_id] = atual
+                        state.last_check[lab.lab_id] = datetime.now().strftime("%H:%M:%S")
+                        state.last_error.pop(lab.lab_id, None)
+                        state.save_lab_runtime(lab.lab_id)
+
+                    print(f"  {lab.lab_name}: {len(atual)} registros")
+
+                except Exception as e:
+                    print(f"  {lab.lab_name}: erro - {e}")
+                    if state:
+                        state.last_error[lab.lab_id] = str(e)
+                        state.save_lab_runtime(lab.lab_id)
+                finally:
+                    if state:
+                        state.is_checking[lab.lab_id] = False
+
+        if state:
             try:
-                print(f"[{datetime.now():%H:%M:%S}] Verificando {lab.lab_name}...")
-                atual = lab.snapshot()
-                anterior = state.snapshots.get(lab.lab_id, {}) if state else {}
-                ts_now = datetime.now().isoformat()
-                if state:
-                    # Publish the fresh snapshot immediately so the panel stops
-                    # rendering empty while metadata/results continue to hydrate.
-                    state.snapshots[lab.lab_id] = atual
-
-                if not anterior:
-                    _hydrate_snapshot_metadata(lab, anterior, atual, ts_now)
-                    _hydrate_snapshot_results(lab, anterior, atual)
-                    print("  Primeira execucao - estado salvo.")
-                else:
-                    internal_messages, external_events = build_notification_plan(
-                        lab.lab_id,
-                        lab.lab_name,
-                        anterior,
-                        atual,
-                        notification_settings,
-                    )
-                    _hydrate_snapshot_metadata(lab, anterior, atual, ts_now)
-                    _hydrate_snapshot_results(lab, anterior, atual)
-
-                    for msg in internal_messages:
-                        print(f"  -> {msg[:80]}")
-                        if state:
-                            state.add_notification(lab.lab_name, msg)
-
-                    for event in external_events:
-                        if not _should_send_external_event(event["signature"]):
-                            print(f"  -> evento externo duplicado suprimido ({event['kind']})")
-                            continue
-                        print(f"  -> envio externo {event['kind']}")
-                        for notifier in notifiers:
-                            notifier.enviar(event["message"])
-
-                if state:
-                    state.snapshots[lab.lab_id] = atual
-                    state.last_check[lab.lab_id] = datetime.now().strftime("%H:%M:%S")
-                    state.last_error.pop(lab.lab_id, None)
-                    state.save_lab_runtime(lab.lab_id)
-
-                print(f"  {lab.lab_name}: {len(atual)} registros")
-
+                run_historical_backfill(state, max_windows_per_lab=1)
             except Exception as e:
-                print(f"  {lab.lab_name}: erro - {e}")
-                if state:
-                    state.last_error[lab.lab_id] = str(e)
-                    state.save_lab_runtime(lab.lab_id)
-            finally:
-                if state:
-                    state.is_checking[lab.lab_id] = False
+                print(f"[backfill] erro - {e}")
 
         time.sleep(interval)
 

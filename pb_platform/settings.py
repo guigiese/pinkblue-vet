@@ -27,7 +27,7 @@ class PlatformSettings:
     session_ttl_days: int = int(os.environ.get("PB_SESSION_TTL_DAYS", "14"))
     master_email: str = os.environ.get("PB_MASTER_EMAIL", "guigiese@gmail.com")
     master_password: str = os.environ.get("PB_MASTER_PASSWORD", "PinkBlueVet@2026")
-    master_force_change: bool = _bool_env("PB_MASTER_FORCE_CHANGE", True)
+    master_force_change: bool = _bool_env("PB_MASTER_FORCE_CHANGE", False)
 
     @property
     def db_path(self) -> Path:

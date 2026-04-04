@@ -1,0 +1,40 @@
+<div class="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/45 px-4 py-6" onclick="pbvCloseReportModal()">
+  <div class="w-full max-w-3xl overflow-hidden rounded-3xl bg-white shadow-2xl" onclick="event.stopPropagation()">
+    <div class="flex items-start justify-between gap-4 border-b border-gray-100 px-5 py-4">
+      <div class="min-w-0">
+        <p class="text-xs font-semibold uppercase tracking-[0.18em] text-indigo-500">Laudo textual</p>
+        <h3 class="mt-1 text-lg font-semibold text-gray-900">{{ item.nome or "Exame" }}</h3>
+        {% if record.label or record.data %}
+        <p class="mt-1 text-sm text-gray-500">
+          {{ record.label or "" }}{% if record.label and record.data %} · {% endif %}{{ record.data or "" }}
+        </p>
+        {% endif %}
+      </div>
+      <button type="button"
+              onclick="pbvCloseReportModal()"
+              class="inline-flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-700">
+        <span class="sr-only">Fechar</span>
+        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+        </svg>
+      </button>
+    </div>
+
+    <div class="max-h-[75vh] overflow-y-auto px-5 py-5">
+      {% if sections %}
+      <div class="space-y-5">
+        {% for section in sections %}
+        <section class="rounded-2xl border border-gray-100 bg-gray-50/80 px-4 py-4">
+          <h4 class="text-sm font-semibold text-gray-900">{{ section.title }}</h4>
+          <div class="mt-2 space-y-2 text-[15px] leading-7 text-gray-700 report-modal-text">
+            {{ section.html | safe }}
+          </div>
+        </section>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="text-sm text-gray-500">Nenhum texto disponível para este exame.</p>
+      {% endif %}
+    </div>
+  </div>
+</div>
