@@ -163,12 +163,18 @@ class NexioConnector(LabConnector):
             raise ValueError("Sessão não foi estabelecida.")
         return "✓ Conexão OK — sessão iniciada"
 
-    def _buscar_exames(self, session: requests.Session) -> list[dict]:
+    def _buscar_exames(
+        self,
+        session: requests.Session,
+        *,
+        data_recepcao: str = "",
+        data_liberacao: str = "",
+    ) -> list[dict]:
         ts = int(time.time() * 1000)
         r = session.post(f"{self.LISTA}?timeReq={ts}", data={
             "campo": "", "cpf": "", "rg": "", "dataNascimento": "",
             "convenioId": "", "medicoRequisitanteId": "", "patologistaDesignadoId": "",
-            "tipoExameId": "", "dataRecepcao": "", "dataLiberacao": "",
+            "tipoExameId": "", "dataRecepcao": data_recepcao, "dataLiberacao": data_liberacao,
             "numeroInicial": "", "numeroFinal": "", "prontuario": "",
             "positivoMalignidade": "", "etapa": "", "numeroGuiaConvenio": "",
             "ordenarPor": "", "sortiar": "", "atipia": "", "casoCritico": "",
@@ -198,6 +204,82 @@ class NexioConnector(LabConnector):
             })
 
         return exames
+
+    @staticmethod
+    def _snapshot_from_exames(exames: list[dict]) -> dict[str, dict]:
+        resultado: dict[str, dict] = {}
+        from datetime import datetime
+
+        for exame in exames:
+            num = exame["numero"]
+            if not num:
+                continue
+            label = f"{exame['paciente']} - {exame['proprietario']}".strip(" -")
+            raw_date = exame["data_liberacao"] or exame["data_prometida"]
+            data_iso = raw_date
+            for fmt in ("%d/%m/%Y", "%d/%m/%y"):
+                try:
+                    data_iso = datetime.strptime(raw_date, fmt).strftime("%Y-%m-%d")
+                    break
+                except ValueError:
+                    continue
+            resultado[num] = {
+                "label":     label,
+                "data":      data_iso,
+                "released_at_hint": (
+                    datetime.strptime(exame["data_liberacao"], "%d/%m/%Y").strftime("%Y-%m-%d")
+                    if exame["data_liberacao"] and re.match(r"^\d{2}/\d{2}/\d{4}$", exame["data_liberacao"])
+                    else datetime.strptime(exame["data_liberacao"], "%d/%m/%y").strftime("%Y-%m-%d")
+                    if exame["data_liberacao"] and re.match(r"^\d{2}/\d{2}/\d{2}$", exame["data_liberacao"])
+                    else ""
+                ),
+                "portal_id": exame["exame_id"],
+                "itens": {
+                    num: {
+                        "nome": f"Patologia {num}",
+                        "status": exame["status"],
+                        "released_at_hint": (
+                            datetime.strptime(exame["data_liberacao"], "%d/%m/%Y").strftime("%Y-%m-%d")
+                            if exame["data_liberacao"] and re.match(r"^\d{2}/\d{2}/\d{4}$", exame["data_liberacao"])
+                            else datetime.strptime(exame["data_liberacao"], "%d/%m/%y").strftime("%Y-%m-%d")
+                            if exame["data_liberacao"] and re.match(r"^\d{2}/\d{2}/\d{2}$", exame["data_liberacao"])
+                            else ""
+                        ),
+                    }
+                },
+            }
+        return resultado
+
+    def snapshot_between(self, start_date: str, end_date: str) -> dict[str, dict]:
+        """
+        Historical query for Nexio.
+        The Pathoweb list endpoint accepts date ranges in both dataRecepcao and
+        dataLiberacao. We query both ranges and merge them so we capture records
+        received or released in the window without relying on a single column.
+        """
+        session = self._login()
+        try:
+            start_fmt = time.strftime("%d/%m/%Y", time.strptime(start_date, "%Y-%m-%d"))
+            end_fmt = time.strftime("%d/%m/%Y", time.strptime(end_date, "%Y-%m-%d"))
+        except Exception:
+            start_fmt = start_date
+            end_fmt = end_date
+        range_value = f"{start_fmt} - {end_fmt}"
+
+        merged: dict[str, dict] = {}
+        seen_ids: set[str] = set()
+        for exames in (
+            self._buscar_exames(session, data_recepcao=range_value),
+            self._buscar_exames(session, data_liberacao=range_value),
+        ):
+            for exame in exames:
+                exam_key = exame.get("numero") or exame.get("exame_id")
+                if not exam_key or exam_key in seen_ids:
+                    continue
+                seen_ids.add(exam_key)
+                merged[exam_key] = exame
+
+        return self._snapshot_from_exames(list(merged.values()))
 
     def _fetch_report_pdf(self, session: requests.Session, exame_id: str) -> bytes:
         viewer = session.get(
@@ -325,49 +407,4 @@ class NexioConnector(LabConnector):
 
     def snapshot(self) -> dict[str, dict]:
         session = self._login()
-        resultado = {}
-
-        for exame in self._buscar_exames(session):
-            num = exame["numero"]
-            if not num:
-                continue
-            label = f"{exame['paciente']} - {exame['proprietario']}".strip(" -")
-            # Normaliza data para YYYY-MM-DD.
-            # Usa D.Liberação se preenchida, senão D.Prometido.
-            # Pathoweb pode retornar DD/MM/YY (2 dígitos) ou DD/MM/YYYY (4 dígitos).
-            from datetime import datetime
-            raw_date = exame["data_liberacao"] or exame["data_prometida"]
-            data_iso = raw_date
-            for fmt in ("%d/%m/%Y", "%d/%m/%y"):
-                try:
-                    data_iso = datetime.strptime(raw_date, fmt).strftime("%Y-%m-%d")
-                    break
-                except ValueError:
-                    continue
-            resultado[num] = {
-                "label":     label,
-                "data":      data_iso,
-                "released_at_hint": (
-                    datetime.strptime(exame["data_liberacao"], "%d/%m/%Y").strftime("%Y-%m-%d")
-                    if exame["data_liberacao"] and re.match(r"^\d{2}/\d{2}/\d{4}$", exame["data_liberacao"])
-                    else datetime.strptime(exame["data_liberacao"], "%d/%m/%y").strftime("%Y-%m-%d")
-                    if exame["data_liberacao"] and re.match(r"^\d{2}/\d{2}/\d{2}$", exame["data_liberacao"])
-                    else ""
-                ),
-                "portal_id": exame["exame_id"],
-                "itens": {
-                    num: {
-                        "nome": f"Patologia {num}",
-                        "status": exame["status"],
-                        "released_at_hint": (
-                            datetime.strptime(exame["data_liberacao"], "%d/%m/%Y").strftime("%Y-%m-%d")
-                            if exame["data_liberacao"] and re.match(r"^\d{2}/\d{2}/\d{4}$", exame["data_liberacao"])
-                            else datetime.strptime(exame["data_liberacao"], "%d/%m/%y").strftime("%Y-%m-%d")
-                            if exame["data_liberacao"] and re.match(r"^\d{2}/\d{2}/\d{2}$", exame["data_liberacao"])
-                            else ""
-                        ),
-                    }
-                },
-            }
-
-        return resultado
+        return self._snapshot_from_exames(self._buscar_exames(session))

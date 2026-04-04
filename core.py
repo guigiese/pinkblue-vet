@@ -166,6 +166,15 @@ def run_historical_backfill(state, max_windows_per_lab: int = 1) -> dict[str, di
     with _SYNC_LOCK:
         for lab in labs:
             current = state.snapshots.get(lab.lab_id, {})
+            if not current:
+                try:
+                    current = lab.snapshot()
+                    if current:
+                        _hydrate_snapshot_metadata(lab, {}, current, datetime.now().isoformat())
+                        state.snapshots[lab.lab_id] = current
+                        state.save_lab_runtime(lab.lab_id)
+                except Exception as e:
+                    print(f"[backfill:{lab.lab_id}] falha ao primar snapshot atual - {e}")
             processed = 0
             added_records = 0
             while processed < max_windows_per_lab:
@@ -183,7 +192,10 @@ def run_historical_backfill(state, max_windows_per_lab: int = 1) -> dict[str, di
                 before_count = len(current)
                 current = _merge_snapshots(current, batch)
                 if batch:
-                    _hydrate_snapshot_details(lab, previous, current, datetime.now().isoformat())
+                    # Historical backfill should preserve list-level metadata without
+                    # triggering a mass download of every old result payload at once.
+                    # Numeric/textual details remain available on-demand.
+                    _hydrate_snapshot_metadata(lab, previous, current, datetime.now().isoformat())
                 added_records += max(0, len(current) - before_count)
                 _update_history_sync_state(lab.lab_id, start_dt, end_dt, batch)
                 processed += 1
