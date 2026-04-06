@@ -861,22 +861,27 @@
   display: inline-flex;
   align-items: center;
   flex-shrink: 0;
-  margin-left: 0.26rem;
+  margin-left: 0.3rem;
   color: rgb(99 102 241);
-  opacity: 0.55;
+  opacity: 0.75;
   vertical-align: middle;
   line-height: 1;
   transition: color 120ms, opacity 120ms;
 }
 
 .pb-text-bubble svg {
-  width: 0.78rem;
-  height: 0.78rem;
+  width: 1rem;
+  height: 1rem;
 }
 
 .pb-item-row-toggle.is-text-modal:hover .pb-text-bubble {
   opacity: 1;
   color: rgb(67 56 202);
+}
+
+/* ── Infinite scroll page spacing ───────────────────────── */
+.pb-exames-list + .pb-exames-list {
+  margin-top: 0.625rem;
 }
 
 @media (max-width: 767px) {

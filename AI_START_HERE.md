@@ -43,6 +43,13 @@ para iniciar qualquer tarefa. Os demais arquivos são referência sob demanda.
 
 Se não há card Jira ainda, diga isso claramente e não invente escopo oculto.
 
+Quando a tarefa envolve um sistema de terceiros com playbook próprio:
+
+- leia também `docs/integrations/<sistema>.md` antes de acessar esse sistema;
+- trate esse arquivo como a entrada canônica de contexto operacional daquele sistema;
+- use notas em `docs/discovery/` para aprofundamentos pontuais, mas consolide os
+  aprendizados duráveis de volta no playbook canônico.
+
 ## 3. Source Of Truth
 
 Use these sources in this order:
@@ -243,6 +250,7 @@ If a task does not clearly belong to one of those, raise that ambiguity instead 
 - Do not leave discovered work only in chat.
 - Do not treat docs as optional.
 - Do not introduce or keep sensitive credentials in versioned files.
+- Do not mutate third-party production systems unless the exact action was described to the user and explicitly approved first.
 
 ## 10. Quick Start Prompt For New IAs
 

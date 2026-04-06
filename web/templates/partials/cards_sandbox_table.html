@@ -287,7 +287,7 @@
 {% endmacro %}
 
 {% if groups %}
-<div class="space-y-2.5">
+<div class="pb-exames-list space-y-2.5">
   {% for g in groups %}
   <details class="group pb-group pb-family--{{ variant_cfg.family }} pb-variant--{{ variant_cfg.id }} pb-rail-palette--{{ variant_cfg.rail_palette }} pb-rail-shape--{{ variant_cfg.rail_shape }} pb-density--{{ variant_cfg.card_density }} bg-white border rounded-xl shadow-sm overflow-hidden crit-{{ g.criticality or 'none' }}">
     <summary class="pb-summary cursor-pointer list-none select-none hover:bg-gray-50 active:bg-gray-100">

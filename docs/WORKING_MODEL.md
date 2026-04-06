@@ -242,6 +242,39 @@ Update docs when:
 - workflow/process changes;
 - a lesson learned should persist beyond one task.
 
+For third-party systems that are accessed repeatedly across modules:
+- maintain a canonical playbook in `docs/integrations/<system>.md`;
+- keep that playbook short, operational, and safe for fast AI onboarding;
+- use `docs/discovery/` for deeper session notes, then consolidate stable
+  learnings back into the canonical playbook.
+
+## 9A. Third-Party Production Systems Policy
+
+When an AI accesses a third-party production system such as SimplesVet, the default behavior is strict observational mode.
+
+Default rules:
+- treat the system as production and potentially high-impact;
+- navigation, visual inspection, queries, and report generation are allowed;
+- creating, editing, deleting, confirming, syncing, billing, issuing, canceling, or triggering operational workflows is forbidden by default;
+- the AI must not "test" actions in production to discover what they do;
+- if the interface, wording, or API behavior is ambiguous, stop and surface the ambiguity instead of guessing.
+
+Escalation rule for mutable actions:
+- before any action that could change data or operational state, the AI must explain exactly:
+  - what will be changed;
+  - in which system/module/screen;
+  - why the change is needed;
+  - what the expected side effect is;
+- then wait for explicit user approval;
+- after approval, execute only the approved action, nothing broader.
+
+Error-handling rule:
+- system errors, warnings, permission denials, validation failures, or suspicious behavior must not be bypassed aggressively;
+- bring them to the user for explicit approval before retrying with a different approach.
+
+Credential rule:
+- credentials for third-party systems must remain local-only and never enter versioned files, docs, Jira comments, or repository artifacts.
+
 ## 10. Naming Rule
 
 The platform is PinkBlue.
