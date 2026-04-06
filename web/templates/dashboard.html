@@ -8,7 +8,7 @@
 
 <div class="mb-5">
   <h1 class="text-xl md:text-2xl font-bold text-gray-800">Dashboard</h1>
-  <p class="text-sm text-gray-400 mt-0.5">Monitoramento em tempo real · contagens por protocolo</p>
+  <p class="text-sm text-gray-400 mt-0.5">Visão geral dos exames · atualização automática a cada 60s</p>
 </div>
 
 <!-- Lab counts (auto-refresh 60s) -->
@@ -27,7 +27,7 @@
       </svg>
       <h2 class="font-semibold text-gray-700 text-sm">Últimos Liberados</h2>
     </div>
-    <span class="text-xs text-gray-400">prontos e parciais · atualiza a cada 60s</span>
+    <a href="/labmonitor/exames?status=Pronto" class="text-xs text-indigo-400 hover:text-indigo-600 hover:underline">Ver todos</a>
   </div>
   <div id="liberados-feed"
        hx-get="/labmonitor/partials/ultimos_liberados" hx-trigger="every 60s" hx-swap="innerHTML">

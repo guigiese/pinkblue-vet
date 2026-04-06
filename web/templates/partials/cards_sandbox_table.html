@@ -123,75 +123,27 @@
   {% endif %}
 {% endmacro %}
 
-{% macro result_rows(rows, table_width) %}
-{% if rows %}
-<div class="pb-item-result-table-wrap is-{{ table_width }}">
-  <table class="w-full text-xs">
-    <thead>
-      <tr class="border-b border-gray-200">
-        <th class="text-left py-1.5 px-3 font-semibold text-gray-500 uppercase tracking-wide">Parametro</th>
-        <th class="text-right py-1.5 px-3 font-semibold text-gray-500 uppercase tracking-wide">Resultado</th>
-        <th class="text-right py-1.5 px-3 font-semibold text-gray-500 uppercase tracking-wide hidden sm:table-cell">Referencia</th>
-      </tr>
-    </thead>
-    <tbody class="divide-y divide-gray-50">
-      {% for row in rows %}
-      <tr class="{% if row.alerta == 'red' %}bg-red-50{% elif row.alerta == 'yellow' %}bg-yellow-50{% endif %}">
-        <td class="py-1.5 px-3 text-gray-700">
-          {% if row.alerta == 'red' %}
-            <span class="inline-block w-1.5 h-1.5 rounded-full bg-red-500 mr-1 align-middle"></span>
-          {% elif row.alerta == 'yellow' %}
-            <span class="inline-block w-1.5 h-1.5 rounded-full bg-yellow-400 mr-1 align-middle"></span>
-          {% else %}
-            <span class="inline-block w-1.5 h-1.5 rounded-full bg-gray-200 mr-1 align-middle"></span>
-          {% endif %}
-          {{ row.nome }}
-        </td>
-        <td class="py-1.5 px-3 text-right font-mono font-semibold {% if row.alerta == 'red' %}text-red-700{% elif row.alerta == 'yellow' %}text-yellow-700{% else %}text-gray-800{% endif %}">
-          {{ row.valor }}
-        </td>
-        <td class="py-1.5 px-3 text-right text-gray-400 hidden sm:table-cell">{{ row.referencia }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</div>
-{% else %}
-<p class="pb-item-result-empty">Resultado nao disponivel.</p>
-{% endif %}
-{% endmacro %}
-
-{% macro report_text_block(item) %}
-{% if item.report_text %}
-<div class="px-3 py-2.5 text-xs leading-5 text-gray-700 whitespace-pre-line max-h-80 overflow-y-auto">
-  {% if item.diagnosis_text %}
-  <div class="mb-2">
-    <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Diagnóstico</p>
-    <p class="mt-1">{{ item.diagnosis_text }}</p>
-  </div>
-  {% endif %}
-  <div>{{ item.report_text }}</div>
-</div>
-{% else %}
-<p class="pb-item-result-empty">Resultado nao disponivel.</p>
-{% endif %}
-{% endmacro %}
-
 {% macro item_toggle(item, table_width) %}
   {% set report_endpoint = result_text_fetch_prefix | default("") %}
-  {% if item.status == "Pronto" and (item.report_text or item.diagnosis_text) and item.item_id and report_endpoint %}
+  {% set has_text = item.report_text or item.diagnosis_text %}
+  {# Case 1: cached text + item_id + endpoint → HTMX modal (bitlab) #}
+  {% if item.status == "Pronto" and has_text and item.item_id and report_endpoint %}
   <button type="button"
           class="pb-item-row-toggle is-text-modal"
           hx-get="{{ report_endpoint }}/{{ item.item_id | urlencode }}"
           hx-target="#report-modal-root"
           hx-swap="innerHTML">
-    <span class="pb-item-row-toggle__label">{{ item.name }}</span>
-    <span class="pb-item-row-toggle__icon" aria-hidden="true">
-      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M8 10h8M8 14h5m-7 6l-3-3V6a2 2 0 012-2h14a2 2 0 012 2v9a2 2 0 01-2 2H8z"></path>
-      </svg>
-    </span>
+    <span class="pb-item-row-toggle__label">{{ item.name }}<span class="pb-text-bubble" aria-hidden="true"><svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clip-rule="evenodd"/></svg></span></span>
   </button>
+  {# Case 2: cached text without item_id (e.g. Nexio) → client-side inline modal #}
+  {% elif item.status == "Pronto" and has_text %}
+  <button type="button"
+          class="pb-item-row-toggle is-text-modal"
+          onclick="pbvOpenInlineReport(this)">
+    <span class="pb-item-row-toggle__label">{{ item.name }}<span class="pb-text-bubble" aria-hidden="true"><svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clip-rule="evenodd"/></svg></span></span>
+  </button>
+  <script type="application/json" class="pb-inline-report-data">{{ {"name": item.name, "diagnosis": item.diagnosis_text or "", "text": item.report_text or ""} | tojson }}</script>
+  {# Case 3: Pronto with no cached text → numeric results or lazy fetch #}
   {% elif item.status == "Pronto" %}
   {% set can_fetch_result = result_fetch_prefix and item.item_id and not item.results and not item.report_text %}
   <details class="pb-item-result-row"
@@ -421,5 +373,10 @@
   {% endfor %}
 </div>
 {% else %}
-<p class="text-gray-400 text-sm text-center py-10">Nenhum exame encontrado.</p>
+<div class="py-10 text-center">
+  <p class="text-gray-400 text-sm">Nenhum exame encontrado.</p>
+  {% if lab_filter or status_filter or q %}
+  <a href="/labmonitor/exames" class="mt-2 inline-block text-xs text-indigo-500 hover:text-indigo-700 hover:underline">Limpar filtros</a>
+  {% endif %}
+</div>
 {% endif %}

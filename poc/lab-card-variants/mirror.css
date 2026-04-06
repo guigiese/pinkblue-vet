@@ -856,6 +856,29 @@
   align-items: center;
 }
 
+/* ── Text report bubble icon ─────────────────────────────── */
+.pb-text-bubble {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  margin-left: 0.26rem;
+  color: rgb(99 102 241);
+  opacity: 0.55;
+  vertical-align: middle;
+  line-height: 1;
+  transition: color 120ms, opacity 120ms;
+}
+
+.pb-text-bubble svg {
+  width: 0.78rem;
+  height: 0.78rem;
+}
+
+.pb-item-row-toggle.is-text-modal:hover .pb-text-bubble {
+  opacity: 1;
+  color: rgb(67 56 202);
+}
+
 @media (max-width: 767px) {
   .sandbox-variant-note {
     align-items: flex-start;

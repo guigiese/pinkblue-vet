@@ -55,15 +55,24 @@
 {% endmacro %}
 
 {% macro report_text_block(item) %}
-{% if item.report_text %}
-<div class="px-3 py-2.5 text-xs leading-5 text-gray-700 whitespace-pre-line max-h-80 overflow-y-auto">
+{% if item.report_text or item.diagnosis_text %}
+<div class="px-3 py-2.5 text-xs text-gray-700">
   {% if item.diagnosis_text %}
-  <div class="mb-2">
-    <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Diagnostico</p>
-    <p class="mt-1">{{ item.diagnosis_text }}</p>
+  <div class="mb-2.5 rounded-lg bg-indigo-50 border border-indigo-100 px-3 py-2">
+    <p class="text-[10px] font-semibold uppercase tracking-wider text-indigo-400 mb-1">Diagnóstico</p>
+    <p class="leading-relaxed text-gray-800">{{ item.diagnosis_text }}</p>
   </div>
   {% endif %}
-  <div>{{ item.report_text }}</div>
+  {% if item.report_text %}
+  <div class="space-y-1.5 max-h-64 overflow-y-auto leading-5 text-gray-600">
+    {% for raw_para in item.report_text.split('\n\n') %}
+    {% set clean_para = raw_para | trim %}
+    {% if clean_para %}
+    <p>{{ clean_para | replace('\n', ' ') }}</p>
+    {% endif %}
+    {% endfor %}
+  </div>
+  {% endif %}
 </div>
 {% else %}
 <p class="pb-item-result-empty">Resultado nao disponivel.</p>
