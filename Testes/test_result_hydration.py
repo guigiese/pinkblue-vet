@@ -111,6 +111,43 @@ class SnapshotHydrationTests(unittest.TestCase):
 
         self.assertEqual(atual["REQ-1"]["itens"]["I1"]["status"], "Pronto")
 
+    def test_group_status_rollup_keeps_inconsistent_only_at_item_level(self):
+        original_snapshots = state.snapshots
+        original_config = state._config
+        try:
+            state._config = {
+                "labs": [{"id": "bitlab", "name": "Bioanálises"}],
+                "notifiers": [],
+                "interval_minutes": 5,
+            }
+            state.snapshots = {
+                "bitlab": {
+                    "REQ-1": {
+                        "label": "Bidu - Tutor",
+                        "data": "2026-04-01",
+                        "itens": {
+                            "I1": {
+                                "nome": "Hemograma",
+                                "status": "Inconsistente",
+                                "lab_status": "Pronto",
+                                "item_id": "item-1",
+                            }
+                        },
+                    }
+                }
+            }
+
+            groups = state.get_exames()
+            counts = state.get_lab_counts()
+
+            self.assertEqual(groups[0]["status_geral"], "Em Andamento")
+            self.assertEqual(groups[0]["items_view"][0]["status"], "Inconsistente")
+            self.assertEqual(counts["bitlab"]["andamento"], 1)
+            self.assertEqual(counts["bitlab"]["pronto"], 0)
+        finally:
+            state.snapshots = original_snapshots
+            state._config = original_config
+
 
 class ResultCacheTests(unittest.TestCase):
     def test_manual_result_fetch_rehydrates_snapshot_item(self):

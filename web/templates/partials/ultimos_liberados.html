@@ -2,7 +2,7 @@
 {% if groups %}
 <div class="space-y-2.5">
   {% for g in groups %}
-  <a href="/labmonitor/exames?q={{ (g.patient_name or g.paciente) | urlencode }}"
+  <a href="/labmonitor/exames?q={{ ((g.patient_name or g.paciente) ~ (' ' ~ g.tutor_name if g.tutor_name else '')) | urlencode }}"
      title="Buscar exames de {{ g.patient_name or g.paciente }}{% if g.tutor_name %} · {{ g.tutor_name }}{% endif %}"
      class="block pb-group pb-family--aligned-2row pb-density--two-row-compact rounded-xl border shadow-sm overflow-hidden transition-colors {% if g.alerta_geral == 'red' %}bg-red-50/80 border-red-200 hover:bg-red-50{% elif g.alerta_geral == 'yellow' %}bg-yellow-50/80 border-yellow-200 hover:bg-yellow-50{% else %}bg-white border-gray-100 hover:bg-gray-50{% endif %}">
     <div class="pb-summary">

@@ -218,6 +218,13 @@ def _item_has_usable_result(item: dict) -> bool:
     return False
 
 
+def _item_group_status(item: dict) -> str:
+    status = normalize_status(item.get("status", ""))
+    if status == "Inconsistente":
+        return "Em Andamento"
+    return status
+
+
 # Exames a excluir (ruído operacional dos labs)
 EXCLUDE_EXAMES: set[str] = {
     "OBS BIOQUIMICA",
@@ -230,9 +237,10 @@ _STATUS_DONE: set[str] = {"Pronto", "Cancelado"}
 # Statuses considered "fully ready" for group completion
 _STATUS_PRONTO: set[str] = {"Pronto"}
 
-# Ordered priority for overall group status (when no items are Pronto)
-_STATUS_PRIORITY: list[str] = [
-    "Inconsistente", "Analisando", "Em Andamento", "Recebido", "Cancelado"
+# Ordered priority for overall group status (when no items are Pronto).
+# `Inconsistente` is item-level only and must not become a block/dashboard status.
+_GROUP_STATUS_PRIORITY: list[str] = [
+    "Analisando", "Em Andamento", "Recebido", "Cancelado"
 ]
 
 _DISCOVERY_WINDOW_DAYS = 3
@@ -447,9 +455,11 @@ class AppState:
                 for item in record["itens"].values():
                     if item["nome"] in EXCLUDE_EXAMES:
                         continue
+                    item_status = normalize_status(item["status"])
                     itens.append({
                         "nome":        item["nome"],
-                        "status":      normalize_status(item["status"]),
+                        "status":      item_status,
+                        "group_status": _item_group_status(item),
                         "liberado_em": item.get("liberado_em"),
                         "item_id":     item.get("item_id"),
                         "alerta":      item.get("alerta"),
@@ -481,10 +491,10 @@ class AppState:
                 elif n_pronto > 0:
                     status_geral = "Parcial"
                 else:
-                    statuses_presentes = {i["status"] for i in itens}
+                    statuses_presentes = {i["group_status"] for i in itens}
                     status_geral = next(
-                        (s for s in _STATUS_PRIORITY if s in statuses_presentes),
-                        itens[0]["status"]
+                        (s for s in _GROUP_STATUS_PRIORITY if s in statuses_presentes),
+                        itens[0]["group_status"]
                     )
 
                 if status_filter and status_geral != status_filter:
@@ -709,7 +719,7 @@ class AppState:
     def get_lab_counts(self) -> dict:
         """
         Returns counts per lab measured by GROUPS (protocols), not individual items.
-        status_geral per group: Pronto | Parcial | Em Andamento | Analisando | Recebido | Arquivado | Cancelado
+        `Inconsistente` is item-level only and rolls up as pending work for group totals.
         """
         result = {}
         now = datetime.now()
@@ -726,6 +736,7 @@ class AppState:
                 itens = [
                     {
                         "status": normalize_status(item["status"]),
+                        "group_status": _item_group_status(item),
                         "liberado_em": item.get("liberado_em"),
                     }
                     for item in record["itens"].values()

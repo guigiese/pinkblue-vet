@@ -44,7 +44,7 @@ TEMPLATES_DIR = Path(__file__).parent / "templates"
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 APP_URL = os.environ.get("APP_URL", "https://pinkblue-vet-production.up.railway.app")
-STANDARD_STATUSES = ["Pronto", "Parcial", "Inconsistente", "Em Andamento", "Analisando", "Recebido", "Cancelado"]
+STANDARD_STATUSES = ["Pronto", "Parcial", "Em Andamento", "Analisando", "Recebido", "Cancelado"]
 EXAMES_PAGE_SIZE = 20
 
 
