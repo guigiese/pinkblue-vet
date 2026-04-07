@@ -1,0 +1,22 @@
+{
+  "name": "folha-tui",
+  "version": "1.0.0",
+  "description": "TUI interativo para fechamento de folha - PinkBlue Vet",
+  "scripts": {
+    "start": "ts-node --project tsconfig.json src/index.tsx"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "ink": "^3.2.0",
+    "ink-select-input": "^4.2.2",
+    "ink-spinner": "^4.0.0",
+    "ink-text-input": "^4.0.3",
+    "react": "^17.0.2"
+  },
+  "devDependencies": {
+    "@types/node": "^18.0.0",
+    "@types/react": "^17.0.0",
+    "ts-node": "^10.9.0",
+    "typescript": "^5.0.0"
+  }
+}

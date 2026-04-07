@@ -1,0 +1,867 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Folha — PinkBlue Vet</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+<style>
+  [x-cloak] { display: none !important; }
+  body { background: #0f1117; color: #e2e8f0; font-family: 'Inter', system-ui, sans-serif; }
+  .card { background: #1a1d27; border: 1px solid #2d3148; border-radius: 12px; }
+  .card-hover:hover { border-color: #4f46e5; transition: border-color .2s; }
+  .pill { border-radius: 999px; font-size: 11px; font-weight: 600; padding: 2px 8px; }
+  .tab-active { border-bottom: 2px solid #818cf8; color: #818cf8; }
+  .tab-inactive { color: #64748b; border-bottom: 2px solid transparent; }
+  .tab-inactive:hover { color: #94a3b8; }
+  .btn { border-radius: 8px; font-weight: 600; font-size: 13px; padding: 7px 16px; cursor: pointer; transition: all .15s; }
+  .btn-primary { background: #4f46e5; color: #fff; }
+  .btn-primary:hover { background: #4338ca; }
+  .btn-primary:disabled { background: #312e81; color: #6b7280; cursor: not-allowed; }
+  .btn-success { background: #059669; color: #fff; }
+  .btn-success:hover { background: #047857; }
+  .btn-danger { background: #dc2626; color: #fff; }
+  .btn-danger:hover { background: #b91c1c; }
+  .btn-ghost { background: transparent; color: #94a3b8; border: 1px solid #374151; }
+  .btn-ghost:hover { background: #1e2130; color: #e2e8f0; }
+  .input { background: #0f1117; border: 1px solid #374151; border-radius: 8px; color: #e2e8f0; padding: 6px 10px; font-size: 13px; width: 100%; }
+  .input:focus { outline: none; border-color: #4f46e5; }
+  select.input option { background: #1a1d27; }
+  .badge-pending { background: #fef08a20; color: #fde047; }
+  .badge-ok { background: #bbf7d020; color: #4ade80; }
+  .badge-rejected { background: #fecaca20; color: #f87171; }
+  .badge-high { background: #bbf7d020; color: #4ade80; }
+  .badge-medium { background: #fef08a20; color: #fde047; }
+  .badge-low { background: #fecaca20; color: #f87171; }
+  .drop-zone { border: 2px dashed #374151; border-radius: 12px; transition: all .2s; }
+  .drop-zone.dragging { border-color: #4f46e5; background: #4f46e510; }
+  .spinner { animation: spin 1s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .expand-row { transition: all .2s; }
+  .money { font-variant-numeric: tabular-nums; }
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: #0f1117; }
+  ::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; }
+  .toast { animation: slideIn .3s ease; }
+  @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+  .progress-bar { height: 3px; background: linear-gradient(90deg, #4f46e5, #818cf8); border-radius: 2px; animation: progress 1.5s ease-in-out infinite; }
+  @keyframes progress { 0%,100% { width: 20%; margin-left: 0%; } 50% { width: 60%; margin-left: 20%; } }
+</style>
+</head>
+<body x-data="app()" x-init="init()" x-cloak>
+
+<!-- Toast notifications -->
+<div class="fixed top-4 right-4 z-50 flex flex-col gap-2 pointer-events-none" style="max-width:360px">
+  <template x-for="t in toasts" :key="t.id">
+    <div class="toast card px-4 py-3 flex items-start gap-3 shadow-xl pointer-events-auto"
+         :class="t.type==='error'?'border-red-500/50':'t.type==='success'?'border-green-500/50':'border-indigo-500/50'">
+      <span x-text="t.type==='error'?'✗':t.type==='success'?'✓':'ℹ'"
+            :class="t.type==='error'?'text-red-400':t.type==='success'?'text-green-400':'text-indigo-400'"
+            class="font-bold mt-0.5 text-sm"></span>
+      <span x-text="t.msg" class="text-sm text-slate-200 flex-1"></span>
+    </div>
+  </template>
+</div>
+
+<!-- Header -->
+<header class="border-b border-slate-800 px-6 py-3 flex items-center justify-between sticky top-0 z-40" style="background:#0f1117ee;backdrop-filter:blur(8px)">
+  <div class="flex items-center gap-3">
+    <div class="w-8 h-8 rounded-lg flex items-center justify-center text-base" style="background:#4f46e5">🐾</div>
+    <div>
+      <div class="font-bold text-sm text-white">PinkBlue Vet</div>
+      <div class="text-xs text-slate-500">Folha de Pagamento</div>
+    </div>
+    <div class="ml-4 px-3 py-1 rounded-full text-xs font-semibold" style="background:#1e2130;color:#818cf8"
+         x-text="status.periodo || '…'"></div>
+  </div>
+  <div class="flex items-center gap-4">
+    <div class="text-right hidden sm:block">
+      <div class="text-xs text-slate-500" x-show="status.has_resultado">Líquido total</div>
+      <div class="text-base font-bold money" style="color:#4ade80" x-show="status.has_resultado"
+           x-text="fmt(status.resultado_liquido)"></div>
+    </div>
+    <button @click="fecharFolha()" class="btn btn-primary flex items-center gap-2"
+            :disabled="loading.close">
+      <span x-show="loading.close" class="spinner inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full"></span>
+      <span x-text="loading.close ? 'Calculando…' : 'Fechar Folha'"></span>
+    </button>
+  </div>
+</header>
+
+<!-- Progress bar -->
+<div x-show="anyLoading()" class="w-full" style="height:3px">
+  <div class="progress-bar"></div>
+</div>
+
+<!-- Tabs -->
+<div class="px-6 pt-4 border-b border-slate-800 flex gap-6">
+  <template x-for="tab in tabs" :key="tab.id">
+    <button @click="activeTab=tab.id"
+            class="pb-3 text-sm font-medium transition-colors flex items-center gap-2"
+            :class="activeTab===tab.id ? 'tab-active' : 'tab-inactive'">
+      <span x-text="tab.icon"></span>
+      <span x-text="tab.label"></span>
+      <span x-show="tab.badge && tab.badge()>0"
+            class="pill badge-pending" x-text="tab.badge()"></span>
+    </button>
+  </template>
+</div>
+
+<!-- Main content -->
+<main class="px-6 py-6 max-w-6xl mx-auto">
+
+  <!-- ── Dashboard ──────────────────────────────────────────────────── -->
+  <div x-show="activeTab==='dashboard'">
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      <div class="card p-4">
+        <div class="text-xs text-slate-500 mb-1">Colaboradores</div>
+        <div class="text-2xl font-bold text-white" x-text="status.colaboradores_count||'—'"></div>
+      </div>
+      <div class="card p-4">
+        <div class="text-xs text-slate-500 mb-1">Lançamentos</div>
+        <div class="text-2xl font-bold text-white" x-text="status.lancamentos_count||'—'"></div>
+      </div>
+      <div class="card p-4">
+        <div class="text-xs text-slate-500 mb-1">Pool — pendentes</div>
+        <div class="text-2xl font-bold" :class="status.pool_pending>0?'text-yellow-400':'text-white'"
+             x-text="status.pool_pending??'—'"></div>
+      </div>
+      <div class="card p-4">
+        <div class="text-xs text-slate-500 mb-1">Avisos</div>
+        <div class="text-2xl font-bold" :class="status.resultado_avisos>0?'text-orange-400':'text-white'"
+             x-text="status.resultado_avisos??'—'"></div>
+      </div>
+    </div>
+
+    <!-- resultado resumo -->
+    <div x-show="resultado" class="card p-5 mb-6">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="font-bold text-base text-white">Último fechamento</h2>
+        <span class="text-xs text-slate-500" x-text="resultado?.periodo"></span>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="text-left text-slate-500 border-b border-slate-800">
+              <th class="pb-2 pr-4 font-medium">Colaborador</th>
+              <th class="pb-2 pr-4 font-medium">Regime</th>
+              <th class="pb-2 pr-4 font-medium text-right money">Bruto</th>
+              <th class="pb-2 pr-4 font-medium text-right money">Descontos</th>
+              <th class="pb-2 font-medium text-right money">Líquido</th>
+            </tr>
+          </thead>
+          <tbody>
+            <template x-for="c in resultado?.colaboradores" :key="c.id">
+              <tr class="border-b border-slate-800/50 hover:bg-slate-800/30 cursor-pointer"
+                  @click="activeTab='resultados'">
+                <td class="py-2 pr-4 font-medium text-white" x-text="c.nome"></td>
+                <td class="py-2 pr-4">
+                  <span class="pill" style="background:#4f46e520;color:#818cf8" x-text="modeLabel(c.modo)"></span>
+                </td>
+                <td class="py-2 pr-4 text-right money text-green-400" x-text="fmt(c.bruto)"></td>
+                <td class="py-2 pr-4 text-right money text-red-400" x-text="c.descontos!=='0.00'?fmt(c.descontos):'—'"></td>
+                <td class="py-2 text-right money font-bold text-white" x-text="fmt(c.liquido)"></td>
+              </tr>
+            </template>
+          </tbody>
+          <tfoot x-show="resultado?.resumo">
+            <tr class="border-t border-slate-700">
+              <td class="pt-3 font-bold text-slate-400" colspan="2">Total</td>
+              <td class="pt-3 text-right money font-bold text-green-400" x-text="fmt(resultado?.resumo?.bruto_total)"></td>
+              <td class="pt-3 text-right money text-red-400" x-text="fmt(resultado?.resumo?.descontos_total)"></td>
+              <td class="pt-3 text-right money font-bold text-white" x-text="fmt(resultado?.resumo?.liquido_total)"></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+
+    <div x-show="!resultado" class="card p-10 text-center text-slate-500">
+      <div class="text-4xl mb-3">📋</div>
+      <div class="text-base font-medium mb-1">Nenhum fechamento calculado</div>
+      <div class="text-sm mb-4">Adicione evidências no Pool ou lance manualmente e clique em Fechar Folha.</div>
+      <button @click="fecharFolha()" class="btn btn-primary">Calcular agora</button>
+    </div>
+
+    <!-- avisos globais -->
+    <div x-show="resultado?.avisos?.length>0" class="card p-4">
+      <div class="text-xs font-semibold text-orange-400 mb-2 uppercase tracking-wide">⚠ Avisos</div>
+      <template x-for="a in resultado?.avisos" :key="a">
+        <div class="text-sm text-orange-300 py-1 border-b border-slate-800/50" x-text="a"></div>
+      </template>
+    </div>
+  </div>
+
+  <!-- ── Resultados ─────────────────────────────────────────────────── -->
+  <div x-show="activeTab==='resultados'">
+    <div x-show="!resultado" class="card p-10 text-center text-slate-500">
+      <div class="text-4xl mb-3">📊</div>
+      <div class="font-medium mb-4">Nenhum resultado ainda</div>
+      <button @click="fecharFolha()" class="btn btn-primary">Fechar agora</button>
+    </div>
+    <template x-if="resultado">
+      <div class="space-y-3">
+        <template x-for="c in resultado.colaboradores" :key="c.id">
+          <div class="card">
+            <div class="p-4 flex items-center gap-4 cursor-pointer hover:bg-slate-800/30 transition-colors"
+                 @click="toggleExpand(c.id)">
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-3">
+                  <span class="font-semibold text-white" x-text="c.nome"></span>
+                  <span class="pill" style="background:#4f46e520;color:#818cf8" x-text="modeLabel(c.modo)"></span>
+                  <template x-for="a in c.avisos" :key="a">
+                    <span class="pill badge-pending">⚠ <span x-text="a"></span></span>
+                  </template>
+                </div>
+              </div>
+              <div class="flex items-center gap-6 text-right shrink-0">
+                <div>
+                  <div class="text-xs text-slate-500">Bruto</div>
+                  <div class="money text-green-400 font-semibold" x-text="fmt(c.bruto)"></div>
+                </div>
+                <div>
+                  <div class="text-xs text-slate-500">Descontos</div>
+                  <div class="money text-red-400" x-text="c.descontos!=='0.00'?fmt(c.descontos):'—'"></div>
+                </div>
+                <div>
+                  <div class="text-xs text-slate-500">Líquido</div>
+                  <div class="money text-white font-bold text-base" x-text="fmt(c.liquido)"></div>
+                </div>
+                <svg class="w-4 h-4 text-slate-500 transition-transform"
+                     :class="expanded[c.id]?'rotate-180':''"
+                     fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                </svg>
+              </div>
+            </div>
+            <!-- expanded detail -->
+            <div x-show="expanded[c.id]" class="px-4 pb-4 border-t border-slate-800/50 pt-4">
+              <div class="grid md:grid-cols-2 gap-4">
+                <div x-show="c.proventos.length>0">
+                  <div class="text-xs font-semibold text-green-400 mb-2 uppercase tracking-wide">Proventos</div>
+                  <template x-for="p in c.proventos" :key="p.descricao">
+                    <div class="flex justify-between py-1.5 border-b border-slate-800/30 text-sm">
+                      <div class="text-slate-300 flex-1 pr-4">
+                        <span x-text="p.descricao"></span>
+                        <span class="ml-2 pill" style="background:#1e2130;color:#64748b" x-text="p.categoria"></span>
+                      </div>
+                      <div class="money text-green-400 font-medium" x-text="fmt(p.valor)"></div>
+                    </div>
+                  </template>
+                </div>
+                <div x-show="c.descontos_detalhados.length>0">
+                  <div class="text-xs font-semibold text-red-400 mb-2 uppercase tracking-wide">Descontos</div>
+                  <template x-for="d in c.descontos_detalhados" :key="d.descricao">
+                    <div class="flex justify-between py-1.5 border-b border-slate-800/30 text-sm">
+                      <div class="text-slate-300 flex-1 pr-4" x-text="d.descricao"></div>
+                      <div class="money text-red-400 font-medium" x-text="fmt(d.valor)"></div>
+                    </div>
+                  </template>
+                </div>
+              </div>
+            </div>
+          </div>
+        </template>
+      </div>
+    </template>
+  </div>
+
+  <!-- ── Pool ───────────────────────────────────────────────────────── -->
+  <div x-show="activeTab==='pool'">
+    <!-- upload + controls -->
+    <div class="card p-4 mb-4">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="font-semibold text-sm text-white">Adicionar evidências</h3>
+        <div class="flex gap-2">
+          <button @click="indexarPool()" :disabled="loading.index" class="btn btn-ghost flex items-center gap-2">
+            <span x-show="loading.index" class="spinner inline-block w-3 h-3 border-2 border-slate-400 border-t-transparent rounded-full"></span>
+            <span>Indexar pool</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- bucket selector + drop zone -->
+      <div class="flex gap-3 mb-3 flex-wrap">
+        <template x-for="b in buckets" :key="b.id">
+          <button @click="selectedBucket=b.id"
+                  class="btn text-xs"
+                  :class="selectedBucket===b.id?'btn-primary':'btn-ghost'">
+            <span x-text="b.icon"></span> <span x-text="b.label"></span>
+          </button>
+        </template>
+      </div>
+
+      <div class="drop-zone p-8 text-center cursor-pointer"
+           :class="dragging?'dragging':''"
+           @dragover.prevent="dragging=true"
+           @dragleave="dragging=false"
+           @drop.prevent="handleDrop($event)"
+           @click="$refs.fileInput.click()">
+        <input type="file" multiple class="hidden" x-ref="fileInput"
+               @change="handleFileSelect($event)">
+        <div class="text-3xl mb-2">📂</div>
+        <div class="text-sm text-slate-400">Arraste arquivos aqui ou clique para escolher</div>
+        <div class="text-xs text-slate-600 mt-1">
+          Bucket selecionado: <span class="text-indigo-400" x-text="buckets.find(b=>b.id===selectedBucket)?.label"></span>
+        </div>
+      </div>
+
+      <!-- upload progress -->
+      <div x-show="uploadQueue.length>0" class="mt-3 space-y-1">
+        <template x-for="f in uploadQueue" :key="f.name">
+          <div class="flex items-center gap-3 text-sm">
+            <span x-show="f.status==='uploading'" class="spinner inline-block w-3 h-3 border-2 border-indigo-400 border-t-transparent rounded-full"></span>
+            <span x-show="f.status==='done'" class="text-green-400">✓</span>
+            <span x-show="f.status==='error'" class="text-red-400">✗</span>
+            <span class="text-slate-300" x-text="f.name"></span>
+            <span class="text-slate-500 text-xs" x-text="f.status"></span>
+          </div>
+        </template>
+      </div>
+    </div>
+
+    <!-- evidence list -->
+    <div class="card">
+      <div class="p-4 border-b border-slate-800 flex items-center justify-between">
+        <div class="text-sm font-semibold text-white">
+          Evidências indexadas
+          <span class="ml-2 text-slate-500 font-normal" x-text="`(${pool.length})`"></span>
+        </div>
+        <div class="flex gap-2">
+          <span x-show="pool.filter(e=>e.review_status==='pendente').length>0"
+                class="pill badge-pending" x-text="`${pool.filter(e=>e.review_status==='pendente').length} pendentes`"></span>
+        </div>
+      </div>
+
+      <div x-show="pool.length===0" class="p-10 text-center text-slate-500 text-sm">
+        Nenhum arquivo indexado. Coloque arquivos no pool e clique em "Indexar pool".
+      </div>
+
+      <template x-for="item in pool" :key="item.sha256">
+        <div class="p-4 border-b border-slate-800/50 flex items-center gap-4">
+          <div class="text-xl" x-text="fileIcon(item.extension)"></div>
+          <div class="flex-1 min-w-0">
+            <div class="font-medium text-sm text-white truncate" x-text="item.filename"></div>
+            <div class="flex items-center gap-2 mt-0.5">
+              <span class="text-xs text-slate-500" x-text="item.bucket"></span>
+              <span class="text-slate-700">·</span>
+              <span class="pill" style="background:#1e2130;color:#94a3b8;font-size:10px" x-text="item.profile"></span>
+              <span class="pill"
+                    :class="item.review_status==='aceito'||item.review_status==='processado'?'badge-ok':item.review_status==='rejeitado'?'badge-rejected':'badge-pending'"
+                    x-text="item.review_status"></span>
+            </div>
+          </div>
+          <div class="flex gap-2 shrink-0">
+            <button x-show="item.review_status==='pendente'"
+                    @click="processarEvidencia(item)"
+                    :disabled="loading.process===item.sha256"
+                    class="btn btn-ghost text-xs flex items-center gap-1">
+              <span x-show="loading.process===item.sha256" class="spinner inline-block w-3 h-3 border-2 border-slate-400 border-t-transparent rounded-full"></span>
+              <span>🤖 IA</span>
+            </button>
+            <button x-show="item.review_status==='pendente'"
+                    @click="rejeitarDireto(item.sha256)"
+                    class="btn btn-ghost text-xs">✗</button>
+          </div>
+        </div>
+      </template>
+    </div>
+  </div>
+
+  <!-- ── Revisão IA ─────────────────────────────────────────────────── -->
+  <div x-show="activeTab==='revisao'">
+    <div x-show="!revisaoAtiva" class="card p-10 text-center text-slate-500">
+      <div class="text-4xl mb-3">🤖</div>
+      <div class="font-medium mb-1">Nenhuma extração em revisão</div>
+      <div class="text-sm">Processe um arquivo na aba Pool para ver as extrações aqui.</div>
+    </div>
+
+    <template x-if="revisaoAtiva">
+      <div>
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h2 class="font-bold text-white" x-text="`Revisão: ${revisaoAtiva.filename}`"></h2>
+            <div class="text-sm text-slate-500 mt-0.5">
+              <span x-text="revisaoAtiva.entries.length"></span> entradas extraídas
+              <span x-show="revisaoAtiva.warnings.length>0">
+                · <span class="text-yellow-400" x-text="`${revisaoAtiva.warnings.length} avisos`"></span>
+              </span>
+            </div>
+          </div>
+          <div class="flex gap-2">
+            <button @click="revisaoAtiva=null;toast('Revisão cancelada')" class="btn btn-ghost">Cancelar</button>
+            <button @click="aceitarTudo()" class="btn btn-success flex items-center gap-2"
+                    :disabled="loading.accept">
+              <span x-show="loading.accept" class="spinner inline-block w-3 h-3 border-2 border-white border-t-transparent rounded-full"></span>
+              <span>✓ Aceitar todos e salvar</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- warnings -->
+        <div x-show="revisaoAtiva.warnings.length>0" class="card p-3 mb-4 border-yellow-500/30">
+          <template x-for="w in revisaoAtiva.warnings" :key="w">
+            <div class="text-sm text-yellow-300 flex items-start gap-2">
+              <span>⚠</span><span x-text="w"></span>
+            </div>
+          </template>
+        </div>
+
+        <!-- entries -->
+        <div class="space-y-3">
+          <template x-for="(entry, idx) in revisaoAtiva.entries" :key="idx">
+            <div class="card p-4">
+              <div class="flex items-start justify-between gap-4">
+                <div class="flex-1 grid grid-cols-2 md:grid-cols-3 gap-3">
+                  <!-- colaborador -->
+                  <div>
+                    <label class="text-xs text-slate-500 mb-1 block">Colaborador</label>
+                    <select class="input" x-model="entry.colaborador_id">
+                      <template x-for="c in colaboradores" :key="c.id">
+                        <option :value="c.id" x-text="c.nome"></option>
+                      </template>
+                      <option value="">— desconhecido —</option>
+                    </select>
+                  </div>
+                  <!-- categoria -->
+                  <div>
+                    <label class="text-xs text-slate-500 mb-1 block">Categoria</label>
+                    <select class="input" x-model="entry.categoria">
+                      <optgroup label="Proventos">
+                        <template x-for="c in earningCats" :key="c">
+                          <option :value="c" x-text="c"></option>
+                        </template>
+                      </optgroup>
+                      <optgroup label="Descontos">
+                        <template x-for="c in discountCats" :key="c">
+                          <option :value="c" x-text="c"></option>
+                        </template>
+                      </optgroup>
+                    </select>
+                  </div>
+                  <!-- valor -->
+                  <div>
+                    <label class="text-xs text-slate-500 mb-1 block">Valor (R$)</label>
+                    <input type="number" step="0.01" class="input" x-model="entry.valor">
+                  </div>
+                  <!-- data -->
+                  <div>
+                    <label class="text-xs text-slate-500 mb-1 block">Data</label>
+                    <input type="date" class="input" x-model="entry.data">
+                  </div>
+                  <!-- quantidade -->
+                  <div x-show="entry.categoria==='horas_trabalhadas'">
+                    <label class="text-xs text-slate-500 mb-1 block">Qtde / Horas</label>
+                    <input type="number" step="0.5" class="input" x-model="entry.quantidade">
+                  </div>
+                  <!-- descricao -->
+                  <div class="md:col-span-2">
+                    <label class="text-xs text-slate-500 mb-1 block">Descrição</label>
+                    <input type="text" class="input" x-model="entry.descricao">
+                  </div>
+                </div>
+                <div class="flex flex-col items-end gap-2 shrink-0">
+                  <span class="pill" :class="`badge-${entry.confidence}`" x-text="entry.confidence"></span>
+                  <button @click="revisaoAtiva.entries.splice(idx,1)"
+                          class="btn btn-ghost text-xs text-red-400 border-red-500/30">✗ remover</button>
+                </div>
+              </div>
+              <div x-show="entry.notes" class="mt-2 text-xs text-yellow-400 flex items-start gap-2">
+                <span>💬</span><span x-text="entry.notes"></span>
+              </div>
+            </div>
+          </template>
+        </div>
+
+        <div class="mt-4 flex justify-end gap-2">
+          <button @click="revisaoAtiva=null;toast('Revisão cancelada')" class="btn btn-ghost">Cancelar</button>
+          <button @click="aceitarTudo()" class="btn btn-success" :disabled="loading.accept">
+            ✓ Aceitar todos e salvar (<span x-text="revisaoAtiva.entries.length"></span>)
+          </button>
+        </div>
+      </div>
+    </template>
+  </div>
+
+  <!-- ── Lançamentos ────────────────────────────────────────────────── -->
+  <div x-show="activeTab==='lancamentos'">
+    <div class="flex justify-between items-center mb-4">
+      <div class="text-sm text-slate-500" x-text="`${lancamentos.length} lançamentos`"></div>
+      <div class="flex gap-2">
+        <button @click="addLancamento()" class="btn btn-primary text-xs">+ Novo</button>
+        <button @click="saveLancamentos()" :disabled="loading.saveLanc" class="btn btn-ghost text-xs flex gap-2 items-center">
+          <span x-show="loading.saveLanc" class="spinner inline-block w-3 h-3 border-2 border-slate-400 border-t-transparent rounded-full"></span>
+          <span>Salvar</span>
+        </button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="grid grid-cols-12 gap-2 px-4 py-2 text-xs text-slate-500 border-b border-slate-800 font-medium">
+        <div class="col-span-2">Colaborador</div>
+        <div class="col-span-2">Categoria</div>
+        <div class="col-span-1">Valor</div>
+        <div class="col-span-1">Qtde</div>
+        <div class="col-span-2">Data</div>
+        <div class="col-span-3">Descrição</div>
+        <div class="col-span-1"></div>
+      </div>
+      <template x-for="(l, i) in lancamentos" :key="i">
+        <div class="grid grid-cols-12 gap-2 px-4 py-2 border-b border-slate-800/50 items-center text-sm">
+          <div class="col-span-2">
+            <select class="input text-xs" x-model="l.colaborador_id">
+              <template x-for="c in colaboradores" :key="c.id">
+                <option :value="c.id" x-text="c.nome"></option>
+              </template>
+            </select>
+          </div>
+          <div class="col-span-2">
+            <select class="input text-xs" x-model="l.categoria">
+              <optgroup label="Proventos">
+                <template x-for="c in earningCats" :key="c">
+                  <option :value="c" x-text="c"></option>
+                </template>
+              </optgroup>
+              <optgroup label="Descontos">
+                <template x-for="c in discountCats" :key="c">
+                  <option :value="c" x-text="c"></option>
+                </template>
+              </optgroup>
+            </select>
+          </div>
+          <div class="col-span-1">
+            <input type="number" step="0.01" class="input text-xs" x-model="l.valor">
+          </div>
+          <div class="col-span-1">
+            <input type="number" step="0.5" class="input text-xs" x-model="l.quantidade">
+          </div>
+          <div class="col-span-2">
+            <input type="date" class="input text-xs" x-model="l.data">
+          </div>
+          <div class="col-span-3">
+            <input type="text" class="input text-xs" x-model="l.descricao">
+          </div>
+          <div class="col-span-1 flex justify-end">
+            <button @click="lancamentos.splice(i,1)" class="text-slate-600 hover:text-red-400 transition-colors text-xs">✗</button>
+          </div>
+        </div>
+      </template>
+    </div>
+  </div>
+
+  <!-- ── Colaboradores ──────────────────────────────────────────────── -->
+  <div x-show="activeTab==='colaboradores'">
+    <div class="flex justify-end mb-4 gap-2">
+      <button @click="saveColaboradores()" :disabled="loading.saveCols" class="btn btn-ghost text-xs flex gap-2 items-center">
+        <span x-show="loading.saveCols" class="spinner inline-block w-3 h-3 border-2 border-slate-400 border-t-transparent rounded-full"></span>
+        <span>Salvar</span>
+      </button>
+    </div>
+    <div class="space-y-3">
+      <template x-for="(c, i) in colaboradores" :key="c.id">
+        <div class="card p-4">
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-3 items-start">
+            <div>
+              <label class="text-xs text-slate-500 mb-1 block">ID</label>
+              <input type="text" class="input text-xs" x-model="c.id">
+            </div>
+            <div>
+              <label class="text-xs text-slate-500 mb-1 block">Nome</label>
+              <input type="text" class="input text-xs" x-model="c.nome">
+            </div>
+            <div>
+              <label class="text-xs text-slate-500 mb-1 block">Modo</label>
+              <select class="input text-xs" x-model="c.modo">
+                <option value="valor_importado">CLT / Fixo importado</option>
+                <option value="horista">Horista</option>
+                <option value="comissao_percentual">Comissão %</option>
+                <option value="comissao_com_piso_diario">Comissão + Piso diário</option>
+              </select>
+            </div>
+            <div class="flex flex-col gap-2">
+              <!-- config fields per mode -->
+              <div x-show="c.modo==='horista'">
+                <label class="text-xs text-slate-500 mb-1 block">Valor/hora</label>
+                <input type="number" step="0.01" class="input text-xs"
+                       :value="c.config?.valor_hora"
+                       @change="c.config = {...(c.config||{}), valor_hora: parseFloat($event.target.value)}">
+              </div>
+              <div x-show="c.modo==='comissao_percentual'||c.modo==='comissao_com_piso_diario'">
+                <label class="text-xs text-slate-500 mb-1 block">% Comissão (ex: 0.25)</label>
+                <input type="number" step="0.01" max="1" class="input text-xs"
+                       :value="c.config?.percentual_comissao"
+                       @change="c.config = {...(c.config||{}), percentual_comissao: parseFloat($event.target.value)}">
+              </div>
+              <div x-show="c.modo==='comissao_com_piso_diario'">
+                <label class="text-xs text-slate-500 mb-1 block">Piso diário (R$)</label>
+                <input type="number" step="0.01" class="input text-xs"
+                       :value="c.config?.piso_diario"
+                       @change="c.config = {...(c.config||{}), piso_diario: parseFloat($event.target.value)}">
+              </div>
+            </div>
+          </div>
+        </div>
+      </template>
+    </div>
+  </div>
+
+</main>
+
+<!-- Close modal -->
+<div x-show="closeModal.show" x-cloak
+     class="fixed inset-0 z-50 flex items-center justify-center"
+     style="background:rgba(0,0,0,.7);backdrop-filter:blur(4px)">
+  <div class="card p-6 w-full max-w-lg mx-4">
+    <div class="flex items-center gap-3 mb-4">
+      <div class="w-8 h-8 rounded-lg flex items-center justify-center"
+           :class="closeModal.ok?'bg-green-500':'closeModal.running?\'bg-indigo-500\':\'bg-red-500\'"
+           style="min-width:32px">
+        <span x-show="closeModal.running" class="spinner inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full"></span>
+        <span x-show="!closeModal.running" x-text="closeModal.ok?'✓':'✗'" class="font-bold text-white"></span>
+      </div>
+      <div>
+        <div class="font-bold text-white" x-text="closeModal.running?'Calculando fechamento…':closeModal.ok?'Fechamento concluído':'Erro no fechamento'"></div>
+        <div x-show="closeModal.ok&&resultado" class="text-sm text-green-400 money"
+             x-text="`Líquido total: ${fmt(resultado?.resumo?.liquido_total)}`"></div>
+      </div>
+    </div>
+    <pre class="text-xs text-slate-400 bg-black/30 rounded-lg p-3 max-h-48 overflow-y-auto" x-text="closeModal.output"></pre>
+    <div class="flex justify-end gap-2 mt-4">
+      <button x-show="closeModal.ok" @click="activeTab='resultados';closeModal.show=false"
+              class="btn btn-success">Ver resultados</button>
+      <button @click="closeModal.show=false" class="btn btn-ghost">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function app() {
+  return {
+    activeTab: 'dashboard',
+    tabs: [
+      { id: 'dashboard', icon: '🏠', label: 'Início' },
+      { id: 'resultados', icon: '📊', label: 'Resultados' },
+      { id: 'pool', icon: '📂', label: 'Pool', badge() { return this.$root.__x?.$data.status?.pool_pending ?? 0; } },
+      { id: 'revisao', icon: '🤖', label: 'Revisão IA', badge() { return this.$root.__x?.$data.revisaoAtiva?.entries?.length ?? 0; } },
+      { id: 'lancamentos', icon: '📝', label: 'Lançamentos' },
+      { id: 'colaboradores', icon: '👥', label: 'Colaboradores' },
+    ],
+    status: {},
+    resultado: null,
+    pool: [],
+    lancamentos: [],
+    colaboradores: [],
+    expanded: {},
+    revisaoAtiva: null,
+    dragging: false,
+    selectedBucket: 'contabilidade',
+    uploadQueue: [],
+    toasts: [],
+    loading: { close: false, index: false, process: null, accept: false, saveLanc: false, saveCols: false },
+    closeModal: { show: false, running: false, ok: false, output: '' },
+    earningCats: ['valor_importado','horas_trabalhadas','producao_vet','comissao_tosa','bonus_manual','credito_manual','reembolso'],
+    discountCats: ['adiantamento','consumo_em_aberto','falha_veterinaria','desconto_manual'],
+    buckets: [
+      { id: 'contabilidade', label: 'Contabilidade', icon: '📄' },
+      { id: 'simplesvet', label: 'SimplesVet', icon: '🐾' },
+      { id: 'ponto', label: 'Ponto', icon: '⏱' },
+      { id: 'whatsapp', label: 'WhatsApp', icon: '💬' },
+      { id: 'imagens', label: 'Imagens', icon: '🖼' },
+      { id: 'manual', label: 'Manual', icon: '📊' },
+      { id: 'outros', label: 'Outros', icon: '📦' },
+    ],
+
+    async init() {
+      await Promise.all([this.refreshStatus(), this.refreshPool(), this.refreshColaboradores(), this.refreshLancamentos()]);
+      if (this.status.has_resultado) await this.refreshResultado();
+    },
+
+    anyLoading() {
+      return this.loading.close || this.loading.index || this.loading.process || this.loading.accept;
+    },
+
+    async refreshStatus() {
+      const r = await fetch('/api/status').then(r => r.json()).catch(() => ({}));
+      this.status = r;
+    },
+    async refreshPool() {
+      this.pool = await fetch('/api/pool').then(r => r.json()).catch(() => []);
+    },
+    async refreshColaboradores() {
+      this.colaboradores = await fetch('/api/colaboradores').then(r => r.json()).catch(() => []);
+    },
+    async refreshLancamentos() {
+      this.lancamentos = await fetch('/api/lancamentos').then(r => r.json()).catch(() => []);
+    },
+    async refreshResultado() {
+      this.resultado = await fetch('/api/resultado').then(r => r.ok ? r.json() : null).catch(() => null);
+    },
+
+    toast(msg, type = 'success') {
+      const id = Date.now();
+      this.toasts.push({ id, msg, type });
+      setTimeout(() => { this.toasts = this.toasts.filter(t => t.id !== id); }, 4000);
+    },
+
+    fmt(val) {
+      if (val == null) return '—';
+      const n = parseFloat(String(val));
+      if (isNaN(n)) return val;
+      return 'R$ ' + n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    },
+
+    modeLabel(m) {
+      const map = {
+        comissao_com_piso_diario: 'comissão+piso',
+        comissao_percentual: 'comissão %',
+        horista: 'horista',
+        valor_importado: 'CLT/fixo',
+      };
+      return map[m] || m;
+    },
+
+    fileIcon(ext) {
+      if (['.pdf'].includes(ext)) return '📄';
+      if (['.xlsx', '.xls', '.csv'].includes(ext)) return '📊';
+      if (['.txt', '.md', '.json'].includes(ext)) return '📝';
+      if (['.jpg', '.jpeg', '.png', '.webp'].includes(ext)) return '🖼';
+      return '📦';
+    },
+
+    toggleExpand(id) {
+      this.expanded[id] = !this.expanded[id];
+    },
+
+    async fecharFolha() {
+      this.loading.close = true;
+      this.closeModal = { show: true, running: true, ok: false, output: 'Calculando…' };
+      const r = await fetch('/api/fechar', { method: 'POST' }).then(r => r.json()).catch(e => ({ ok: false, output: e.message }));
+      this.loading.close = false;
+      this.closeModal.running = false;
+      this.closeModal.ok = r.ok;
+      this.closeModal.output = r.output;
+      if (r.ok) {
+        this.resultado = r.resultado;
+        await this.refreshStatus();
+        this.toast('Fechamento calculado com sucesso!');
+      } else {
+        this.toast(r.output?.slice(0, 120) || 'Erro ao calcular', 'error');
+      }
+    },
+
+    async indexarPool() {
+      this.loading.index = true;
+      const r = await fetch('/api/pool/indexar', { method: 'POST' }).then(r => r.json()).catch(e => ({ ok: false, output: e.message }));
+      this.loading.index = false;
+      if (r.ok) {
+        this.pool = r.items || [];
+        await this.refreshStatus();
+        this.toast(`Pool indexado — ${r.items?.length || 0} arquivos`);
+      } else {
+        this.toast(r.output?.slice(0, 120) || 'Erro ao indexar', 'error');
+      }
+    },
+
+    async processarEvidencia(item) {
+      this.loading.process = item.sha256;
+      const r = await fetch(`/api/pool/processar/${item.sha256}`, { method: 'POST' })
+        .then(async res => { if (!res.ok) { const e = await res.json(); throw new Error(e.detail || 'Erro'); } return res.json(); })
+        .catch(e => ({ error: e.message }));
+      this.loading.process = null;
+      if (r.error) {
+        this.toast(r.error, 'error');
+        return;
+      }
+      this.revisaoAtiva = r;
+      this.activeTab = 'revisao';
+      this.toast(`${r.entries.length} entradas extraídas de ${item.filename}`, 'info');
+    },
+
+    async rejeitarDireto(sha256) {
+      await fetch(`/api/pool/rejeitar/${sha256}`, { method: 'POST' });
+      await this.refreshPool();
+      this.toast('Evidência rejeitada');
+    },
+
+    async aceitarTudo() {
+      this.loading.accept = true;
+      const r = await fetch(`/api/pool/aceitar/${this.revisaoAtiva.sha256}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(this.revisaoAtiva.entries),
+      }).then(r => r.json()).catch(e => ({ ok: false, error: e.message }));
+      this.loading.accept = false;
+      if (r.ok) {
+        await Promise.all([this.refreshPool(), this.refreshLancamentos(), this.refreshStatus()]);
+        this.toast(`${r.entries_added} lançamento(s) salvos com sucesso!`);
+        this.revisaoAtiva = null;
+        this.activeTab = 'lancamentos';
+      } else {
+        this.toast(r.error || 'Erro ao salvar', 'error');
+      }
+    },
+
+    async handleDrop(event) {
+      this.dragging = false;
+      const files = Array.from(event.dataTransfer.files);
+      await this.uploadFiles(files);
+    },
+
+    async handleFileSelect(event) {
+      const files = Array.from(event.target.files);
+      await this.uploadFiles(files);
+      event.target.value = '';
+    },
+
+    async uploadFiles(files) {
+      for (const file of files) {
+        const entry = { name: file.name, status: 'uploading' };
+        this.uploadQueue.push(entry);
+        const fd = new FormData();
+        fd.append('file', file);
+        const r = await fetch(`/api/pool/upload/${this.selectedBucket}`, { method: 'POST', body: fd })
+          .then(r => r.json()).catch(e => ({ ok: false, error: e.message }));
+        entry.status = r.ok ? 'done' : 'error';
+        if (!r.ok) this.toast(`Erro ao enviar ${file.name}: ${r.error}`, 'error');
+      }
+      await this.indexarPool();
+      setTimeout(() => { this.uploadQueue = []; }, 3000);
+    },
+
+    addLancamento() {
+      this.lancamentos.push({
+        colaborador_id: this.colaboradores[0]?.id || '',
+        categoria: 'valor_importado',
+        valor: 0,
+        descricao: 'Novo lançamento',
+        fonte: 'manual',
+      });
+    },
+
+    async saveLancamentos() {
+      this.loading.saveLanc = true;
+      const r = await fetch('/api/lancamentos', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(this.lancamentos),
+      }).then(r => r.json()).catch(e => ({ ok: false }));
+      this.loading.saveLanc = false;
+      await this.refreshStatus();
+      this.toast(r.ok ? 'Lançamentos salvos!' : 'Erro ao salvar', r.ok ? 'success' : 'error');
+    },
+
+    async saveColaboradores() {
+      this.loading.saveCols = true;
+      const r = await fetch('/api/colaboradores', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(this.colaboradores),
+      }).then(r => r.json()).catch(e => ({ ok: false }));
+      this.loading.saveCols = false;
+      this.toast(r.ok ? 'Colaboradores salvos!' : 'Erro ao salvar', r.ok ? 'success' : 'error');
+    },
+  };
+}
+</script>
+</body>
+</html>

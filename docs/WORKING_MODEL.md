@@ -5,38 +5,58 @@ This document defines the minimum operating model for the PinkBlue platform.
 It is intentionally practical.
 It should stay small, explicit, and easy for both humans and AIs to follow.
 
-## 0. Repository Scope
+## 0. Vocabulário Canônico
 
-This repository is no longer treated as "just the Lab Monitor repo".
+Usar esses termos de forma consistente em toda documentação, cards Jira e sessões de IA.
+Nunca usar "projeto" de forma ambígua.
 
-Operationally, it is the current PinkBlue platform workspace:
-- `PBEXM` owns the Lab Monitor module;
-- `PBCORE` owns shared capabilities such as auth, persistence, shell visual,
-  security, infra, and cross-module conventions;
-- `PBINC` owns future-module discovery.
+| Termo | Definição |
+|---|---|
+| **Plataforma** | PinkBlue Vet — o ecossistema completo |
+| **Módulo** | Capacidade de produto: Lab Monitor, Financeiro, CRM |
+| **Repositório** | O monorepo GitHub: guigiese/pinkblue-vet |
+| **Projeto Jira** | Escopo de rastreamento (ver seção 1) |
+| **Serviço** | Container deployado no Railway |
+| **Sessão** | Unidade de trabalho: branch + card Jira + PR |
 
-That means shared capabilities must not be modeled as if they belonged only to
-the exam module.
-Examples:
-- platform-wide auth belongs in `PBCORE`, while `PBEXM` may only keep module
-  integration details;
-- platform persistence belongs in `PBCORE`, while `PBEXM` keeps the exam-module
-  consumers and migration slices;
-- visual shell and navigation standards belong in `PBCORE`, while module-level
-  pages consume them.
+## 0A. Workspace Design Decisions
+
+Decisões estruturais sobre o workspace que não devem ser re-questionadas sem um card Jira.
+
+**Estrutura de entrada das IAs (decidido em 2026-04):**
+- `CLAUDE.md` e `AGENTS.md` são entradas específicas por ferramenta (mínimas, só redirecionam)
+- `SESSION_PRIMER.md` é o contexto operacional compacto — lido sempre por todas as IAs
+- `AI_START_HERE.md` é a referência completa — consultada sob demanda quando a tarefa exigir
+- Esta estrutura em 3 camadas é intencional. Não simplificar sem card PBCORE.
+
+**Branch cleanup policy (decidido em 2026-04-07):**
+- Auto-delete de branches ativado no GitHub (branches deletadas ao merge)
+- `git fetch --prune` deve ser executado no início de cada sessão
+- Tags de release em `main` a cada conjunto significativo de mudanças
+
+**Nomenclatura (decidido em 2026-04-07):**
+- Repositório GitHub: `guigiese/pinkblue-vet`
+- Projeto Railway: `pinkblue-vet`
+- Serviço Railway de produção: `pinkblue-vet`
+- Pasta local: pode variar, não é crítico para funcionamento
 
 ## 1. Jira Structure
 
-There are currently 3 Jira projects:
+Há atualmente 4 projetos Jira. Consolidação para PB + PBINC está planejada (PBCORE-64).
 
-- `PBEXM`: exam module
-- `PBCORE`: platform, governance, docs, security, data, infra
-- `PBINC`: incubator for future modules
+Projetos ativos:
+- `PBEXM`: módulo Lab Monitor
+- `PBCORE`: plataforma, governança, docs, segurança, infra, shared capabilities
+- `PBFIN`: módulo Financeiro
+- `PBINC`: incubadora para módulos futuros (CRM, automação)
 
-Important naming note:
-- the organizational prefix is PinkBlue (`PB`)
-- Jira does not accept project keys with an internal hyphen such as `PB-EXM`
-- because of that, the real Jira keys remain `PBEXM`, `PBCORE`, and `PBINC`
+Workflow de entrega (PBEXM, PBCORE, PBFIN):
+`Backlog → Descoberta → Refinamento → Pronto pra dev → Em andamento → Em revisão → Concluído`
+
+Workflow de incubação (PBINC):
+`Backlog → Descoberta → Validação → Pronto pra incubar → Em incubação → Graduado`
+
+Nota: Jira não aceita chaves com hífen interno (`PB-EXM`), por isso as chaves reais são `PBEXM`, `PBCORE`, etc.
 
 Use them like this:
 
@@ -277,10 +297,10 @@ Credential rule:
 
 ## 10. Naming Rule
 
-The platform is PinkBlue.
+A plataforma é PinkBlue Vet. Ver vocabulário canônico na seção 0.
 
-`SimplesVet` may remain in legacy paths for now, but it must not be treated as the platform-level name.
-Any naming cleanup should align platform, modules, repositories, and documentation around PinkBlue.
+`SimplesVet` era o nome do cliente/projeto anterior e não deve aparecer em novos artefatos.
+Toda nomenclatura deve convergir para PinkBlue: repositório, Railway, módulos, documentação.
 
 ## 11. Collaboration Model: Multi-Session Protocol
 

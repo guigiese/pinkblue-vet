@@ -8,16 +8,32 @@ Consulte os arquivos referenciados abaixo apenas se a tarefa exigir.
 
 ---
 
-## Projeto
+## Vocabulário canônico
+
+| Termo | Definição |
+|---|---|
+| **Plataforma** | PinkBlue Vet — o ecossistema completo |
+| **Módulo** | Capacidade de produto: Lab Monitor, Financeiro, CRM |
+| **Repositório** | O monorepo GitHub (único): guigiese/pinkblue-vet |
+| **Projeto Jira** | Escopo de rastreamento: PBCORE, PBEXM, PBFIN, PBINC (consolidação → PB pendente) |
+| **Serviço** | Container deployado no Railway |
+| **Sessão** | Unidade de trabalho: branch + card Jira + PR |
+
+Use esses termos. Não use "projeto" de forma ambígua.
+
+---
+
+## Plataforma
 
 Workspace da plataforma PinkBlue Vet.
 
 Estado atual:
 - módulo ativo de produto: Lab Monitor
+- módulo em desenvolvimento: Financeiro
 - superfícies auxiliares: home da plataforma, ops-map, sandboxes
-- módulos futuros incubados: CRM, conciliação financeira, automação de atendimento
+- módulos futuros incubados: CRM, automação de atendimento
 
-Stack atual: Python 3.13 / FastAPI 0.115 / Jinja2 3.1 / HTMX 1.9 / TailwindCSS CDN / Railway.
+Stack: Python 3.13 / FastAPI 0.115 / Jinja2 3.1 / HTMX 1.9 / TailwindCSS CDN / Railway.
 Produção: https://pinkblue-vet-production.up.railway.app
 Repositório: github.com/guigiese/pinkblue-vet
 
@@ -38,7 +54,7 @@ Antes de tocar qualquer arquivo:
 
 **1. Busque cards existentes**
 Jira: https://guigiese.atlassian.net | Credenciais: `~/.codex/jira-auth.json`
-Projetos: PBEXM (módulo exames) · PBCORE (plataforma/infra/shared capabilities) · PBINC (discovery)
+Projetos: PBEXM (Lab Monitor) · PBCORE (plataforma/infra) · PBFIN (Financeiro) · PBINC (incubadora)
 Busque palavras-chave do problema descrito pelo usuário.
 
 **2. Avalie os resultados**
@@ -71,7 +87,7 @@ git checkout -b session/YYYYMMDD-XXXX
 
 ## Fluxo dos cards
 
-`Backlog` → `Descoberta` → `Pronto pra dev` → `Em andamento` → `Em revisão` → `Concluído`
+`Backlog` → `Descoberta` → `Refinamento` → `Pronto pra dev` → `Em andamento` → `Em revisão` → `Concluído`
 
 ---
 
