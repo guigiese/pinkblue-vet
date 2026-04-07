@@ -21,7 +21,7 @@ CONFIG_PATH = ROOT / "config.json"
 SECRETS_PATH = ROOT / ".secrets"
 
 PROD_BASE_URL = "https://pinkblue-vet-production.up.railway.app"
-GITHUB_REPO = "guigiese/monitor-exames-bitlab"
+GITHUB_REPO = "guigiese/pinkblue-vet"
 JIRA_BASE_URL = "https://guigiese.atlassian.net"
 LOCAL_TZ = ZoneInfo("America/Sao_Paulo")
 

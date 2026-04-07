@@ -21,7 +21,7 @@ SERVICE_ID    = _cfg_get("railway", "service_id", env_name="RAILWAY_SERVICE_ID",
 ENV_ID        = _cfg_get("railway", "env_id", env_name="RAILWAY_ENV_ID", default="f95eb850-1680-4d28-95ce-6dc77b5d7653")
 APP_URL       = _cfg_get("railway", "url", env_name="APP_URL", default="https://pinkblue-vet-production.up.railway.app")
 GH_TOKEN      = _cfg_get("github", "token", env_name="GH_TOKEN")
-GH_REPO       = "guigiese/monitor-exames-bitlab"
+GH_REPO       = "guigiese/pinkblue-vet"
 
 if not RAILWAY_TOKEN:
     raise RuntimeError("RAILWAY_TOKEN not available via environment or .secrets")

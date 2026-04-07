@@ -19,7 +19,7 @@ Estado atual:
 
 Stack atual: Python 3.13 / FastAPI 0.115 / Jinja2 3.1 / HTMX 1.9 / TailwindCSS CDN / Railway.
 Produção: https://pinkblue-vet-production.up.railway.app
-Repositório atual: github.com/guigiese/monitor-exames-bitlab
+Repositório: github.com/guigiese/pinkblue-vet
 
 Deploy: abrir PR de `session/*` → GitHub Actions faz merge + deploy automaticamente.
 Nunca fazer push direto em `main`.

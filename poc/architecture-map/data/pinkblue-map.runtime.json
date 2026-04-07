@@ -207,11 +207,11 @@
       "links": [
         {
           "label": "Repo",
-          "url": "https://github.com/guigiese/monitor-exames-bitlab"
+          "url": "https://github.com/guigiese/pinkblue-vet"
         },
         {
           "label": "Commits",
-          "url": "https://github.com/guigiese/monitor-exames-bitlab/commits/main"
+          "url": "https://github.com/guigiese/pinkblue-vet/commits/main"
         }
       ],
       "iconPath": "./assets/rendered/github.png"

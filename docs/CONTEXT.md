@@ -80,7 +80,7 @@ Importante:
 | Persistência fase 1 | SQLite (`sqlite3`) em `runtime-data/` / Railway Volume |
 | Auth fase 1 | Sessão por cookie + store compartilhada |
 | Deploy | Railway (Railpack, sem Docker customizado) |
-| Repositório | GitHub: guigiese/monitor-exames-bitlab |
+| Repositório | GitHub: guigiese/pinkblue-vet |
 
 Hoje a plataforma já possui uma persistência fase 1:
 - `SQLite` via `sqlite3` da stdlib;
