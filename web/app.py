@@ -44,7 +44,7 @@ TEMPLATES_DIR = Path(__file__).parent / "templates"
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 APP_URL = os.environ.get("APP_URL", "https://pinkblue-vet-production.up.railway.app")
-STANDARD_STATUSES = ["Pronto", "Parcial", "Em Andamento", "Analisando", "Recebido", "Cancelado"]
+STANDARD_STATUSES = ["Pronto", "Parcial", "Inconsistente", "Em Andamento", "Analisando", "Recebido", "Cancelado"]
 EXAMES_PAGE_SIZE = 20
 
 
@@ -52,13 +52,6 @@ EXAMES_PAGE_SIZE = 20
 async def lifespan(app):
     monitor_thread = threading.Thread(target=run_monitor_loop, args=(state,), daemon=True)
     monitor_thread.start()
-    history_thread = threading.Thread(
-        target=run_historical_backfill_until_complete,
-        args=(state,),
-        kwargs={"max_windows_per_lab": 2},
-        daemon=True,
-    )
-    history_thread.start()
     register_webhook(APP_URL)
     yield
 

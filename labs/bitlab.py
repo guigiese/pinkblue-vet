@@ -454,8 +454,8 @@ class BitlabConnector(LabConnector):
     def _buscar_requisicoes(self, token: str, page_size: int = 500) -> list[dict]:
         hoje = datetime.now().strftime("%Y-%m-%d")
         sync_hints = getattr(self, "sync_hints", {}) or {}
-        days_back = int(sync_hints.get("days_back") or self._dias_atras)
-        days_back = max(7, days_back)
+        days_back = int(sync_hints.get("discovery_days") or 3)
+        days_back = max(1, days_back)
         inicio = (datetime.now() - timedelta(days=days_back)).strftime("%Y-%m-%d")
         return self._buscar_requisicoes_interval(token, inicio, hoje, page_size=page_size)
 
@@ -854,6 +854,7 @@ class BitlabConnector(LabConnector):
                 e["cdExame"]: {
                     "nome":     e["deExame"],
                     "status":   e["deStatusWeb"],
+                    "lab_status": e["deStatusWeb"],
                     "dtColeta": e.get("dtColeta", ""),
                     "released_at_hint": e.get("dtEntrega", ""),
                     "item_id":  e.get("id", ""),
@@ -865,11 +866,47 @@ class BitlabConnector(LabConnector):
                 "data":      req["dtRequisicao"][:10],
                 "received_at": req.get("dtRequisicao", "") or req["dtRequisicao"][:10],
                 "portal_id": req["id"],
+                "request_key": req.get("cdRequisicao", ""),
                 "itens":     itens,
             }
             time.sleep(0.2)
 
         return resultado
+
+    def _snapshot_from_open_records(self, token: str) -> dict[str, dict]:
+        sync_hints = getattr(self, "sync_hints", {}) or {}
+        open_records = sync_hints.get("open_records") or []
+        refreshed: dict[str, dict] = {}
+
+        for record in open_records:
+            request_key = record.get("request_key")
+            record_id = record.get("record_id")
+            if not request_key or not record_id:
+                continue
+            try:
+                itens_raw = self._buscar_itens(token, int(request_key))
+            except Exception:
+                continue
+            refreshed[record_id] = {
+                "label": record.get("label", ""),
+                "data": record.get("data", ""),
+                "received_at": record.get("received_at", "") or record.get("data", ""),
+                "portal_id": record.get("portal_id", ""),
+                "request_key": request_key,
+                "itens": {
+                    e["cdExame"]: {
+                        "nome": e["deExame"],
+                        "status": e["deStatusWeb"],
+                        "lab_status": e["deStatusWeb"],
+                        "dtColeta": e.get("dtColeta", ""),
+                        "released_at_hint": e.get("dtEntrega", ""),
+                        "item_id": e.get("id", ""),
+                    }
+                    for e in itens_raw
+                },
+            }
+            time.sleep(0.05)
+        return refreshed
 
     def snapshot_between(self, start_date: str, end_date: str) -> dict[str, dict]:
         token = self._login()
@@ -879,4 +916,9 @@ class BitlabConnector(LabConnector):
     def snapshot(self) -> dict[str, dict]:
         token = self._login()
         payload = self._buscar_requisicoes(token)
-        return self._snapshot_from_requests(token, payload)
+        recent = self._snapshot_from_requests(token, payload)
+        open_refresh = self._snapshot_from_open_records(token)
+        if not open_refresh:
+            return recent
+        recent.update(open_refresh)
+        return recent
