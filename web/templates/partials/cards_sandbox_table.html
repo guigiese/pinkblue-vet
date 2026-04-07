@@ -4,6 +4,7 @@
   {{ {
     "Pronto": "ready",
     "Parcial": "partial",
+    "Inconsistente": "inconsistent",
     "Analisando": "analysis",
     "Em Andamento": "progress",
     "Recebido": "received",
@@ -15,6 +16,7 @@
   {%- if mode == "short" -%}
     {%- if status == "Pronto" -%}PRONTO
     {%- elif status == "Parcial" -%}PARCIAL
+    {%- elif status == "Inconsistente" -%}INCONSISTENTE
     {%- elif status == "Analisando" -%}ANALISE
     {%- elif status == "Em Andamento" -%}EM CURSO
     {%- elif status == "Recebido" -%}RECEBIDO
@@ -45,6 +47,8 @@
 {% macro badge_item(status) %}
   {% if status == "Pronto" %}
     <span class="px-2 py-0.5 rounded text-xs bg-green-50 text-green-700 font-medium">{{ status }}</span>
+  {% elif status == "Inconsistente" %}
+    <span class="px-2 py-0.5 rounded text-xs bg-red-50 text-red-700 font-medium">{{ status }}</span>
   {% elif status == "Analisando" %}
     <span class="px-2 py-0.5 rounded text-xs bg-yellow-50 text-yellow-700 font-medium">{{ status }}</span>
   {% elif status == "Em Andamento" %}

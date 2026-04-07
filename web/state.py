@@ -18,6 +18,7 @@ CONFIG_FILE = Path(__file__).parent.parent / "config.json"
 STATUS_SHORT_LABELS: dict[str, str] = {
     "Pronto": "PRONTO",
     "Parcial": "PARCIAL",
+    "Inconsistente": "INCONSISTENTE",
     "Em Andamento": "EM CURSO",
     "Analisando": "ANALISE",
     "Recebido": "RECEBIDO",
@@ -44,6 +45,7 @@ PORTAL_URL_PATTERN: dict[str, str] = {
 STATUS_MAP: dict[str, str] = {
     # Standard
     "pronto":             "Pronto",
+    "inconsistente":      "Inconsistente",
     "em andamento":       "Em Andamento",
     "recebido":           "Recebido",
     "analisando":         "Analisando",
@@ -206,6 +208,16 @@ def _build_days_payload(days_open: int | None) -> tuple[str | None, bool]:
     return f"{days_open}d em aberto", days_open > 7
 
 
+def _item_has_usable_result(item: dict) -> bool:
+    if item.get("resultado"):
+        return True
+    if (item.get("report_text") or "").strip():
+        return True
+    if (item.get("diagnosis_text") or "").strip():
+        return True
+    return False
+
+
 # Exames a excluir (ruído operacional dos labs)
 EXCLUDE_EXAMES: set[str] = {
     "OBS BIOQUIMICA",
@@ -220,8 +232,10 @@ _STATUS_PRONTO: set[str] = {"Pronto"}
 
 # Ordered priority for overall group status (when no items are Pronto)
 _STATUS_PRIORITY: list[str] = [
-    "Analisando", "Em Andamento", "Recebido", "Cancelado"
+    "Inconsistente", "Analisando", "Em Andamento", "Recebido", "Cancelado"
 ]
+
+_DISCOVERY_WINDOW_DAYS = 3
 
 
 class AppState:
@@ -258,7 +272,9 @@ class AppState:
     def sync_context(self, lab_id: str) -> dict:
         snapshot = self.snapshots.get(lab_id, {})
         open_dates: list[datetime] = []
-        for record in snapshot.values():
+        oldest_unrefreshable: datetime | None = None
+        open_records: list[dict] = []
+        for record_id, record in snapshot.items():
             itens = [
                 normalize_status(item["status"])
                 for item in record.get("itens", {}).values()
@@ -272,14 +288,30 @@ class AppState:
             received_at_dt = _parse_datetime(received_at_raw)
             if received_at_dt:
                 open_dates.append(received_at_dt)
+            refresh_key = record.get("request_key") or record.get("portal_id") or record_id
+            if not refresh_key and received_at_dt:
+                if oldest_unrefreshable is None or received_at_dt < oldest_unrefreshable:
+                    oldest_unrefreshable = received_at_dt
+            open_records.append({
+                "record_id": record_id,
+                "label": record.get("label", ""),
+                "data": record.get("data", ""),
+                "received_at": record.get("received_at", ""),
+                "portal_id": record.get("portal_id", ""),
+                "request_key": record.get("request_key", ""),
+            })
 
         oldest_open = min(open_dates) if open_dates else None
-        days_back = 14
-        if oldest_open:
-            days_back = max(14, (datetime.now() - oldest_open).days + 3)
+        discovery_days = _DISCOVERY_WINDOW_DAYS
+        if oldest_unrefreshable:
+            discovery_days = max(
+                discovery_days,
+                (datetime.now() - oldest_unrefreshable).days + 3,
+            )
         return {
             "oldest_open_received_at": oldest_open.isoformat() if oldest_open else "",
-            "days_back": days_back,
+            "discovery_days": discovery_days,
+            "open_records": open_records,
         }
 
     def toggle_lab(self, lab_id: str):
