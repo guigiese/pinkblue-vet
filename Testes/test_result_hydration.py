@@ -68,6 +68,49 @@ class SnapshotHydrationTests(unittest.TestCase):
 
         self.assertEqual(atual["REQ-1"]["itens"]["I1"]["liberado_em"], "2026-03-31T17:10:00")
 
+    def test_operational_rules_mark_ready_without_payload_as_inconsistent(self):
+        atual = {
+            "REQ-1": {
+                "label": "Bidu - Tutor",
+                "data": "2026-04-01",
+                "itens": {
+                    "I1": {
+                        "nome": "Hemograma",
+                        "status": "Pronto",
+                        "lab_status": "Pronto",
+                        "resultado": [],
+                        "report_text": "",
+                    }
+                },
+            }
+        }
+
+        core._apply_operational_status_rules(atual)
+
+        self.assertEqual(atual["REQ-1"]["itens"]["I1"]["status"], "Inconsistente")
+        self.assertEqual(atual["REQ-1"]["itens"]["I1"]["result_issue"], "ready-without-result")
+
+    def test_operational_rules_preserve_ready_when_textual_result_exists(self):
+        atual = {
+            "REQ-1": {
+                "label": "Bidu - Tutor",
+                "data": "2026-04-01",
+                "itens": {
+                    "I1": {
+                        "nome": "Patologia",
+                        "status": "Pronto",
+                        "lab_status": "Pronto",
+                        "resultado": [],
+                        "report_text": "Diagnostico conclusivo",
+                    }
+                },
+            }
+        }
+
+        core._apply_operational_status_rules(atual)
+
+        self.assertEqual(atual["REQ-1"]["itens"]["I1"]["status"], "Pronto")
+
 
 class ResultCacheTests(unittest.TestCase):
     def test_manual_result_fetch_rehydrates_snapshot_item(self):
@@ -143,6 +186,43 @@ class ResultCacheTests(unittest.TestCase):
         finally:
             state.snapshots = original_snapshots
             state._config = original_config
+
+    def test_sync_context_uses_short_discovery_window_and_tracks_open_records(self):
+        original_snapshots = state.snapshots
+        try:
+            state.snapshots = {
+                "bitlab": {
+                    "REQ-OPEN": {
+                        "label": "Bidu - Tutor",
+                        "data": "2026-03-01",
+                        "received_at": "2026-03-01T10:00:00",
+                        "portal_id": "portal-1",
+                        "request_key": "123",
+                        "itens": {
+                            "I1": {"nome": "Hemograma", "status": "Em Andamento"},
+                        },
+                    },
+                    "REQ-DONE": {
+                        "label": "Bidu - Tutor",
+                        "data": "2026-03-02",
+                        "received_at": "2026-03-02T10:00:00",
+                        "portal_id": "portal-2",
+                        "request_key": "456",
+                        "itens": {
+                            "I2": {"nome": "ALT", "status": "Pronto"},
+                        },
+                    },
+                }
+            }
+
+            ctx = state.sync_context("bitlab")
+
+            self.assertEqual(ctx["discovery_days"], 3)
+            self.assertEqual(len(ctx["open_records"]), 1)
+            self.assertEqual(ctx["open_records"][0]["record_id"], "REQ-OPEN")
+            self.assertEqual(ctx["open_records"][0]["request_key"], "123")
+        finally:
+            state.snapshots = original_snapshots
 
     def test_get_exames_exposes_breed_and_report_text(self):
         original_snapshots = state.snapshots

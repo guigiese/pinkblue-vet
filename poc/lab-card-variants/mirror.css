@@ -279,6 +279,7 @@
 
 .pb-status-badge.is-ready { background: rgb(220 252 231); color: rgb(22 101 52); }
 .pb-status-badge.is-partial { background: rgb(219 234 254); color: rgb(30 64 175); }
+.pb-status-badge.is-inconsistent { background: rgb(254 226 226); color: rgb(185 28 28); }
 .pb-status-badge.is-progress,
 .pb-status-badge.is-analysis { background: rgb(254 243 199); color: rgb(180 83 9); }
 .pb-status-badge.is-received { background: rgb(237 233 254); color: rgb(109 40 217); }
