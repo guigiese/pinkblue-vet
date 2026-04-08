@@ -15,7 +15,7 @@ Consulte os arquivos referenciados abaixo apenas se a tarefa exigir.
 | **Plataforma** | PinkBlue Vet — o ecossistema completo |
 | **Módulo** | Capacidade de produto: Lab Monitor, Financeiro, CRM |
 | **Repositório** | O monorepo GitHub (único): guigiese/pinkblue-vet |
-| **Projeto Jira** | Escopo de rastreamento: PBCORE, PBEXM, PBFIN, PBINC (consolidação → PB pendente) |
+| **Projeto Jira** | Escopo de rastreamento: PBVET (unificado), PBINC (incubadora) |
 | **Serviço** | Container deployado no Railway |
 | **Sessão** | Unidade de trabalho: branch + card Jira + PR |
 
@@ -40,11 +40,22 @@ Repositório: github.com/guigiese/pinkblue-vet
 Deploy: abrir PR de `session/*` → GitHub Actions faz merge + deploy automaticamente.
 Nunca fazer push direto em `main`.
 
-Referências de detalhe (ler só quando a tarefa exigir):
-- Arquitetura completa: `docs/CONTEXT.md`
-- Histórico de decisões: `docs/DEVLOG.md`
-- Protocolo completo de sessões e governança: `AI_START_HERE.md`
-- Estrutura alvo da plataforma e persistência fase 1: `docs/discovery/2026-04-03-platform-structure-and-phase1-persistence.md`
+---
+
+## Mapa de conhecimento
+
+Cada arquivo tem um tipo de conhecimento específico. Carregar apenas o que a tarefa exige.
+
+| Arquivo | Tipo | Quando carregar |
+|---|---|---|
+| `SESSION_PRIMER.md` | **Operacional** — protocolo e contexto compacto | Sempre |
+| `docs/WORKING_MODEL.md` | **Governança** — regras de Jira, workflow, DoR/DoD | Dúvida de processo ou escopo |
+| `docs/CONTEXT.md` | **Arquitetura** — como o sistema foi construído e funciona | Tarefas técnicas / arquitetura |
+| `docs/decisions/` | **Decisões** — ADRs imutáveis, o porquê das escolhas | Quando questionar uma decisão passada |
+| `docs/integrations/<sistema>.md` | **Domínio externo** — playbook operacional de cada sistema terceiro | Tarefas que tocam sistema externo |
+| `docs/DEVLOG.md` | **Histórico** — o que aconteceu, bugs, lições aprendidas | Debugging ou contexto histórico |
+| `AI_START_HERE.md` | **Onboarding** — para IAs que chegam sem contexto nenhum | Primeira sessão neste repositório |
+| `docs/discovery/` | **Notas de sessão** — ephemeral, profundidade pontual | Pesquisa ativa ou spike |
 
 ---
 
@@ -54,7 +65,7 @@ Antes de tocar qualquer arquivo:
 
 **1. Busque cards existentes**
 Jira: https://guigiese.atlassian.net | Credenciais: `~/.codex/jira-auth.json`
-Projetos: PBEXM (Lab Monitor) · PBCORE (plataforma/infra) · PBFIN (Financeiro) · PBINC (incubadora)
+Projetos: PBVET (Lab Monitor + plataforma) · PBINC (incubadora: CRM, Financeiro)
 Busque palavras-chave do problema descrito pelo usuário.
 
 **2. Avalie os resultados**
@@ -108,7 +119,7 @@ git checkout -b session/YYYYMMDD-XXXX
 | Usuário diz | Comportamento |
 |---|---|
 | "e depois aguarde" | Fecha card, para. |
-| "e depois continue" | Fecha card, busca próximo `Pronto pra dev` em PBEXM, executa. |
+| "e depois continue" | Fecha card, busca próximo `Pronto pra dev` em PBVET, executa. |
 | "e depois me mostre o planejado" | Fecha card, lista `Pronto pra dev` + `Descoberta` com resumo. |
 | "e depois planeje X" | Fecha card, cria cards de discovery para X no projeto correto. |
 | "e depois faça X" | Fecha card, inicia X (cria card se não existir). |

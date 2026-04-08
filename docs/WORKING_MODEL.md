@@ -23,11 +23,12 @@ Nunca usar "projeto" de forma ambígua.
 
 Decisões estruturais sobre o workspace que não devem ser re-questionadas sem um card Jira.
 
-**Estrutura de entrada das IAs (decidido em 2026-04):**
+**Estrutura de entrada das IAs (decidido em 2026-04, refinado em 2026-04-08):**
 - `CLAUDE.md` e `AGENTS.md` são entradas específicas por ferramenta (mínimas, só redirecionam)
 - `SESSION_PRIMER.md` é o contexto operacional compacto — lido sempre por todas as IAs
-- `AI_START_HERE.md` é a referência completa — consultada sob demanda quando a tarefa exigir
-- Esta estrutura em 3 camadas é intencional. Não simplificar sem card PBCORE.
+- `AI_START_HERE.md` é o manifesto de onboarding — para IAs que chegam sem contexto; não duplica SESSION_PRIMER
+- `docs/` tem taxonomia explícita por tipo de conhecimento: Governança / Arquitetura / Decisões / Domínio externo / Histórico
+- Esta estrutura é intencional. Não simplificar sem card PBVET.
 
 **Branch cleanup policy (decidido em 2026-04-07):**
 - Auto-delete de branches ativado no GitHub (branches deletadas ao merge)
@@ -42,70 +43,40 @@ Decisões estruturais sobre o workspace que não devem ser re-questionadas sem u
 
 ## 1. Jira Structure
 
-Há atualmente 4 projetos Jira. Consolidação para PB + PBINC está planejada (PBCORE-64).
+Projetos ativos (consolidação concluída em 2026-04-08):
+- `PBVET`: projeto unificado — Lab Monitor, plataforma, infra, governança, docs
+- `PBINC`: incubadora para módulos futuros (CRM, automação de atendimento)
 
-Projetos ativos:
-- `PBEXM`: módulo Lab Monitor
-- `PBCORE`: plataforma, governança, docs, segurança, infra, shared capabilities
-- `PBFIN`: módulo Financeiro
-- `PBINC`: incubadora para módulos futuros (CRM, automação)
+Projetos legados arquivados: `PBEXM`, `PBCORE`, `PBFIN` — issues migradas para PBVET.
 
-Workflow de entrega (PBEXM, PBCORE, PBFIN):
+Workflow de entrega (PBVET):
 `Backlog → Descoberta → Refinamento → Pronto pra dev → Em andamento → Em revisão → Concluído`
 
 Workflow de incubação (PBINC):
 `Backlog → Descoberta → Validação → Pronto pra incubar → Em incubação → Graduado`
 
-Nota: Jira não aceita chaves com hífen interno (`PB-EXM`), por isso as chaves reais são `PBEXM`, `PBCORE`, etc.
+Roteamento de cards:
+- trabalho de produto, módulo ou plataforma → `PBVET`
+- descoberta de módulo futuro ainda sem entrega comprometida → `PBINC`
+- quando o módulo incubado tem backlog próprio e cadência de entrega → criar épico em `PBVET`
 
-Use them like this:
+## 1A. PBVET Scope Policy
 
-- `PBEXM` for exam product work and exam-specific hardening
-- `PBCORE` for cross-cutting work and platform-level decisions
-- `PBINC` for future-module discovery until a module deserves its own project
+`PBVET` é o projeto unificado. Cobre desde trabalho de produto (Lab Monitor) até plataforma, infra e governança.
 
-Cross-project board:
-- `PB Triage` is the transversal board for cards with ambiguous scope or re-home decisions
-- it is a board only, not a fourth project
-- cards on that board must still belong to one real project: `PBEXM`, `PBCORE`, or `PBINC`
+Work that belongs in `PBVET`:
+- entrega de produto: comportamento, telas, regras, dados, conectores de lab, validação
+- plataforma e infra: auth, secrets, persistência, observabilidade, deploy, shared capabilities
+- governança: operating model do Jira, workflow rules, DoR/DoD, onboarding de IAs
+- docs e decisões: documentação de arquitetura, ADRs, playbooks de integração
 
-## 1A. PBCORE Scope Policy
-
-`PBCORE` exists for governance plus shared platform capabilities.
-It is not docs-only, but it is also not a generic overflow bucket.
-
-Work that belongs in `PBCORE`:
-- Jira operating model, workflow rules, DoR, DoD, and project governance
-- AI onboarding, working agreements, documentation standards, and execution guardrails
-- naming, repository organization, and platform-level operating conventions
-- auth, secrets, persistence, infra, observability, and other technical capabilities meant to serve more than one module
-- shared contracts, shared tooling, or platform rules that sit above a single module
-- discovery of platform capabilities before they become implementation
-
-Work that does not belong in `PBCORE`:
-- product behavior, screens, rules, data, or delivery work that belongs only to the exam module
-- active Lab Monitor implementation or deploy-line work when the scope is local to that module
-- discovery of future business modules such as CRM, Financeiro, or Automacao de Atendimento
-
-Quick routing rule:
-- if the work affects one active module only, prefer that module project
-- if the work explores a future business module, use `PBINC`
-- if the work defines a reusable rule, platform guardrail, or shared capability, use `PBCORE`
+Work that belongs in `PBINC` instead:
+- descoberta de módulos futuros que ainda não têm entrega comprometida (CRM, automação de atendimento)
+- quando o módulo incubar e tiver backlog próprio, abre-se épico em `PBVET`
 
 Ambiguous scope rule:
-- if the scope is still unclear, discovery may begin in `PBCORE`
-- once discovery shows the downstream work is module-local, the implementation cards should move to the module project instead of staying in `PBCORE`
-
-Triage board rule:
-- use label `scope-ambiguous` for cards that still need a home decision
-- use label `needs-rehome` for cards whose right home is known, but whose history is still being preserved in the old project
-- cards with one of those labels may live on the `PB Triage` board while the routing decision is active
-- no such card should enter `Pronto pra dev` without a clear destination project
-
-Current incubated module lines:
-- Financeiro
-- CRM
-- Automacao de Atendimento
+- se o escopo for ambíguo, usar label `scope-ambiguous` e não mover para `Pronto pra dev` sem decisão
+- use label `needs-rehome` para cards cujo projeto correto é conhecido mas ainda carregam histórico do projeto antigo
 
 ## 2. When A Module Leaves PBINC
 
@@ -134,7 +105,7 @@ Use them this way:
 
 ## 4. Jira Status Model
 
-### Delivery workflow — PBEXM e PBCORE
+### Delivery workflow — PBVET
 
 ```
 Backlog → Descoberta → Pronto pra dev → Em andamento → Em revisão → Concluído
