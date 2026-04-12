@@ -52,13 +52,6 @@ EXAMES_PAGE_SIZE = 20
 async def lifespan(app):
     monitor_thread = threading.Thread(target=run_monitor_loop, args=(state,), daemon=True)
     monitor_thread.start()
-    history_thread = threading.Thread(
-        target=run_historical_backfill_until_complete,
-        args=(state,),
-        kwargs={"max_windows_per_lab": 2},
-        daemon=True,
-    )
-    history_thread.start()
     register_webhook(APP_URL)
     yield
 

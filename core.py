@@ -318,6 +318,35 @@ def _hydrate_snapshot_results(lab, anterior: dict, atual: dict) -> None:
         lab.enrich_resultados(anterior, atual)
 
 
+def _item_has_usable_result(item: dict) -> bool:
+    if item.get("resultado"):
+        return True
+    if (item.get("report_text") or "").strip():
+        return True
+    if (item.get("diagnosis_text") or "").strip():
+        return True
+    return False
+
+
+def _apply_operational_status_rules(atual: dict) -> None:
+    """
+    Applies platform-wide operational rules after connector enrichment.
+    Connectors provide lab-facing state; the Lab Monitor derives the
+    user-facing operational state from that payload.
+    """
+    for record in atual.values():
+        for item in record.get("itens", {}).values():
+            raw_status = item.get("lab_status") or item.get("status") or ""
+            normalized = normalize_status(raw_status)
+            item["lab_status"] = raw_status
+            if normalized == "Pronto" and not _item_has_usable_result(item):
+                item["status"] = "Inconsistente"
+                item["result_issue"] = "ready-without-result"
+            else:
+                item["status"] = normalized
+                item.pop("result_issue", None)
+
+
 def build_notification_plan(
     lab_id: str,
     lab_name: str,
@@ -493,8 +522,12 @@ def run_monitor_loop(state=None):
                     if not anterior:
                         _hydrate_snapshot_metadata(lab, anterior, atual, ts_now)
                         _hydrate_snapshot_results(lab, anterior, atual)
+                        _apply_operational_status_rules(atual)
                         print("  Primeira execucao - estado salvo.")
                     else:
+                        _hydrate_snapshot_metadata(lab, anterior, atual, ts_now)
+                        _hydrate_snapshot_results(lab, anterior, atual)
+                        _apply_operational_status_rules(atual)
                         internal_messages, external_events = build_notification_plan(
                             lab.lab_id,
                             lab.lab_name,
@@ -502,8 +535,6 @@ def run_monitor_loop(state=None):
                             atual,
                             notification_settings,
                         )
-                        _hydrate_snapshot_metadata(lab, anterior, atual, ts_now)
-                        _hydrate_snapshot_results(lab, anterior, atual)
 
                         for msg in internal_messages:
                             print(f"  -> {msg[:80]}")
@@ -534,12 +565,6 @@ def run_monitor_loop(state=None):
                 finally:
                     if state:
                         state.is_checking[lab.lab_id] = False
-
-        if state:
-            try:
-                run_historical_backfill(state, max_windows_per_lab=1)
-            except Exception as e:
-                print(f"[backfill] erro - {e}")
 
         time.sleep(interval)
 

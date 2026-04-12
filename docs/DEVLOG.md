@@ -852,3 +852,52 @@ O shell do Lab Monitor continua separado, mas conectado visualmente ao restante 
 - `python -m py_compile` nos modulos centrais alterados;
 - `python -m unittest discover -s Testes -v`;
 - smoke autenticado das rotas principais da plataforma e do modulo.
+
+---
+
+## 2026-04-07 — Reorganização geral da plataforma
+
+### Contexto
+O projeto cresceu organicamente desde o início e acumulou inconsistências de nomenclatura,
+estrutura de arquivos e organização de ferramentas. Esta sessão executou uma reorganização
+geral com base em revisão completa do estado do workspace.
+
+### Decisões executadas
+
+**Git e GitHub:**
+- Repositório renomeado de `monitor-exames-bitlab` → `pinkblue-vet`
+- Auto-delete de branches após merge ativado no GitHub
+- Tag `v1.0` criada em main como baseline da reorganização
+- ~35 branches `session/*` acumuladas (já mergeadas via squash) foram deletadas local e remotamente
+- Política: `git fetch --prune` no início de cada sessão; branches limpas automaticamente após merge
+
+**Railway:**
+- Projeto renomeado de `monitor-exames` → `pinkblue-vet`
+- Serviços obsoletos deletados: `creative-miracle` e `monitor-exames-bitlab`
+  (sem tráfego desde 29-30/03/2026, apenas variáveis RAILWAY_* automáticas)
+- Serviço de produção `pinkblue-vet` mantido com volume persistente em `/data`
+
+**Módulo Financeiro:**
+- Consolidado sob `modules/financeiro/`: tui (ex-`tools/folha-tui/`),
+  web (ex-`tools/folha-web/`), tests (ex-`Testes/test_financeiro_*.py`)
+- `folha.bat` e `folha-web.bat` da raiz removidos
+- `node_modules/` adicionado ao `.gitignore`
+
+**Jira:**
+- PBFIN descoberto como 4º projeto existente (não estava documentado)
+- Card PBCORE-64: consolidação futura PBEXM + PBCORE + PBFIN → projeto único PB
+- Card PBINC-24: discovery para base de conhecimento centralizada da plataforma
+- Workflow definido para entrega: Backlog → Descoberta → Refinamento → Pronto pra dev → Em andamento → Em revisão → Concluído
+
+**Vocabulário canônico estabelecido:**
+Plataforma / Módulo / Repositório / Projeto Jira / Serviço / Sessão
+Documentado em WORKING_MODEL.md seções 0 e 0A.
+
+**Decisão de design do workspace documentada:**
+Estrutura de entrada de IAs (CLAUDE.md/AGENTS.md → SESSION_PRIMER.md → AI_START_HERE.md)
+é intencional e não deve ser simplificada sem card PBCORE.
+
+### O que ficou pendente
+- Consolidação Jira (PBCORE-64): criação do projeto PB + migração de cards (tarefa dedicada)
+- Atualização do workflow Jira (adicionar etapa Refinamento nos projetos existentes)
+- Pasta local ainda se chama `SimplesVet` — baixo impacto, pode ser renomeada a qualquer momento

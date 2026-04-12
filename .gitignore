@@ -17,3 +17,6 @@ poc/architecture-map/layout-debug-2.json
 poc/architecture-map/tmp-layout.html
 runtime-data/
 *.sqlite3
+
+# Node
+node_modules/

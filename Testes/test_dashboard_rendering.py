@@ -53,7 +53,7 @@ class DashboardRenderingTests(unittest.TestCase):
         self.assertIn("pb-signals pb-signals--right", body)
         self.assertNotIn("pb-species-badge", body)
 
-    def test_ultimos_liberados_links_with_clean_patient_query_and_without_footer_noise(self):
+    def test_ultimos_liberados_links_with_clean_patient_and_tutor_query_and_without_footer_noise(self):
         fake_groups = [
             {
                 "paciente": "PIDA - JINGWEI DU PROP: JINGWEI DU",
@@ -79,7 +79,7 @@ class DashboardRenderingTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         body = response.text
-        self.assertIn('/labmonitor/exames?q=PIDA"', body)
+        self.assertIn('/labmonitor/exames?q=PIDA%20Jingwei%20Du"', body)
         self.assertNotIn("PROP%3A", body)
         self.assertNotIn("pb-rail-palette--vivid", body)
         self.assertNotIn("crit-red", body)
@@ -111,7 +111,6 @@ class DashboardRenderingTests(unittest.TestCase):
         body = response.text
         self.assertIn('id="card-pronto"', body)
         self.assertIn('data-status="Pronto"', body)
-        self.assertIn("Abrir lista filtrada", body)
         self.assertIn("EM CURSO", body)
         self.assertIn("updateCardLinks", body)
         self.assertNotIn("Saude operacional", body)
@@ -119,6 +118,13 @@ class DashboardRenderingTests(unittest.TestCase):
         self.assertNotIn("progress-wrap", body)
         self.assertIn("grid grid-cols-2 gap-2 xl:grid-cols-4 sm:gap-3", body)
         self.assertIn("min-w-0 bg-white rounded-xl", body)
+
+    def test_exames_page_does_not_offer_inconsistent_group_filter(self):
+        response = self.client.get("/labmonitor/exames")
+
+        self.assertEqual(response.status_code, 200)
+        body = response.text
+        self.assertNotIn(">Inconsistente<", body)
 
     def test_exames_partial_keeps_right_aligned_signals_and_chevron(self):
         fake_groups = [

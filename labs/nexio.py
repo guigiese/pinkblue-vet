@@ -169,13 +169,15 @@ class NexioConnector(LabConnector):
         *,
         data_recepcao: str = "",
         data_liberacao: str = "",
+        numero_inicial: str = "",
+        numero_final: str = "",
     ) -> list[dict]:
         ts = int(time.time() * 1000)
         r = session.post(f"{self.LISTA}?timeReq={ts}", data={
             "campo": "", "cpf": "", "rg": "", "dataNascimento": "",
             "convenioId": "", "medicoRequisitanteId": "", "patologistaDesignadoId": "",
             "tipoExameId": "", "dataRecepcao": data_recepcao, "dataLiberacao": data_liberacao,
-            "numeroInicial": "", "numeroFinal": "", "prontuario": "",
+            "numeroInicial": numero_inicial, "numeroFinal": numero_final, "prontuario": "",
             "positivoMalignidade": "", "etapa": "", "numeroGuiaConvenio": "",
             "ordenarPor": "", "sortiar": "", "atipia": "", "casoCritico": "",
             "nomeProprietario": "",
@@ -238,6 +240,7 @@ class NexioConnector(LabConnector):
                     num: {
                         "nome": f"Patologia {num}",
                         "status": exame["status"],
+                        "lab_status": exame["status"],
                         "released_at_hint": (
                             datetime.strptime(exame["data_liberacao"], "%d/%m/%Y").strftime("%Y-%m-%d")
                             if exame["data_liberacao"] and re.match(r"^\d{2}/\d{2}/\d{4}$", exame["data_liberacao"])
@@ -249,6 +252,59 @@ class NexioConnector(LabConnector):
                 },
             }
         return resultado
+
+    @staticmethod
+    def _range_value(days_back: int) -> str:
+        end_dt = time.localtime()
+        start_ts = time.time() - (days_back * 24 * 60 * 60)
+        start_dt = time.localtime(start_ts)
+        start_fmt = time.strftime("%d/%m/%Y", start_dt)
+        end_fmt = time.strftime("%d/%m/%Y", end_dt)
+        return f"{start_fmt} - {end_fmt}"
+
+    def _snapshot_recent(self, session: requests.Session) -> dict[str, dict]:
+        sync_hints = getattr(self, "sync_hints", {}) or {}
+        days_back = int(sync_hints.get("discovery_days") or 3)
+        days_back = max(1, days_back)
+        range_value = self._range_value(days_back)
+
+        merged: dict[str, dict] = {}
+        seen_ids: set[str] = set()
+        for exames in (
+            self._buscar_exames(session, data_recepcao=range_value),
+            self._buscar_exames(session, data_liberacao=range_value),
+        ):
+            for exame in exames:
+                exam_key = exame.get("numero") or exame.get("exame_id")
+                if not exam_key or exam_key in seen_ids:
+                    continue
+                seen_ids.add(exam_key)
+                merged[exam_key] = exame
+        return self._snapshot_from_exames(list(merged.values()))
+
+    def _snapshot_open_records(self, session: requests.Session) -> dict[str, dict]:
+        sync_hints = getattr(self, "sync_hints", {}) or {}
+        open_records = sync_hints.get("open_records") or []
+        merged: dict[str, dict] = {}
+        seen_ids: set[str] = set()
+
+        for record in open_records:
+            record_id = record.get("record_id")
+            if not record_id or record_id in seen_ids:
+                continue
+            exames = self._buscar_exames(
+                session,
+                numero_inicial=record_id,
+                numero_final=record_id,
+            )
+            for exame in exames:
+                exam_key = exame.get("numero") or exame.get("exame_id")
+                if not exam_key or exam_key in seen_ids:
+                    continue
+                seen_ids.add(exam_key)
+                merged[exam_key] = exame
+            time.sleep(0.05)
+        return self._snapshot_from_exames(list(merged.values()))
 
     def snapshot_between(self, start_date: str, end_date: str) -> dict[str, dict]:
         """
@@ -407,4 +463,9 @@ class NexioConnector(LabConnector):
 
     def snapshot(self) -> dict[str, dict]:
         session = self._login()
-        return self._snapshot_from_exames(self._buscar_exames(session))
+        recent = self._snapshot_recent(session)
+        open_refresh = self._snapshot_open_records(session)
+        if not open_refresh:
+            return recent
+        recent.update(open_refresh)
+        return recent
