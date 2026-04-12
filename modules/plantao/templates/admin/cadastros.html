@@ -1,0 +1,59 @@
+{% extends "plantao_admin_base.html" %}
+
+{% block page_title %}Cadastros{% endblock %}
+{% block title %}Cadastros{% endblock %}
+
+{% block content %}
+<div class="space-y-4">
+  <section class="bg-white border border-gray-200 rounded-xl p-4">
+    <h3 class="text-sm font-semibold text-gray-700 mb-3">Pendentes</h3>
+    {% if pendentes %}
+    <div class="space-y-2">
+      {% for p in pendentes %}
+      <div class="border border-gray-100 rounded-lg p-3 flex items-center justify-between gap-3">
+        <div class="text-sm">
+          <div class="font-medium text-gray-800">{{ p.nome }} · {{ p.tipo }}</div>
+          <div class="text-gray-500">{{ p.email }}</div>
+        </div>
+        <div class="flex gap-2">
+          <form method="post" action="/plantao/admin/cadastros/{{ p.id }}/aprovar">
+            <button class="rounded-lg bg-green-600 text-white text-xs font-semibold px-3 py-2">Aprovar</button>
+          </form>
+          <form method="post" action="/plantao/admin/cadastros/{{ p.id }}/rejeitar" class="flex gap-2">
+            <input type="text" name="motivo" placeholder="Motivo" class="rounded-lg border border-gray-300 px-2 py-1 text-xs">
+            <button class="rounded-lg border border-red-300 text-red-700 text-xs font-semibold px-3 py-2">Rejeitar</button>
+          </form>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-sm text-gray-500">Nenhum cadastro pendente.</div>
+    {% endif %}
+  </section>
+
+  <section class="bg-white border border-gray-200 rounded-xl p-4">
+    <h3 class="text-sm font-semibold text-gray-700 mb-2">Ativos</h3>
+    <div class="space-y-2">
+      {% for p in ativos %}
+      <div class="flex items-center justify-between border border-gray-100 rounded-lg px-3 py-2 text-sm">
+        <span>{{ p.nome }} · {{ p.email }}</span>
+        <form method="post" action="/plantao/admin/cadastros/{{ p.id }}/desativar">
+          <button class="rounded-lg border border-red-300 text-red-700 text-xs font-semibold px-3 py-1.5">Desativar</button>
+        </form>
+      </div>
+      {% endfor %}
+      {% if not ativos %}<div class="text-sm text-gray-500">Nenhum ativo.</div>{% endif %}
+    </div>
+  </section>
+
+  <section class="bg-white border border-gray-200 rounded-xl p-4">
+    <h3 class="text-sm font-semibold text-gray-700 mb-2">Inativos e rejeitados</h3>
+    <div class="space-y-1 text-sm text-gray-600">
+      {% for p in inativos %}<div>{{ p.nome }} · inativo</div>{% endfor %}
+      {% for p in rejeitados %}<div>{{ p.nome }} · rejeitado</div>{% endfor %}
+      {% if not inativos and not rejeitados %}<div class="text-gray-500">Sem registros.</div>{% endif %}
+    </div>
+  </section>
+</div>
+{% endblock %}

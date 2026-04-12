@@ -36,6 +36,7 @@
       {% if not n.lida %}
       <button
         hx-post="/plantao/notificacoes/{{ n.id }}/lida"
+        hx-headers='{"X-CSRF-Token": "{{ csrf_token }}"}'
         hx-target="closest div"
         hx-swap="outerHTML"
         class="text-xs text-pink-600 hover:underline shrink-0 mt-0.5">

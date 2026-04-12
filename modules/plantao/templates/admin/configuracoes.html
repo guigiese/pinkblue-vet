@@ -1,0 +1,35 @@
+{% extends "plantao_admin_base.html" %}
+
+{% block page_title %}Configuracoes{% endblock %}
+{% block title %}Configuracoes{% endblock %}
+
+{% block content %}
+<div class="space-y-4">
+  {% if erro %}<div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{{ erro }}</div>{% endif %}
+  {% if ok %}<div class="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">Configuracoes salvas.</div>{% endif %}
+
+  <form method="post" action="/plantao/admin/configuracoes/salvar" class="bg-white border border-gray-200 rounded-xl p-4 space-y-3">
+    <div>
+      <label class="block text-xs font-medium text-gray-600 mb-1">Prazo cancelamento (horas uteis)</label>
+      <input type="number" name="plantao_prazo_cancelamento_horas_uteis" value="{{ configuracoes.plantao_prazo_cancelamento_horas_uteis or '24' }}" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+    </div>
+    <div>
+      <label class="block text-xs font-medium text-gray-600 mb-1">Max candidaturas provisorias por vaga</label>
+      <input type="number" name="plantao_max_candidaturas_provisorias_por_vaga" value="{{ configuracoes.plantao_max_candidaturas_provisorias_por_vaga or '3' }}" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+    </div>
+    <div>
+      <label class="block text-xs font-medium text-gray-600 mb-1">Antecedencia alerta sobreaviso (dias)</label>
+      <input type="number" name="plantao_notif_sobreaviso_dias_antecedencia" value="{{ configuracoes.plantao_notif_sobreaviso_dias_antecedencia or '3' }}" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+    </div>
+    <div>
+      <label class="block text-xs font-medium text-gray-600 mb-1">Permitir troca sem aprovacao gestor (true/false)</label>
+      <input type="text" name="plantao_permitir_troca_sem_aprovacao_gestor" value="{{ configuracoes.plantao_permitir_troca_sem_aprovacao_gestor or 'false' }}" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+    </div>
+    <div>
+      <label class="block text-xs font-medium text-gray-600 mb-1">API Key sobreaviso</label>
+      <input type="text" name="plantao_api_key" value="{{ configuracoes.plantao_api_key or '' }}" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+    </div>
+    <button class="rounded-lg bg-pink-700 text-white font-semibold text-sm px-3 py-2">Salvar</button>
+  </form>
+</div>
+{% endblock %}

@@ -233,6 +233,12 @@ def _now() -> str:
 # ── Inicialização ─────────────────────────────────────────────────────────────
 
 _DDL_PG = """
+CREATE TABLE IF NOT EXISTS app_kv (
+    key         TEXT PRIMARY KEY,
+    value       TEXT NOT NULL,
+    updated_at  TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS plantao_locais (
     id          SERIAL PRIMARY KEY,
     nome        TEXT NOT NULL,
@@ -409,6 +415,12 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS gestor_plantao INTEGER NOT NULL DEFAU
 
 # SQLite-compatible DDL (sem SERIAL, sem BIGSERIAL, sem partial indexes, sem ALTER ADD IF NOT EXISTS)
 _DDL_SQLITE = """
+CREATE TABLE IF NOT EXISTS app_kv (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS plantao_locais (
     id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT NOT NULL,
     endereco TEXT NOT NULL DEFAULT '', cidade TEXT NOT NULL DEFAULT '',

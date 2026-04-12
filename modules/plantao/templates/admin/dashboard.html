@@ -1,0 +1,49 @@
+{% extends "plantao_admin_base.html" %}
+
+{% block page_title %}Dashboard{% endblock %}
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+  <div class="bg-white border border-gray-200 rounded-xl p-4">
+    <div class="text-xs text-gray-500">Cadastros pendentes</div>
+    <div class="text-2xl font-semibold text-gray-800">{{ alertas.cadastros_pendentes }}</div>
+  </div>
+  <div class="bg-white border border-gray-200 rounded-xl p-4">
+    <div class="text-xs text-gray-500">Datas sem vagas preenchidas</div>
+    <div class="text-2xl font-semibold text-gray-800">{{ alertas.datas_sem_vagas|length }}</div>
+  </div>
+  <div class="bg-white border border-gray-200 rounded-xl p-4">
+    <div class="text-xs text-gray-500">Sobreaviso vazio</div>
+    <div class="text-2xl font-semibold text-gray-800">{{ alertas.sobreaviso_vazio|length }}</div>
+  </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
+  <section class="bg-white border border-gray-200 rounded-xl p-4 space-y-2">
+    <h3 class="text-sm font-semibold text-gray-700">Datas sem vagas</h3>
+    {% if alertas.datas_sem_vagas %}
+    <ul class="space-y-2 text-sm">
+      {% for d in alertas.datas_sem_vagas %}
+      <li class="border border-gray-100 rounded-lg px-3 py-2">{{ d.data }} · {{ d.hora_inicio }}-{{ d.hora_fim }} · {{ d.local_nome }}</li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <div class="text-sm text-gray-500">Sem alertas.</div>
+    {% endif %}
+  </section>
+
+  <section class="bg-white border border-gray-200 rounded-xl p-4 space-y-2">
+    <h3 class="text-sm font-semibold text-gray-700">Sobreaviso sem participantes</h3>
+    {% if alertas.sobreaviso_vazio %}
+    <ul class="space-y-2 text-sm">
+      {% for d in alertas.sobreaviso_vazio %}
+      <li class="border border-gray-100 rounded-lg px-3 py-2">{{ d.data }} · {{ d.hora_inicio }}-{{ d.hora_fim }} · {{ d.local_nome }}</li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <div class="text-sm text-gray-500">Sem alertas.</div>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

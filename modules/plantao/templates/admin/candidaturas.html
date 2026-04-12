@@ -1,0 +1,48 @@
+{% extends "plantao_admin_base.html" %}
+
+{% block page_title %}Candidaturas{% endblock %}
+{% block title %}Candidaturas{% endblock %}
+
+{% block content %}
+<div class="space-y-4">
+  {% if erro %}<div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{{ erro }}</div>{% endif %}
+  {% if ok %}<div class="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">Operacao concluida.</div>{% endif %}
+
+  <form method="get" class="bg-white border border-gray-200 rounded-xl p-4 flex flex-col sm:flex-row gap-2">
+    <select name="data_id" class="rounded-lg border border-gray-300 px-3 py-2 text-sm">
+      <option value="0">Selecione uma data</option>
+      {% for d in datas %}
+      <option value="{{ d.id }}" {% if data_id == d.id %}selected{% endif %}>{{ d.data }} · {{ d.hora_inicio }}-{{ d.hora_fim }}</option>
+      {% endfor %}
+    </select>
+    <button class="rounded-lg bg-pink-700 text-white text-sm font-semibold px-3 py-2">Carregar</button>
+  </form>
+
+  <section class="bg-white border border-gray-200 rounded-xl p-4">
+    <h3 class="text-sm font-semibold text-gray-700 mb-3">Lista</h3>
+    {% if candidaturas %}
+    <div class="space-y-2">
+      {% for c in candidaturas %}
+      <div class="border border-gray-100 rounded-lg p-3 flex items-center justify-between gap-3">
+        <div class="text-sm">
+          <div class="font-medium text-gray-800">{{ c.perfil_nome }} · {{ c.posicao_tipo }}</div>
+          <div class="text-gray-500">{{ c.status }} · criado em {{ c.criado_em }}</div>
+        </div>
+        <div class="flex gap-2">
+          <form method="post" action="/plantao/admin/candidaturas/{{ c.id }}/confirmar">
+            <button class="rounded-lg bg-green-600 text-white text-xs font-semibold px-3 py-2">Confirmar</button>
+          </form>
+          <form method="post" action="/plantao/admin/candidaturas/{{ c.id }}/recusar" class="flex gap-2">
+            <input type="text" name="motivo" placeholder="Motivo" class="rounded-lg border border-gray-300 px-2 py-1 text-xs">
+            <button class="rounded-lg border border-red-300 text-red-700 text-xs font-semibold px-3 py-2">Recusar</button>
+          </form>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-sm text-gray-500">Nenhuma candidatura para a data selecionada.</div>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

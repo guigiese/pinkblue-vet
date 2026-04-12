@@ -1,0 +1,68 @@
+{% extends "plantao_base.html" %}
+
+{% block title %}Escalas{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+  <div class="flex items-center justify-between">
+    <h2 class="text-lg font-semibold text-gray-800">Escalas Abertas</h2>
+  </div>
+
+  {% if erro %}
+  <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{{ erro }}</div>
+  {% endif %}
+  {% if ok %}
+  <div class="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">Operacao concluida.</div>
+  {% endif %}
+
+  <form method="get" class="grid grid-cols-1 sm:grid-cols-4 gap-2 bg-white border border-gray-200 rounded-xl p-3">
+    <input type="number" name="mes" min="1" max="12" value="{{ mes }}" class="rounded-lg border border-gray-300 px-3 py-2 text-sm">
+    <input type="number" name="ano" min="2024" max="2100" value="{{ ano }}" class="rounded-lg border border-gray-300 px-3 py-2 text-sm">
+    <select name="local_id" class="rounded-lg border border-gray-300 px-3 py-2 text-sm">
+      <option value="0">Todos os locais</option>
+      {% for local in locais %}
+      <option value="{{ local.id }}" {% if local_id == local.id %}selected{% endif %}>{{ local.nome }}</option>
+      {% endfor %}
+    </select>
+    <button class="rounded-lg bg-pink-700 text-white text-sm font-semibold px-3 py-2">Filtrar</button>
+  </form>
+
+  <section class="space-y-3">
+    <h3 class="text-sm font-semibold text-gray-700">Vagas para {{ 'veterinario' if perfil.tipo == 'veterinario' else 'auxiliar' }}</h3>
+    {% if vagas_abertas %}
+    <div class="space-y-2">
+      {% for vaga in vagas_abertas %}
+      <div class="bg-white border border-gray-200 rounded-xl p-3 flex items-center justify-between gap-3">
+        <div class="text-sm">
+          <div class="font-medium text-gray-800">{{ vaga.data }} · {{ vaga.hora_inicio }}-{{ vaga.hora_fim }}</div>
+          <div class="text-gray-500">{{ vaga.local_nome }} · {{ vaga.tipo_perfil }} · {{ vaga.confirmados }}/{{ vaga.vagas }} confirmados</div>
+        </div>
+        <form method="post"
+              action="/plantao/escalas/{{ vaga.posicao_id }}/candidatar"
+              hx-post="/plantao/escalas/{{ vaga.posicao_id }}/candidatar"
+              hx-swap="none">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button class="rounded-lg bg-pink-700 hover:bg-pink-800 text-white text-xs font-semibold px-3 py-2">Candidatar</button>
+        </form>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-sm text-gray-500">Nenhuma vaga aberta no filtro atual.</div>
+    {% endif %}
+  </section>
+
+  <section class="space-y-2">
+    <h3 class="text-sm font-semibold text-gray-700">Calendario do mes</h3>
+    <div class="grid grid-cols-1 sm:grid-cols-7 gap-2">
+      {% for d in datas_mes %}
+      <div class="rounded-xl border p-2 text-xs {% if d.status == 'publicado' %}border-green-200 bg-green-50{% elif d.status == 'rascunho' %}border-yellow-200 bg-yellow-50{% else %}border-gray-200 bg-white{% endif %}">
+        <div class="font-semibold text-gray-800">{{ d.data }}</div>
+        <div class="text-gray-600">{{ d.tipo }} · {{ d.subtipo }}</div>
+        <div class="text-gray-500">{{ d.hora_inicio }}-{{ d.hora_fim }}</div>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+</div>
+{% endblock %}

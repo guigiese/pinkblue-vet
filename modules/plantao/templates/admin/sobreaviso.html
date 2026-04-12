@@ -1,0 +1,40 @@
+{% extends "plantao_admin_base.html" %}
+
+{% block page_title %}Sobreaviso{% endblock %}
+{% block title %}Sobreaviso{% endblock %}
+
+{% block content %}
+<div class="space-y-4">
+  {% if erro %}<div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{{ erro }}</div>{% endif %}
+  {% if ok %}<div class="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">Operacao concluida.</div>{% endif %}
+
+  <form method="get" class="bg-white border border-gray-200 rounded-xl p-4 flex flex-col sm:flex-row gap-2">
+    <select name="data_id" class="rounded-lg border border-gray-300 px-3 py-2 text-sm">
+      <option value="0">Selecione uma data</option>
+      {% for d in datas %}
+      <option value="{{ d.id }}" {% if data_id == d.id %}selected{% endif %}>{{ d.data }} · {{ d.hora_inicio }}-{{ d.hora_fim }}</option>
+      {% endfor %}
+    </select>
+    <button class="rounded-lg bg-pink-700 text-white text-sm font-semibold px-3 py-2">Carregar</button>
+  </form>
+
+  <section class="bg-white border border-gray-200 rounded-xl p-4 space-y-3">
+    <h3 class="text-sm font-semibold text-gray-700">Lista de prioridade</h3>
+    {% if adesoes %}
+    <div class="space-y-2">
+      {% for a in adesoes %}
+      <div class="border border-gray-100 rounded-lg px-3 py-2 text-sm flex items-center justify-between">
+        <span>#{{ a.prioridade }} · {{ a.perfil_nome }} · {{ a.perfil_email }}</span>
+      </div>
+      {% endfor %}
+    </div>
+    <form method="post" action="/plantao/admin/sobreaviso/{{ data_id }}/reordenar" class="pt-2 flex flex-col sm:flex-row gap-2">
+      <input type="text" name="nova_ordem" placeholder="Ex: 10,9,8" class="rounded-lg border border-gray-300 px-3 py-2 text-sm flex-1">
+      <button class="rounded-lg border border-pink-700 text-pink-700 text-sm font-semibold px-3 py-2 hover:bg-pink-50">Aplicar ordem</button>
+    </form>
+    {% else %}
+    <div class="text-sm text-gray-500">Sem adesoes ativas.</div>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

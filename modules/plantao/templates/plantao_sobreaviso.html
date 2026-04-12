@@ -1,0 +1,60 @@
+{% extends "plantao_base.html" %}
+
+{% block title %}Sobreaviso{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+  <h2 class="text-lg font-semibold text-gray-800">Sobreaviso</h2>
+
+  {% if erro %}
+  <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{{ erro }}</div>
+  {% endif %}
+  {% if ok %}
+  <div class="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">Operacao concluida.</div>
+  {% endif %}
+
+  <section class="space-y-2">
+    <h3 class="text-sm font-semibold text-gray-700">Minha posicao no sobreaviso</h3>
+    {% if minhas_adesoes %}
+    <div class="space-y-2">
+      {% for a in minhas_adesoes %}
+      <div class="bg-white border border-gray-200 rounded-xl p-3 flex items-center justify-between gap-3">
+        <div class="text-sm">
+          <div class="font-medium text-gray-800">{{ a.data }} · {{ a.hora_inicio }}-{{ a.hora_fim }}</div>
+          <div class="text-gray-500">{{ a.local_nome }} · prioridade #{{ a.prioridade }}</div>
+        </div>
+        <form method="post" action="/plantao/sobreaviso/{{ a.id }}/cancelar">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button class="rounded-lg border border-red-300 text-red-700 text-xs font-semibold px-3 py-2 hover:bg-red-50">Cancelar</button>
+        </form>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-sm text-gray-500">Voce ainda nao aderiu a nenhum sobreaviso.</div>
+    {% endif %}
+  </section>
+
+  <section class="space-y-2">
+    <h3 class="text-sm font-semibold text-gray-700">Datas com sobreaviso aberto</h3>
+    {% if sobreavisos_abertos %}
+    <div class="space-y-2">
+      {% for d in sobreavisos_abertos %}
+      <div class="bg-white border border-gray-200 rounded-xl p-3 flex items-center justify-between gap-3">
+        <div class="text-sm">
+          <div class="font-medium text-gray-800">{{ d.data }} · {{ d.hora_inicio }}-{{ d.hora_fim }}</div>
+          <div class="text-gray-500">{{ d.local_nome }} · {{ d.status }}</div>
+        </div>
+        <form method="post" action="/plantao/sobreaviso/{{ d.id }}/aderir">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button class="rounded-lg bg-pink-700 hover:bg-pink-800 text-white text-xs font-semibold px-3 py-2">Aderir</button>
+        </form>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-sm text-gray-500">Nenhum sobreaviso aberto neste periodo.</div>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}
