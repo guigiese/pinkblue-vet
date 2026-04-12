@@ -1,49 +1,105 @@
 {% extends "plantao_admin_base.html" %}
 
-{% block page_title %}Dashboard{% endblock %}
-{% block title %}Dashboard{% endblock %}
+{% block page_title %}Dashboard · Gestão de Plantão{% endblock %}
+{% block title %}Dashboard · Plantão · {{ platform_name }}{% endblock %}
+{% block subheader %}Visão geral das escalas, cadastros e alertas operacionais do módulo Plantão.{% endblock %}
 
 {% block content %}
-<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-  <div class="bg-white border border-gray-200 rounded-xl p-4">
-    <div class="text-xs text-gray-500">Cadastros pendentes</div>
-    <div class="text-2xl font-semibold text-gray-800">{{ alertas.cadastros_pendentes }}</div>
-  </div>
-  <div class="bg-white border border-gray-200 rounded-xl p-4">
-    <div class="text-xs text-gray-500">Datas sem vagas preenchidas</div>
-    <div class="text-2xl font-semibold text-gray-800">{{ alertas.datas_sem_vagas|length }}</div>
-  </div>
-  <div class="bg-white border border-gray-200 rounded-xl p-4">
-    <div class="text-xs text-gray-500">Sobreaviso vazio</div>
-    <div class="text-2xl font-semibold text-gray-800">{{ alertas.sobreaviso_vazio|length }}</div>
-  </div>
-</div>
+<div class="space-y-6">
 
-<div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
-  <section class="bg-white border border-gray-200 rounded-xl p-4 space-y-2">
-    <h3 class="text-sm font-semibold text-gray-700">Datas sem vagas</h3>
-    {% if alertas.datas_sem_vagas %}
-    <ul class="space-y-2 text-sm">
-      {% for d in alertas.datas_sem_vagas %}
-      <li class="border border-gray-100 rounded-lg px-3 py-2">{{ d.data }} · {{ d.hora_inicio }}-{{ d.hora_fim }} · {{ d.local_nome }}</li>
-      {% endfor %}
-    </ul>
-    {% else %}
-    <div class="text-sm text-gray-500">Sem alertas.</div>
-    {% endif %}
+  {# ── KPIs de alerta ── #}
+  <div class="grid gap-4 sm:grid-cols-3">
+    <a href="/plantao/admin/cadastros"
+       class="rounded-2xl border {% if alertas.cadastros_pendentes %}border-amber-200 bg-amber-50 hover:bg-amber-100{% else %}border-gray-200 bg-white hover:bg-gray-50{% endif %} p-5 transition">
+      <div class="text-3xl font-bold {% if alertas.cadastros_pendentes %}text-amber-700{% else %}text-gray-700{% endif %}">
+        {{ alertas.cadastros_pendentes }}
+      </div>
+      <div class="mt-1 text-sm {% if alertas.cadastros_pendentes %}text-amber-600{% else %}text-gray-500{% endif %}">
+        Cadastro(s) aguardando aprovação
+      </div>
+    </a>
+
+    <a href="/plantao/admin/candidaturas"
+       class="rounded-2xl border {% if alertas.datas_sem_vagas %}border-red-200 bg-red-50 hover:bg-red-100{% else %}border-gray-200 bg-white hover:bg-gray-50{% endif %} p-5 transition">
+      <div class="text-3xl font-bold {% if alertas.datas_sem_vagas %}text-red-700{% else %}text-gray-700{% endif %}">
+        {{ alertas.datas_sem_vagas | length }}
+      </div>
+      <div class="mt-1 text-sm {% if alertas.datas_sem_vagas %}text-red-600{% else %}text-gray-500{% endif %}">
+        Escala(s) com vagas em aberto (7 dias)
+      </div>
+    </a>
+
+    <a href="/plantao/admin/sobreaviso"
+       class="rounded-2xl border {% if alertas.sobreaviso_vazio %}border-orange-200 bg-orange-50 hover:bg-orange-100{% else %}border-gray-200 bg-white hover:bg-gray-50{% endif %} p-5 transition">
+      <div class="text-3xl font-bold {% if alertas.sobreaviso_vazio %}text-orange-700{% else %}text-gray-700{% endif %}">
+        {{ alertas.sobreaviso_vazio | length }}
+      </div>
+      <div class="mt-1 text-sm {% if alertas.sobreaviso_vazio %}text-orange-600{% else %}text-gray-500{% endif %}">
+        Data(s) de sobreaviso sem cobertura
+      </div>
+    </a>
+  </div>
+
+  <div class="grid gap-4 lg:grid-cols-2">
+
+    {# ── Escalas com vagas em aberto ── #}
+    <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+      <div class="flex items-center justify-between gap-3">
+        <h3 class="text-sm font-semibold text-gray-800">Escalas com vagas em aberto</h3>
+        <a href="/plantao/admin/escalas" class="text-xs text-rose-600 hover:underline">Ver todas</a>
+      </div>
+      {% if alertas.datas_sem_vagas %}
+      <ul class="mt-3 space-y-2">
+        {% for d in alertas.datas_sem_vagas %}
+        <li class="flex items-center justify-between rounded-xl border border-red-100 bg-red-50/50 px-4 py-2.5">
+          <div>
+            <p class="text-sm font-medium text-gray-800">{{ d.data }}</p>
+            <p class="text-xs text-gray-500">{{ d.hora_inicio }}–{{ d.hora_fim }} · {{ d.local_nome or '—' }}</p>
+          </div>
+          <div class="text-right">
+            <span class="text-sm font-semibold text-red-600">{{ d.confirmados_total }}/{{ d.vagas_total }}</span>
+            <p class="text-[11px] text-gray-400">preenchidas</p>
+          </div>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="mt-3 text-sm text-gray-400">Todas as escalas dos próximos 7 dias estão preenchidas.</p>
+      {% endif %}
+    </section>
+
+    {# ── Sobreaviso sem cobertura ── #}
+    <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+      <div class="flex items-center justify-between gap-3">
+        <h3 class="text-sm font-semibold text-gray-800">Sobreaviso sem cobertura</h3>
+        <a href="/plantao/admin/sobreaviso" class="text-xs text-rose-600 hover:underline">Gerenciar</a>
+      </div>
+      {% if alertas.sobreaviso_vazio %}
+      <ul class="mt-3 space-y-2">
+        {% for d in alertas.sobreaviso_vazio %}
+        <li class="rounded-xl border border-orange-100 bg-orange-50/50 px-4 py-2.5">
+          <p class="text-sm font-medium text-gray-800">{{ d.data }}</p>
+          <p class="text-xs text-gray-500">{{ d.hora_inicio }}–{{ d.hora_fim }} · {{ d.local_nome or '—' }}</p>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="mt-3 text-sm text-gray-400">Nenhuma data de sobreaviso sem cobertura.</p>
+      {% endif %}
+    </section>
+
+  </div>
+
+  {# ── Atalhos rápidos ── #}
+  <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+    <h3 class="text-sm font-semibold text-gray-800 mb-3">Ações rápidas</h3>
+    <div class="flex flex-wrap gap-2">
+      <a href="/plantao/admin/escalas" class="rounded-xl border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Criar escala</a>
+      <a href="/plantao/admin/cadastros" class="rounded-xl border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Ver cadastros</a>
+      <a href="/plantao/admin/relatorios" class="rounded-xl border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Relatórios</a>
+      <a href="/plantao/" class="rounded-xl border border-rose-200 px-4 py-2 text-sm font-medium text-rose-600 hover:bg-rose-50">Visão plantonista</a>
+    </div>
   </section>
 
-  <section class="bg-white border border-gray-200 rounded-xl p-4 space-y-2">
-    <h3 class="text-sm font-semibold text-gray-700">Sobreaviso sem participantes</h3>
-    {% if alertas.sobreaviso_vazio %}
-    <ul class="space-y-2 text-sm">
-      {% for d in alertas.sobreaviso_vazio %}
-      <li class="border border-gray-100 rounded-lg px-3 py-2">{{ d.data }} · {{ d.hora_inicio }}-{{ d.hora_fim }} · {{ d.local_nome }}</li>
-      {% endfor %}
-    </ul>
-    {% else %}
-    <div class="text-sm text-gray-500">Sem alertas.</div>
-    {% endif %}
-  </section>
 </div>
 {% endblock %}

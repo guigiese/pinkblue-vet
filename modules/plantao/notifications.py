@@ -81,7 +81,7 @@ def listar_notificacoes(engine: Any, perfil_id: int, limit: int = 20) -> list[di
             text(
                 "SELECT * FROM plantao_notificacoes"
                 " WHERE perfil_id = :pid"
-                " ORDER BY criada_em DESC LIMIT :lim"
+                " ORDER BY criado_em DESC LIMIT :lim"
             ),
             {"pid": perfil_id, "lim": limit},
         ).mappings().all()

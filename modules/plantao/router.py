@@ -11,6 +11,7 @@ from urllib.parse import quote_plus
 
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from jinja2 import ChoiceLoader, FileSystemLoader
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import text
 
@@ -21,6 +22,7 @@ from pb_platform.auth import (
     validar_csrf,
 )
 from pb_platform.settings import settings
+from pb_platform.storage import store
 from .notifications import (
     contar_nao_lidas,
     listar_notificacoes,
@@ -31,7 +33,14 @@ from .notifications import (
 log = logging.getLogger(__name__)
 
 TEMPLATES_DIR = Path(__file__).parent / "templates"
+PLATFORM_TEMPLATES_DIR = Path(__file__).resolve().parents[2] / "web" / "templates"
 _templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
+_templates.env.loader = ChoiceLoader(
+    [
+        FileSystemLoader(str(TEMPLATES_DIR)),
+        FileSystemLoader(str(PLATFORM_TEMPLATES_DIR)),
+    ]
+)
 _engine: Any = None
 
 
@@ -86,10 +95,55 @@ def make_router(engine: Any) -> APIRouter:
     @router.get("", response_class=HTMLResponse)
     @router.get("/", response_class=HTMLResponse)
     async def landing(request: Request):
+        """Página de entrada unificada do módulo Plantão.
+
+        Renderiza uma visão comum (próximas escalas, alertas, links rápidos)
+        com seções distintas por role. Gestores veem alertas e métricas;
+        plantonistas veem seus turnos e as escalas abertas.
+        """
+        from .queries import (
+            get_alertas_dashboard,
+            listar_datas_por_mes,
+            listar_candidaturas_por_perfil,
+            listar_locais,
+        )
+        from datetime import date, timedelta
+
         user = attach_user_to_request(request)
-        if user and has_permission(request, "plantao_access"):
-            return RedirectResponse("/plantao/escalas", status_code=303)
-        return RedirectResponse("/login", status_code=303)
+        if not user:
+            return RedirectResponse("/login", status_code=303)
+        if not has_permission(request, "plantao_access") and not has_permission(request, "manage_plantao"):
+            return RedirectResponse("/login?erro=sem_permissao", status_code=303)
+
+        raw_token = request.cookies.get(settings.session_cookie_name, "")
+        request.state.csrf_token = gerar_csrf_token(raw_token)
+
+        hoje = date.today()
+        is_gestor = has_permission(request, "manage_plantao")
+
+        # Próximas escalas publicadas (7 dias)
+        fim_semana = (hoje + timedelta(days=7)).isoformat()
+        proximas_escalas = listar_datas_por_mes(engine, hoje.year, hoje.month, None, status="publicado")
+        proximas_escalas = [e for e in proximas_escalas if e["data"] >= hoje.isoformat() and e["data"] <= fim_semana]
+
+        # Dados específicos por role
+        alertas = get_alertas_dashboard(engine) if is_gestor else None
+        meus_turnos = (
+            listar_candidaturas_por_perfil(engine, user["id"], apenas_futuras=True, status="confirmado")[:5]
+            if not is_gestor
+            else []
+        )
+
+        return _render(
+            request,
+            "plantao_landing.html",
+            perfil=user,
+            is_gestor=is_gestor,
+            proximas_escalas=proximas_escalas,
+            alertas=alertas,
+            meus_turnos=meus_turnos,
+            hoje=hoje.isoformat(),
+        )
 
     @router.get("/login")
     async def login_compat():
@@ -1019,7 +1073,19 @@ def make_router(engine: Any) -> APIRouter:
 
 
 def _render(request: Request, template: str, **ctx):
-    return _templates.TemplateResponse(request, template, {"request": request, **ctx})
+    platform_user = getattr(request.state, "user", None)
+    return _templates.TemplateResponse(
+        request,
+        template,
+        {
+            "request": request,
+            "platform_name": settings.app_name,
+            "platform_user": platform_user,
+            "platform_permissions": store.get_user_permissions(platform_user) if platform_user else {},
+            "module_name": ctx.pop("module_name", "Plantão"),
+            **ctx,
+        },
+    )
 
 
 async def _validar_csrf_ou_403(request: Request) -> None:

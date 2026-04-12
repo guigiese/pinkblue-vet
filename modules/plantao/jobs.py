@@ -89,7 +89,9 @@ def alertar_sobreaviso_vazio(engine: Any, dias_antecedencia: int = 3) -> list[st
     O alerta em si é apenas log — a exibição de alertas no dashboard
     é responsabilidade de queries.py.
     """
+    from datetime import timedelta, date as _date
     hoje = _hoje()
+    limite = (_date.today() + timedelta(days=dias_antecedencia)).isoformat()
     try:
         with engine.connect() as conn:
             # datas de sobreaviso publicadas nos próximos N dias
@@ -98,13 +100,13 @@ def alertar_sobreaviso_vazio(engine: Any, dias_antecedencia: int = 3) -> list[st
                     "SELECT pd.id, pd.data FROM plantao_datas pd"
                     " WHERE pd.tipo='sobreaviso' AND pd.status='publicado'"
                     "   AND pd.data >= :hoje"
-                    "   AND pd.data <= date(:hoje, '+' || :dias || ' days')"
+                    "   AND pd.data <= :limite"
                     "   AND NOT EXISTS ("
                     "       SELECT 1 FROM plantao_sobreaviso ps"
                     "       WHERE ps.data_id = pd.id AND ps.status = 'ativo'"
                     "   )"
                 ),
-                {"hoje": hoje, "dias": dias_antecedencia},
+                {"hoje": hoje, "limite": limite},
             ).mappings().all()
         datas_vazias = [r["data"] for r in rows]
         if datas_vazias:
@@ -125,15 +127,17 @@ def limpar_sessoes_expiradas(engine: Any) -> int:
 
 def limpar_notificacoes_antigas(engine: Any, dias: int = 30) -> int:
     """Remove notificações lidas com mais de N dias."""
+    from datetime import timedelta, date as _date
+    cutoff = (_date.today() - timedelta(days=dias)).isoformat()
     try:
         with engine.begin() as conn:
             result = conn.execute(
                 text(
                     "DELETE FROM plantao_notificacoes"
                     " WHERE lida = 1"
-                    "   AND criado_em < date(:hoje, '-' || :dias || ' days')"
+                    "   AND criado_em < :cutoff"
                 ),
-                {"hoje": _hoje(), "dias": dias},
+                {"cutoff": cutoff},
             )
             affected = result.rowcount or 0
         if affected:
