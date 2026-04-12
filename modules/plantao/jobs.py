@@ -119,21 +119,8 @@ def alertar_sobreaviso_vazio(engine: Any, dias_antecedencia: int = 3) -> list[st
 
 
 def limpar_sessoes_expiradas(engine: Any) -> int:
-    """Remove sessões de plantonistas expiradas."""
-    agora = _utcnow()
-    try:
-        with engine.begin() as conn:
-            result = conn.execute(
-                text("DELETE FROM plantao_sessoes WHERE expira_em < :agora"),
-                {"agora": agora},
-            )
-            affected = result.rowcount or 0
-        if affected:
-            log.debug("[plantao.jobs] %d sessão(ões) expirada(s) removida(s).", affected)
-        return affected
-    except Exception:
-        log.exception("[plantao.jobs] Erro em limpar_sessoes_expiradas")
-        return 0
+    """Sessões agora gerenciadas pela plataforma (pb_platform). Stub mantido por compatibilidade."""
+    return 0
 
 
 def limpar_notificacoes_antigas(engine: Any, dias: int = 30) -> int:

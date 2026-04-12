@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import hashlib
+import hmac
+import os
+import secrets
 from urllib.parse import quote
 
 from fastapi import Request
@@ -8,15 +12,45 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from .settings import settings
 from .storage import store
 
-
 PUBLIC_PATH_PREFIXES = (
     "/login",
     "/logout",
+    "/cadastro",
     "/telegram/webhook/",
     "/ops-map-static/",
     "/sandboxes/cards-static/",
 )
 
+# ── CSRF ──────────────────────────────────────────────────────────────────────
+
+_CSRF_SECRET = os.environ.get("PB_CSRF_SECRET") or secrets.token_hex(32)
+CSRF_HEADER = "X-CSRF-Token"
+CSRF_FORM_FIELD = "csrf_token"
+
+
+def gerar_csrf_token(session_token: str) -> str:
+    """Gera token CSRF vinculado à sessão via HMAC-SHA256."""
+    return hmac.new(_CSRF_SECRET.encode(), session_token.encode(), hashlib.sha256).hexdigest()
+
+
+async def validar_csrf(request: Request, session_token: str) -> bool:
+    """Valida o token CSRF do header ou do form. Retorna True se válido."""
+    esperado = gerar_csrf_token(session_token)
+    # Tenta header primeiro (HTMX)
+    recebido = request.headers.get(CSRF_HEADER, "")
+    if not recebido:
+        # Tenta form field
+        try:
+            form = await request.form()
+            recebido = form.get(CSRF_FORM_FIELD, "") or ""
+        except Exception:
+            recebido = ""
+    if not recebido:
+        return False
+    return hmac.compare_digest(esperado, str(recebido))
+
+
+# ── Auth helpers ──────────────────────────────────────────────────────────────
 
 def path_requires_auth(path: str) -> bool:
     if not settings.auth_enabled:
@@ -50,12 +84,7 @@ def is_admin(request: Request) -> bool:
 
 
 def user_permissions(user: dict | None) -> dict[str, bool]:
-    if not user:
-        return {}
-    matrix = store.get_role_permissions()
-    role = (user.get("role") or "viewer").strip().lower()
-    role_permissions = matrix.get(role) or {}
-    return {key: bool(enabled) for key, enabled in role_permissions.items()}
+    return store.get_user_permissions(user)
 
 
 def has_permission(request: Request, permission: str) -> bool:
@@ -67,6 +96,12 @@ def has_permission(request: Request, permission: str) -> bool:
 
 def required_permission(path: str, method: str) -> str | None:
     method = method.upper()
+    # Módulo Plantão — admin precisa de manage_plantao, plantonistas de plantao_access
+    if path.startswith("/plantao/admin"):
+        return "manage_plantao"
+    if path.startswith("/plantao"):
+        return "plantao_access"
+    # Plataforma interna
     if path.startswith("/admin/usuarios") or path.startswith("/admin/permissoes"):
         return "manage_users"
     if path.startswith("/ops-map") or path.startswith("/sandboxes"):

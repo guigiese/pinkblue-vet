@@ -14,17 +14,13 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import text
 
-from .auth import (
-    COOKIE_NAME,
-    autenticar_plantonista,
-    criar_sessao,
-    delete_session_cookie,
+from pb_platform.auth import (
+    attach_user_to_request,
     gerar_csrf_token,
-    get_perfil_atual,
-    revogar_sessao,
-    set_session_cookie,
+    has_permission,
     validar_csrf,
 )
+from pb_platform.settings import settings
 from .notifications import (
     contar_nao_lidas,
     listar_notificacoes,
@@ -49,150 +45,71 @@ def make_router(engine: Any) -> APIRouter:
 
     router = APIRouter(prefix="/plantao")
 
+    # ── Guards de auth unificada ──────────────────────────────────────────────
+
+    def _exige_plantonista(request: Request):
+        """
+        Valida que há um usuário da plataforma logado com permissão plantao_access.
+        Popula request.state.plantonista (alias de request.state.user).
+        Retorna o user dict ou uma RedirectResponse.
+        """
+        user = attach_user_to_request(request)
+        if not user:
+            return RedirectResponse(f"/login?next={request.url.path}", status_code=303)
+        if not has_permission(request, "plantao_access"):
+            return RedirectResponse("/login?erro=sem_permissao", status_code=303)
+        # Popula state para compatibilidade com templates que usam 'perfil'
+        request.state.plantonista = user
+        raw_token = request.cookies.get(settings.session_cookie_name, "")
+        request.state.csrf_token = gerar_csrf_token(raw_token)
+        return user
+
+    def _exige_gestor(request: Request):
+        """
+        Valida que há um usuário da plataforma logado com permissão manage_plantao.
+        Popula request.state.gestor.
+        Retorna o user dict ou uma RedirectResponse.
+        """
+        user = attach_user_to_request(request)
+        if not user:
+            return RedirectResponse(f"/login?next={request.url.path}", status_code=303)
+        if not has_permission(request, "manage_plantao"):
+            return HTMLResponse("<h1>403 — Acesso restrito a gestores de plantão.</h1>", status_code=403)
+        request.state.gestor = user
+        request.state.user = user
+        raw_token = request.cookies.get(settings.session_cookie_name, "")
+        request.state.csrf_token = gerar_csrf_token(raw_token)
+        return user
+
+    # ── Redirects de compatibilidade (rotas de auth antigas) ─────────────────
+
     @router.get("", response_class=HTMLResponse)
     @router.get("/", response_class=HTMLResponse)
     async def landing(request: Request):
-        perfil = get_perfil_atual(request, engine)
-        if perfil and perfil["status"] == "ativo":
+        user = attach_user_to_request(request)
+        if user and has_permission(request, "plantao_access"):
             return RedirectResponse("/plantao/escalas", status_code=303)
-        return RedirectResponse("/plantao/login", status_code=303)
+        return RedirectResponse("/login", status_code=303)
 
-    @router.get("/login", response_class=HTMLResponse)
-    async def login_page(request: Request, erro: str = ""):
-        perfil = get_perfil_atual(request, engine)
-        if perfil and perfil["status"] == "ativo":
-            return RedirectResponse("/plantao/escalas", status_code=303)
-        return _render(request, "plantao_login.html", erro=erro)
-
-    @router.post("/login")
-    async def login_action(
-        request: Request,
-        email: str = Form(...),
-        senha: str = Form(...),
-    ):
-        try:
-            perfil = autenticar_plantonista(engine, email.strip().lower(), senha)
-        except RuntimeError as exc:
-            return _render(request, "plantao_login.html", erro=str(exc))
-
-        if not perfil:
-            return _render(request, "plantao_login.html", erro="E-mail ou senha invalidos.")
-        if perfil["status"] == "pendente":
-            return RedirectResponse("/plantao/cadastro/aguardando", status_code=303)
-        if perfil["status"] in ("inativo", "rejeitado"):
-            return _render(
-                request,
-                "plantao_login.html",
-                erro="Conta inativa ou rejeitada. Entre em contato com a clinica.",
-            )
-
-        ip = request.client.host if request.client else ""
-        ua = request.headers.get("user-agent", "")
-        raw_token = criar_sessao(engine, perfil["id"], ip=ip, user_agent=ua)
-        response = RedirectResponse("/plantao/escalas", status_code=303)
-        set_session_cookie(response, raw_token)
-        return response
+    @router.get("/login")
+    async def login_compat():
+        return RedirectResponse("/login", status_code=301)
 
     @router.get("/logout")
-    async def logout(request: Request):
-        raw_token = request.cookies.get(COOKIE_NAME)
-        if raw_token:
-            revogar_sessao(engine, raw_token)
-        response = RedirectResponse("/plantao/login", status_code=303)
-        delete_session_cookie(response)
-        return response
+    async def logout_compat():
+        return RedirectResponse("/logout", status_code=301)
 
-    @router.get("/cadastro", response_class=HTMLResponse)
-    async def cadastro_page(request: Request, erro: str = ""):
-        return _render(request, "plantao_cadastro.html", erro=erro)
+    @router.get("/cadastro")
+    async def cadastro_compat():
+        return RedirectResponse("/cadastro", status_code=301)
 
-    @router.post("/cadastro")
-    async def cadastro_action(
-        request: Request,
-        nome: str = Form(...),
-        email: str = Form(...),
-        senha: str = Form(...),
-        senha_confirma: str = Form(...),
-        tipo: str = Form(...),
-        crmv: str = Form(""),
-        especialidade: str = Form(""),
-        telefone: str = Form(""),
-    ):
-        from .actions import cadastrar_plantonista
+    @router.get("/cadastro/aguardando")
+    async def cadastro_aguardando_compat():
+        return RedirectResponse("/cadastro/aguardando", status_code=301)
 
-        email = email.strip().lower()
-        if senha != senha_confirma:
-            return _render(request, "plantao_cadastro.html", erro="As senhas nao coincidem.")
-        if len(senha) < 8:
-            return _render(request, "plantao_cadastro.html", erro="A senha deve ter no minimo 8 caracteres.")
-        if tipo not in ("veterinario", "auxiliar"):
-            return _render(request, "plantao_cadastro.html", erro="Tipo invalido.")
-        if tipo == "veterinario" and not crmv.strip():
-            return _render(request, "plantao_cadastro.html", erro="CRMV e obrigatorio para veterinarios.")
-
-        try:
-            cadastrar_plantonista(
-                engine,
-                nome=nome.strip(),
-                email=email,
-                senha=senha,
-                tipo=tipo,
-                crmv=crmv.strip() or None,
-                especialidade=especialidade.strip(),
-                telefone=telefone.strip(),
-            )
-        except ValueError as exc:
-            return _render(request, "plantao_cadastro.html", erro=str(exc))
-        return RedirectResponse("/plantao/cadastro/aguardando", status_code=303)
-
-    @router.get("/cadastro/aguardando", response_class=HTMLResponse)
-    async def cadastro_aguardando(request: Request):
-        return _render(request, "plantao_cadastro_aguardando.html")
-
-    @router.get("/senha/recuperar", response_class=HTMLResponse)
-    async def recuperar_senha_page(request: Request, enviado: str = ""):
-        return _render(request, "plantao_recuperar_senha.html", enviado=enviado)
-
-    @router.post("/senha/recuperar")
-    async def recuperar_senha_action(request: Request, email: str = Form(...)):
-        from .actions import iniciar_reset_senha
-
-        iniciar_reset_senha(engine, email.strip().lower())
-        return RedirectResponse("/plantao/senha/recuperar?enviado=1", status_code=303)
-
-    @router.get("/senha/redefinir", response_class=HTMLResponse)
-    async def redefinir_senha_page(request: Request, token: str = "", erro: str = ""):
-        if not token:
-            return RedirectResponse("/plantao/senha/recuperar", status_code=303)
-        return _render(request, "plantao_redefinir_senha.html", token=token, erro=erro)
-
-    @router.post("/senha/redefinir")
-    async def redefinir_senha_action(
-        request: Request,
-        token: str = Form(...),
-        nova_senha: str = Form(...),
-        nova_senha_confirma: str = Form(...),
-    ):
-        from .actions import confirmar_reset_senha
-
-        if nova_senha != nova_senha_confirma:
-            return _render(request, "plantao_redefinir_senha.html", token=token, erro="As senhas nao coincidem.")
-        if len(nova_senha) < 8:
-            return _render(
-                request,
-                "plantao_redefinir_senha.html",
-                token=token,
-                erro="A senha deve ter no minimo 8 caracteres.",
-            )
-        ok = confirmar_reset_senha(engine, token, nova_senha)
-        if not ok:
-            return _render(
-                request,
-                "plantao_redefinir_senha.html",
-                token=token,
-                erro="Link invalido ou expirado. Solicite um novo link.",
-            )
-        return RedirectResponse("/plantao/login?erro=senha_redefinida", status_code=303)
+    @router.get("/senha/recuperar")
+    async def recuperar_senha_compat():
+        return RedirectResponse("/login", status_code=301)
 
     @router.get("/escalas", response_class=HTMLResponse)
     async def escalas_page(request: Request, mes: int = 0, ano: int = 0, local_id: int = 0):
@@ -208,7 +125,7 @@ def make_router(engine: Any) -> APIRouter:
         local_sel = local_id or None
         datas_mes = listar_datas_por_mes(engine, ano, mes, local_sel, status="publicado")
         vagas_abertas = listar_datas_com_vagas_abertas(engine, local_sel, perfil["tipo"])
-        csrf = gerar_csrf_token(perfil["_session_id"])
+        csrf = getattr(request.state, "csrf_token", "")
         return _render(
             request,
             "plantao_escalas.html",
@@ -231,7 +148,7 @@ def make_router(engine: Any) -> APIRouter:
         perfil = _exige_plantonista(request)
         if isinstance(perfil, RedirectResponse):
             return perfil
-        _validar_csrf_ou_403(request, perfil)
+        await _validar_csrf_ou_403(request)
         try:
             candidatar(engine, posicao_id, perfil["id"], ip=request.client.host if request.client else "")
         except ValueError as exc:
@@ -253,7 +170,7 @@ def make_router(engine: Any) -> APIRouter:
             "cancelado": [c for c in candidaturas if c["status"] == "cancelado"],
             "recusado": [c for c in candidaturas if c["status"] == "recusado"],
         }
-        csrf = gerar_csrf_token(perfil["_session_id"])
+        csrf = getattr(request.state, "csrf_token", "")
         return _render(
             request,
             "plantao_meus_turnos.html",
@@ -272,7 +189,7 @@ def make_router(engine: Any) -> APIRouter:
         perfil = _exige_plantonista(request)
         if isinstance(perfil, RedirectResponse):
             return perfil
-        _validar_csrf_ou_403(request, perfil)
+        await _validar_csrf_ou_403(request)
         try:
             prazo = int(get_configuracao(engine, "plantao_prazo_cancelamento_horas_uteis", "24"))
         except Exception:
@@ -298,7 +215,7 @@ def make_router(engine: Any) -> APIRouter:
             return perfil
         trocas = listar_trocas_por_perfil(engine, perfil["id"])
         substituicoes_abertas = listar_substituicoes_abertas(engine, perfil["tipo"])
-        csrf = gerar_csrf_token(perfil["_session_id"])
+        csrf = getattr(request.state, "csrf_token", "")
         return _render(
             request,
             "plantao_trocas.html",
@@ -322,7 +239,7 @@ def make_router(engine: Any) -> APIRouter:
         perfil = _exige_plantonista(request)
         if isinstance(perfil, RedirectResponse):
             return perfil
-        _validar_csrf_ou_403(request, perfil)
+        await _validar_csrf_ou_403(request)
         try:
             solicitar_troca_direta(
                 engine,
@@ -347,7 +264,7 @@ def make_router(engine: Any) -> APIRouter:
         perfil = _exige_plantonista(request)
         if isinstance(perfil, RedirectResponse):
             return perfil
-        _validar_csrf_ou_403(request, perfil)
+        await _validar_csrf_ou_403(request)
         try:
             abrir_substituicao(
                 engine,
@@ -367,7 +284,7 @@ def make_router(engine: Any) -> APIRouter:
         perfil = _exige_plantonista(request)
         if isinstance(perfil, RedirectResponse):
             return perfil
-        _validar_csrf_ou_403(request, perfil)
+        await _validar_csrf_ou_403(request)
         try:
             aceitar_troca(engine, troca_id, perfil["id"], ip=request.client.host if request.client else "")
         except ValueError as exc:
@@ -381,7 +298,7 @@ def make_router(engine: Any) -> APIRouter:
         perfil = _exige_plantonista(request)
         if isinstance(perfil, RedirectResponse):
             return perfil
-        _validar_csrf_ou_403(request, perfil)
+        await _validar_csrf_ou_403(request)
         try:
             recusar_troca(engine, troca_id, perfil["id"], ip=request.client.host if request.client else "")
         except ValueError as exc:
@@ -404,7 +321,7 @@ def make_router(engine: Any) -> APIRouter:
             tipo="sobreaviso",
             status="publicado",
         )
-        csrf = gerar_csrf_token(perfil["_session_id"])
+        csrf = getattr(request.state, "csrf_token", "")
         return _render(
             request,
             "plantao_sobreaviso.html",
@@ -423,7 +340,7 @@ def make_router(engine: Any) -> APIRouter:
         perfil = _exige_plantonista(request)
         if isinstance(perfil, RedirectResponse):
             return perfil
-        _validar_csrf_ou_403(request, perfil)
+        await _validar_csrf_ou_403(request)
         try:
             aderir_sobreaviso(engine, data_id, perfil["id"], ip=request.client.host if request.client else "")
         except ValueError as exc:
@@ -437,7 +354,7 @@ def make_router(engine: Any) -> APIRouter:
         perfil = _exige_plantonista(request)
         if isinstance(perfil, RedirectResponse):
             return perfil
-        _validar_csrf_ou_403(request, perfil)
+        await _validar_csrf_ou_403(request)
         try:
             cancelar_sobreaviso(engine, adesao_id, perfil["id"], ip=request.client.host if request.client else "")
         except ValueError as exc:
@@ -450,7 +367,7 @@ def make_router(engine: Any) -> APIRouter:
         if isinstance(perfil, RedirectResponse):
             return perfil
         notifs = listar_notificacoes(engine, perfil["id"])
-        csrf = gerar_csrf_token(perfil["_session_id"])
+        csrf = getattr(request.state, "csrf_token", "")
         return _render(request, "plantao_notificacoes.html", notificacoes=notifs, csrf_token=csrf)
 
     @router.post("/notificacoes/{notif_id}/lida", response_class=HTMLResponse)
@@ -458,7 +375,7 @@ def make_router(engine: Any) -> APIRouter:
         perfil = _exige_plantonista(request)
         if isinstance(perfil, RedirectResponse):
             return perfil
-        _validar_csrf_ou_403(request, perfil)
+        await _validar_csrf_ou_403(request)
         marcar_lida(engine, notif_id, perfil["id"])
         return HTMLResponse("", status_code=200)
 
@@ -467,14 +384,14 @@ def make_router(engine: Any) -> APIRouter:
         perfil = _exige_plantonista(request)
         if isinstance(perfil, RedirectResponse):
             return perfil
-        _validar_csrf_ou_403(request, perfil)
+        await _validar_csrf_ou_403(request)
         marcar_todas_lidas(engine, perfil["id"])
         return RedirectResponse("/plantao/notificacoes", status_code=303)
 
     @router.get("/partials/badge-notificacoes", response_class=HTMLResponse)
     async def badge_notificacoes(request: Request):
-        perfil = get_perfil_atual(request, engine)
-        if not perfil:
+        perfil = attach_user_to_request(request)
+        if not perfil or not has_permission(request, "plantao_access"):
             return HTMLResponse("")
         n = contar_nao_lidas(engine, perfil["id"])
         if n == 0:
@@ -489,7 +406,7 @@ def make_router(engine: Any) -> APIRouter:
         perfil = _exige_plantonista(request)
         if isinstance(perfil, RedirectResponse):
             return perfil
-        csrf = gerar_csrf_token(perfil["_session_id"])
+        csrf = getattr(request.state, "csrf_token", "")
         return _render(request, "plantao_perfil.html", perfil=perfil, csrf_token=csrf, salvo=salvo)
 
     @router.post("/perfil/atualizar")
@@ -504,7 +421,7 @@ def make_router(engine: Any) -> APIRouter:
         perfil = _exige_plantonista(request)
         if isinstance(perfil, RedirectResponse):
             return perfil
-        _validar_csrf_ou_403(request, perfil)
+        await _validar_csrf_ou_403(request)
         atualizar_perfil(
             engine,
             perfil["id"],
@@ -525,8 +442,8 @@ def make_router(engine: Any) -> APIRouter:
         perfil = _exige_plantonista(request)
         if isinstance(perfil, RedirectResponse):
             return perfil
-        _validar_csrf_ou_403(request, perfil)
-        csrf = gerar_csrf_token(perfil["_session_id"])
+        await _validar_csrf_ou_403(request)
+        csrf = getattr(request.state, "csrf_token", "")
         if nova_senha != nova_senha_confirma:
             return _render(request, "plantao_perfil.html", perfil=perfil, csrf_token=csrf, erro_senha="As senhas nao coincidem.")
         try:
@@ -1105,34 +1022,8 @@ def _render(request: Request, template: str, **ctx):
     return _templates.TemplateResponse(request, template, {"request": request, **ctx})
 
 
-def _exige_plantonista(request: Request):
-    perfil = get_perfil_atual(request, _engine)
-    if not perfil:
-        return RedirectResponse("/plantao/login", status_code=303)
-    if perfil["status"] == "pendente":
-        return RedirectResponse("/plantao/cadastro/aguardando", status_code=303)
-    if perfil["status"] in ("inativo", "rejeitado"):
-        return RedirectResponse("/plantao/login?erro=conta_inativa", status_code=303)
-    return perfil
-
-
-def _exige_gestor(request: Request):
-    from pb_platform.auth import attach_user_to_request
-    from pb_platform.storage import store
-
-    user = attach_user_to_request(request)
-    if not user:
-        return RedirectResponse("/login?next=/plantao/admin", status_code=303)
-    # gestor_plantao está na plataforma (store SQLite), não no plantão engine
-    full_user = store.get_user_by_id(user["id"])
-    if not full_user or not full_user.get("gestor_plantao"):
-        return HTMLResponse("<h1>403 - Acesso restrito a gestores de plantao.</h1>", status_code=403)
-    request.state.gestor = full_user
-    return full_user
-
-
-def _validar_csrf_ou_403(request: Request, perfil: dict) -> None:
+async def _validar_csrf_ou_403(request: Request) -> None:
     from fastapi import HTTPException
-
-    if not validar_csrf(request, perfil["_session_id"]):
+    raw_token = request.cookies.get(settings.session_cookie_name, "")
+    if not await validar_csrf(request, raw_token):
         raise HTTPException(status_code=403, detail="Token CSRF invalido.")

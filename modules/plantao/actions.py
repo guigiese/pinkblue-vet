@@ -3,18 +3,16 @@ Modulo Plantao - acoes de escrita (mutations).
 """
 from __future__ import annotations
 
-import hashlib
 import json
-import secrets
 from datetime import date, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import text
 
 from pb_platform.security import hash_password, verify_password
+from pb_platform.storage import store
 
 from .audit import audit
-from .auth import revogar_todas_sessoes
 from .business import (
     calcular_horas_turno,
     calcular_valor_base,
@@ -44,10 +42,6 @@ def _utcnow() -> str:
 
 def _to_dt(data_ref: str, hora_ref: str) -> datetime:
     return datetime.fromisoformat(f"{data_ref}T{hora_ref}:00")
-
-
-def _hash_reset_token(raw: str) -> str:
-    return hashlib.sha256(raw.encode()).hexdigest()
 
 
 def _insert_and_get_id(conn: Any, sql: str, params: dict, lookup_sql: str, lookup_params: dict) -> int:
@@ -132,89 +126,26 @@ def _calcular_snapshot_remuneracao(
     return valor_hora, valor_base, horas
 
 
-def cadastrar_plantonista(
-    engine: Any,
-    nome: str,
-    email: str,
-    senha: str,
-    tipo: str,
-    crmv: str | None = None,
-    especialidade: str = "",
-    telefone: str = "",
-) -> int:
-    email_n = email.strip().lower()
-    if get_perfil_por_email(engine, email_n):
-        raise ValueError("Ja existe cadastro com este e-mail.")
-    if tipo not in ("veterinario", "auxiliar"):
-        raise ValueError("Tipo invalido.")
-    if tipo == "veterinario" and not (crmv or "").strip():
-        raise ValueError("CRMV e obrigatorio para veterinarios.")
-    if len(senha) < 8:
-        raise ValueError("A senha deve ter no minimo 8 caracteres.")
-
-    agora = _utcnow()
-    senha_hash = hash_password(senha)
-    with engine.begin() as conn:
-        perfil_id = _insert_and_get_id(
-            conn,
-            """
-            INSERT INTO plantao_perfis
-                (nome, email, senha_hash, tipo, crmv, especialidade, telefone, status, criado_em, alterado_em)
-            VALUES
-                (:nome, :email, :senha_hash, :tipo, :crmv, :especialidade, :telefone, 'pendente', :agora, :agora)
-            """,
-            {
-                "nome": nome.strip(),
-                "email": email_n,
-                "senha_hash": senha_hash,
-                "tipo": tipo,
-                "crmv": (crmv or "").strip() or None,
-                "especialidade": especialidade.strip(),
-                "telefone": telefone.strip(),
-                "agora": agora,
-            },
-            "SELECT id FROM plantao_perfis WHERE email = :email",
-            {"email": email_n},
-        )
-
-    audit(
-        engine,
-        "perfil.cadastrado",
-        perfil_id=perfil_id,
-        entidade="plantao_perfis",
-        entidade_id=perfil_id,
-    )
-    return perfil_id
-
-
 def aprovar_plantonista(
     engine: Any,
     perfil_id: int,
     gestor_id: int,
     ip: str = "",
 ) -> None:
+    """Aprova um cadastro pendente via store da plataforma."""
     perfil = get_perfil_por_id(engine, perfil_id)
     if not perfil:
         raise ValueError("Plantonista nao encontrado.")
     if perfil["status"] != "pendente":
         raise ValueError("Apenas cadastros pendentes podem ser aprovados.")
 
-    agora = _utcnow()
-    with engine.begin() as conn:
-        conn.execute(
-            text(
-                "UPDATE plantao_perfis "
-                "SET status='ativo', aprovado_em=:agora, aprovado_por=:gestor_id, alterado_em=:agora "
-                "WHERE id=:id"
-            ),
-            {"agora": agora, "gestor_id": gestor_id, "id": perfil_id},
-        )
+    store.approve_user(perfil_id, approved_by_id=gestor_id)
 
     audit(
         engine,
         "perfil.aprovado",
         gestor_id=gestor_id,
-        entidade="plantao_perfis",
+        entidade="users",
         entidade_id=perfil_id,
         ip=ip,
     )
@@ -223,8 +154,8 @@ def aprovar_plantonista(
         perfil_id,
         "cadastro_aprovado",
         "Cadastro aprovado",
-        "Seu cadastro foi aprovado. Voce ja pode fazer login no modulo de Plantao.",
-        entidade="plantao_perfis",
+        "Seu cadastro foi aprovado. Voce ja pode fazer login.",
+        entidade="users",
         entidade_id=perfil_id,
     )
 
@@ -236,28 +167,20 @@ def rejeitar_plantonista(
     motivo: str = "",
     ip: str = "",
 ) -> None:
+    """Rejeita um cadastro pendente via store da plataforma."""
     perfil = get_perfil_por_id(engine, perfil_id)
     if not perfil:
         raise ValueError("Plantonista nao encontrado.")
     if perfil["status"] != "pendente":
         raise ValueError("Apenas cadastros pendentes podem ser rejeitados.")
 
-    agora = _utcnow()
-    with engine.begin() as conn:
-        conn.execute(
-            text(
-                "UPDATE plantao_perfis "
-                "SET status='rejeitado', motivo_rejeicao=:motivo, alterado_em=:agora "
-                "WHERE id=:id"
-            ),
-            {"motivo": motivo.strip(), "agora": agora, "id": perfil_id},
-        )
+    store.reject_user(perfil_id, motivo=motivo.strip())
 
     audit(
         engine,
         "perfil.rejeitado",
         gestor_id=gestor_id,
-        entidade="plantao_perfis",
+        entidade="users",
         entidade_id=perfil_id,
         detalhes=motivo.strip(),
         ip=ip,
@@ -268,7 +191,7 @@ def rejeitar_plantonista(
         "cadastro_rejeitado",
         "Cadastro rejeitado",
         motivo.strip() or "Seu cadastro foi rejeitado. Entre em contato com a clinica.",
-        entidade="plantao_perfis",
+        entidade="users",
         entidade_id=perfil_id,
     )
 
@@ -279,25 +202,21 @@ def desativar_plantonista(
     gestor_id: int,
     ip: str = "",
 ) -> None:
+    """Desativa conta de plantonista via store da plataforma."""
     perfil = get_perfil_por_id(engine, perfil_id)
     if not perfil:
         raise ValueError("Plantonista nao encontrado.")
     if perfil["status"] != "ativo":
         raise ValueError("Somente plantonista ativo pode ser desativado.")
 
-    agora = _utcnow()
-    with engine.begin() as conn:
-        conn.execute(
-            text("UPDATE plantao_perfis SET status='inativo', alterado_em=:agora WHERE id=:id"),
-            {"agora": agora, "id": perfil_id},
-        )
+    store.set_user_active(perfil_id, False)
+    store.revoke_all_sessions(perfil_id)
 
-    revogar_todas_sessoes(engine, perfil_id)
     audit(
         engine,
         "perfil.desativado",
         gestor_id=gestor_id,
-        entidade="plantao_perfis",
+        entidade="users",
         entidade_id=perfil_id,
         ip=ip,
     )
@@ -306,8 +225,8 @@ def desativar_plantonista(
         perfil_id,
         "perfil_desativado",
         "Conta desativada",
-        "Seu acesso ao modulo de Plantao foi desativado por um gestor.",
-        entidade="plantao_perfis",
+        "Seu acesso foi desativado por um gestor.",
+        entidade="users",
         entidade_id=perfil_id,
     )
 
@@ -318,32 +237,30 @@ def atualizar_perfil(
     dados: dict,
     ip: str = "",
 ) -> None:
+    """Atualiza nome e telefone do plantonista na tabela users."""
     perfil = get_perfil_por_id(engine, perfil_id)
     if not perfil:
         raise ValueError("Plantonista nao encontrado.")
 
     campos = {}
-    for k in ("nome", "telefone", "especialidade"):
+    for k in ("nome", "telefone"):
         if k in dados:
             campos[k] = (dados[k] or "").strip()
     if not campos:
         return
 
-    campos["alterado_em"] = _utcnow()
+    campos["updated_at"] = _utcnow()
     sets = ", ".join(f"{k} = :{k}" for k in campos.keys())
     params = {**campos, "id": perfil_id}
 
     with engine.begin() as conn:
-        conn.execute(
-            text(f"UPDATE plantao_perfis SET {sets} WHERE id = :id"),
-            params,
-        )
+        conn.execute(text(f"UPDATE users SET {sets} WHERE id = :id"), params)
 
     audit(
         engine,
         "perfil.atualizado",
         perfil_id=perfil_id,
-        entidade="plantao_perfis",
+        entidade="users",
         entidade_id=perfil_id,
         detalhes=json.dumps(campos, ensure_ascii=False),
         ip=ip,
@@ -357,6 +274,7 @@ def alterar_senha(
     senha_nova: str,
     ip: str = "",
 ) -> None:
+    """Altera senha do plantonista via store da plataforma."""
     perfil = get_perfil_por_id(engine, perfil_id)
     if not perfil:
         raise ValueError("Plantonista nao encontrado.")
@@ -365,93 +283,18 @@ def alterar_senha(
     if len(senha_nova) < 8:
         raise ValueError("A senha nova deve ter no minimo 8 caracteres.")
 
-    with engine.begin() as conn:
-        conn.execute(
-            text("UPDATE plantao_perfis SET senha_hash=:h, alterado_em=:agora WHERE id=:id"),
-            {"h": hash_password(senha_nova), "agora": _utcnow(), "id": perfil_id},
-        )
+    store.set_user_password(perfil_id, senha_nova)
 
     audit(
         engine,
         "perfil.senha_alterada",
         perfil_id=perfil_id,
-        entidade="plantao_perfis",
+        entidade="users",
         entidade_id=perfil_id,
         ip=ip,
     )
 
 
-def iniciar_reset_senha(engine: Any, email: str) -> str | None:
-    perfil = get_perfil_por_email(engine, email.strip().lower())
-    if not perfil:
-        return None
-
-    token_raw = secrets.token_urlsafe(32)
-    token_hash = _hash_reset_token(token_raw)
-    expira = (datetime.utcnow() + timedelta(hours=1)).isoformat(timespec="seconds")
-
-    with engine.begin() as conn:
-        conn.execute(
-            text(
-                "UPDATE plantao_perfis "
-                "SET reset_token=:tok, reset_token_expira=:expira, alterado_em=:agora "
-                "WHERE id=:id"
-            ),
-            {"tok": token_hash, "expira": expira, "agora": _utcnow(), "id": perfil["id"]},
-        )
-
-    audit(
-        engine,
-        "perfil.reset_senha_solicitado",
-        perfil_id=perfil["id"],
-        entidade="plantao_perfis",
-        entidade_id=perfil["id"],
-    )
-    return token_raw
-
-
-def confirmar_reset_senha(engine: Any, token_raw: str, nova_senha: str) -> bool:
-    if len(nova_senha) < 8:
-        return False
-    token_hash = _hash_reset_token(token_raw)
-    agora = _utcnow()
-    with engine.begin() as conn:
-        perfil = conn.execute(
-            text(
-                "SELECT id FROM plantao_perfis "
-                "WHERE reset_token=:tok AND reset_token_expira IS NOT NULL AND reset_token_expira >= :agora"
-            ),
-            {"tok": token_hash, "agora": agora},
-        ).mappings().first()
-        if not perfil:
-            return False
-        perfil_id = int(perfil["id"])
-        conn.execute(
-            text(
-                "UPDATE plantao_perfis SET senha_hash=:h, reset_token=NULL, reset_token_expira=NULL, alterado_em=:agora "
-                "WHERE id=:id"
-            ),
-            {"h": hash_password(nova_senha), "agora": agora, "id": perfil_id},
-        )
-
-    revogar_todas_sessoes(engine, perfil_id)
-    audit(
-        engine,
-        "perfil.senha_redefinida",
-        perfil_id=perfil_id,
-        entidade="plantao_perfis",
-        entidade_id=perfil_id,
-    )
-    notificar(
-        engine,
-        perfil_id,
-        "senha_redefinida",
-        "Senha redefinida",
-        "Sua senha foi redefinida com sucesso.",
-        entidade="plantao_perfis",
-        entidade_id=perfil_id,
-    )
-    return True
 
 
 def criar_local(

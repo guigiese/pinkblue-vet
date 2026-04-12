@@ -739,7 +739,7 @@ def get_alertas_dashboard(engine: Any, dias: int = 7) -> dict:
         engine,
         """
         SELECT COUNT(*) AS total
-          FROM plantao_perfis
+          FROM users
          WHERE status = 'pendente'
         """,
     )

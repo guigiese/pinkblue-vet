@@ -2,7 +2,7 @@
 {% block title %}Acessos · Plataforma{% endblock %}
 {% block header %}Administrar acessos{% endblock %}
 {% block subheader %}
-Controle inicial de usuários, senhas e status de acesso para a home e para todos os módulos protegidos da plataforma.
+Controle de usuários, permissões e solicitações de cadastro para toda a plataforma.
 {% endblock %}
 {% block content %}
 
@@ -13,18 +13,72 @@ Controle inicial de usuários, senhas e status de acesso para a home e para todo
   </div>
   {% endif %}
 
+  {# ── Solicitações pendentes ── #}
+  {% if pending_users %}
+  <section class="rounded-2xl border border-amber-200 bg-amber-50 p-5 shadow-sm">
+    <div class="flex items-center justify-between gap-3">
+      <div>
+        <h2 class="text-base font-semibold text-amber-900">Solicitações pendentes</h2>
+        <p class="mt-1 text-sm text-amber-700">Novos cadastros aguardando aprovação.</p>
+      </div>
+      <span class="rounded-full bg-amber-200 px-3 py-1 text-xs font-semibold text-amber-800">{{ pending_users|length }}</span>
+    </div>
+    <div class="mt-4 space-y-3">
+      {% for u in pending_users %}
+      <div class="rounded-xl border border-amber-200 bg-white p-4">
+        <div class="flex flex-wrap items-start justify-between gap-3">
+          <div class="min-w-0">
+            <p class="font-semibold text-gray-800">{{ u.nome or u.email }}</p>
+            <p class="text-xs text-gray-500">{{ u.email }}</p>
+            <div class="mt-1.5 flex flex-wrap gap-2">
+              {% if u.role %}
+              <span class="rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-indigo-700">
+                {{ (role_labels or {})[u.role] or u.role }}
+              </span>
+              {% endif %}
+              {% if u.crmv %}
+              <span class="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] text-gray-600">CRMV: {{ u.crmv }}</span>
+              {% endif %}
+              {% if u.telefone %}
+              <span class="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] text-gray-600">{{ u.telefone }}</span>
+              {% endif %}
+            </div>
+            <p class="mt-1 text-xs text-gray-400">Solicitado em {{ u.created_at }}</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <form method="post" action="/admin/usuarios/{{ u.id }}/aprovar">
+              <button type="submit"
+                      class="rounded-xl bg-green-600 px-3 py-2 text-xs font-semibold text-white hover:bg-green-700">
+                Aprovar
+              </button>
+            </form>
+            <form method="post" action="/admin/usuarios/{{ u.id }}/rejeitar">
+              <button type="submit"
+                      class="rounded-xl border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50">
+                Rejeitar
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  {# ── Novo usuário interno ── #}
   <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-    <h2 class="text-base font-semibold text-gray-800">Novo usuário</h2>
-    <p class="mt-1 text-sm text-gray-500">Crie acessos simples por e-mail e senha. O admin master continua gerindo os demais.</p>
-    <form method="post" action="/admin/usuarios" class="mt-4 grid gap-3 md:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_170px_140px]">
+    <h2 class="text-base font-semibold text-gray-800">Novo usuário interno</h2>
+    <p class="mt-1 text-sm text-gray-500">Crie acessos internos por e-mail e senha. Usuários externos devem solicitar via formulário.</p>
+    <form method="post" action="/admin/usuarios" class="mt-4 grid gap-3 md:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_200px_140px]">
       <input name="email" type="email" required placeholder="email@exemplo.com"
              class="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm">
       <input name="password" type="text" required placeholder="Senha inicial"
              class="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm">
       <select name="role" class="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm">
-        <option value="viewer">viewer</option>
-        <option value="operator">operator</option>
-        <option value="admin">admin</option>
+        <option value="viewer">viewer — somente leitura</option>
+        <option value="operator">operator — operações</option>
+        <option value="admin">admin — total</option>
       </select>
       <button type="submit" class="rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-indigo-700">
         Criar usuário
@@ -32,34 +86,41 @@ Controle inicial de usuários, senhas e status de acesso para a home e para todo
     </form>
   </section>
 
+  {# ── Permissões por perfil ── #}
   <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
     <div>
       <h2 class="text-base font-semibold text-gray-800">Permissões por perfil</h2>
-      <p class="mt-1 text-sm text-gray-500">Essas permissões valem para todos os usuários do perfil correspondente.</p>
+      <p class="mt-1 text-sm text-gray-500">Essas permissões valem por padrão para todos os usuários de cada perfil.</p>
     </div>
     <div class="mt-4 space-y-4">
+      {% set perm_labels = all_permissions or {
+        "platform_access": "Home da plataforma",
+        "labmonitor_access": "Lab Monitor",
+        "manage_labmonitor": "Gerenciar Lab Monitor",
+        "ops_tools": "Ops-map e sandboxes",
+        "manage_users": "Administrar acessos",
+        "plantao_access": "Módulo Plantão",
+        "manage_plantao": "Gerenciar Plantão",
+      } %}
       {% for role in roles %}
       <form method="post" action="/admin/permissoes" class="rounded-xl border border-gray-200 bg-gray-50/70 p-4">
         <input type="hidden" name="role" value="{{ role }}">
         <div class="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p class="text-sm font-semibold text-gray-800">{{ role }}</p>
-            <p class="mt-1 text-xs text-gray-500">Controle simples de acesso por área da plataforma.</p>
+            <p class="text-sm font-semibold text-gray-800">
+              {{ role }}
+              {% if role_labels and role_labels[role] %}
+              <span class="ml-1.5 font-normal text-gray-400">— {{ role_labels[role] }}</span>
+              {% endif %}
+            </p>
           </div>
           <button type="submit" class="rounded-xl border border-indigo-200 bg-white px-4 py-2 text-sm font-medium text-indigo-600 hover:bg-indigo-50">
             Salvar permissões
           </button>
         </div>
-        <div class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+        <div class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           {% set role_perms = permissions.get(role, {}) %}
-          {% set labels = {
-            "platform_access": "Home da plataforma",
-            "labmonitor_access": "Lab Monitor",
-            "manage_labmonitor": "Gerenciar módulo",
-            "ops_tools": "Ops-map e sandboxes",
-            "manage_users": "Administrar acessos",
-          } %}
-          {% for key, label in labels.items() %}
+          {% for key, label in perm_labels.items() %}
           <label class="flex items-start gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-700">
             <input type="checkbox" name="{{ key }}" {% if role_perms.get(key) %}checked{% endif %}
                    class="mt-0.5 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
@@ -72,11 +133,12 @@ Controle inicial de usuários, senhas e status de acesso para a home e para todo
     </div>
   </section>
 
+  {# ── Todos os usuários ── #}
   <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
     <div class="flex items-center justify-between gap-3">
       <div>
         <h2 class="text-base font-semibold text-gray-800">Usuários da plataforma</h2>
-        <p class="mt-1 text-sm text-gray-500">Esses acessos valem para a home e todos os módulos protegidos.</p>
+        <p class="mt-1 text-sm text-gray-500">Todos os acessos ativos e inativos.</p>
       </div>
       <span class="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-500">{{ users|length }} acesso(s)</span>
     </div>
@@ -87,8 +149,16 @@ Controle inicial de usuários, senhas e status de acesso para a home e para todo
         <div class="flex flex-wrap items-start justify-between gap-3">
           <div class="min-w-0">
             <div class="flex items-center gap-2 flex-wrap">
+              {% if user.nome %}
+              <p class="font-semibold text-gray-800">{{ user.nome }}</p>
+              <p class="text-xs text-gray-500">{{ user.email }}</p>
+              {% else %}
               <p class="truncate font-semibold text-gray-800">{{ user.email }}</p>
+              {% endif %}
               <span class="rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-indigo-700">{{ user.role }}</span>
+              {% if user.status and user.status != 'ativo' %}
+              <span class="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-amber-700">{{ user.status }}</span>
+              {% endif %}
               {% if not user.is_active %}
               <span class="rounded-full bg-gray-200 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-gray-600">Inativo</span>
               {% endif %}
@@ -99,7 +169,9 @@ Controle inicial de usuários, senhas e status de acesso para a home e para todo
             <form method="post" action="/admin/usuarios/{{ user.id }}/role" class="flex items-center gap-2">
               <select name="role" class="rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs text-gray-700">
                 {% for role in roles %}
-                <option value="{{ role }}" {% if user.role == role %}selected{% endif %}>{{ role }}</option>
+                <option value="{{ role }}" {% if user.role == role %}selected{% endif %}>
+                  {{ role }}{% if role_labels and role_labels[role] %} — {{ role_labels[role] }}{% endif %}
+                </option>
                 {% endfor %}
               </select>
               <button type="submit"

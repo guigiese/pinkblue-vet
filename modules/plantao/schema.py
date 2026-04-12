@@ -252,41 +252,6 @@ CREATE TABLE IF NOT EXISTS plantao_locais (
 );
 CREATE INDEX IF NOT EXISTS idx_plantao_locais_ativo ON plantao_locais(ativo);
 
-CREATE TABLE IF NOT EXISTS plantao_perfis (
-    id                  SERIAL PRIMARY KEY,
-    nome                TEXT NOT NULL,
-    email               TEXT NOT NULL,
-    senha_hash          TEXT NOT NULL,
-    tipo                TEXT NOT NULL CHECK (tipo IN ('veterinario','auxiliar')),
-    crmv                TEXT,
-    especialidade       TEXT NOT NULL DEFAULT '',
-    telefone            TEXT NOT NULL DEFAULT '',
-    status              TEXT NOT NULL DEFAULT 'pendente',
-    motivo_rejeicao     TEXT,
-    tentativas_login    INTEGER NOT NULL DEFAULT 0,
-    bloqueado_ate       TEXT,
-    reset_token         TEXT UNIQUE,
-    reset_token_expira  TEXT,
-    criado_em           TEXT NOT NULL,
-    alterado_em         TEXT NOT NULL,
-    aprovado_em         TEXT,
-    aprovado_por        INTEGER
-);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_plantao_perfis_email ON plantao_perfis(email);
-CREATE INDEX IF NOT EXISTS idx_plantao_perfis_status ON plantao_perfis(status);
-
-CREATE TABLE IF NOT EXISTS plantao_sessoes (
-    id           TEXT PRIMARY KEY,
-    perfil_id    INTEGER NOT NULL,
-    criada_em    TEXT NOT NULL,
-    expira_em    TEXT NOT NULL,
-    ultimo_acesso TEXT NOT NULL,
-    ip           TEXT NOT NULL DEFAULT '',
-    user_agent   TEXT NOT NULL DEFAULT ''
-);
-CREATE INDEX IF NOT EXISTS idx_plantao_sessoes_perfil ON plantao_sessoes(perfil_id);
-CREATE INDEX IF NOT EXISTS idx_plantao_sessoes_expira ON plantao_sessoes(expira_em);
-
 CREATE TABLE IF NOT EXISTS plantao_tarifas (
     id              SERIAL PRIMARY KEY,
     tipo_perfil     TEXT NOT NULL,
@@ -427,19 +392,6 @@ CREATE TABLE IF NOT EXISTS plantao_locais (
     uf TEXT NOT NULL DEFAULT '', telefone TEXT NOT NULL DEFAULT '',
     ativo INTEGER NOT NULL DEFAULT 1, criado_em TEXT NOT NULL, alterado_em TEXT NOT NULL
 );
-CREATE TABLE IF NOT EXISTS plantao_perfis (
-    id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT NOT NULL, email TEXT NOT NULL UNIQUE,
-    senha_hash TEXT NOT NULL, tipo TEXT NOT NULL, crmv TEXT, especialidade TEXT NOT NULL DEFAULT '',
-    telefone TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'pendente',
-    motivo_rejeicao TEXT, tentativas_login INTEGER NOT NULL DEFAULT 0,
-    bloqueado_ate TEXT, reset_token TEXT UNIQUE, reset_token_expira TEXT,
-    criado_em TEXT NOT NULL, alterado_em TEXT NOT NULL, aprovado_em TEXT, aprovado_por INTEGER
-);
-CREATE TABLE IF NOT EXISTS plantao_sessoes (
-    id TEXT PRIMARY KEY, perfil_id INTEGER NOT NULL, criada_em TEXT NOT NULL,
-    expira_em TEXT NOT NULL, ultimo_acesso TEXT NOT NULL,
-    ip TEXT NOT NULL DEFAULT '', user_agent TEXT NOT NULL DEFAULT ''
-);
 CREATE TABLE IF NOT EXISTS plantao_tarifas (
     id INTEGER PRIMARY KEY AUTOINCREMENT, tipo_perfil TEXT NOT NULL, dia_semana INTEGER,
     subtipo_turno TEXT, valor_hora REAL NOT NULL, vigente_de TEXT NOT NULL DEFAULT '2000-01-01',
@@ -538,6 +490,48 @@ _FERIADOS_ESTADUAIS_SC = [
 ]
 
 
+_VIEW_PLANTAO_PERFIS_SQLITE = """
+CREATE VIEW IF NOT EXISTS plantao_perfis AS
+SELECT
+    id,
+    nome,
+    email,
+    password_hash AS senha_hash,
+    role          AS tipo,
+    crmv,
+    ''            AS especialidade,
+    telefone,
+    status,
+    NULL          AS motivo_rejeicao,
+    tentativas_login,
+    bloqueado_ate,
+    NULL          AS reset_token,
+    NULL          AS reset_token_expira,
+    created_at    AS criado_em,
+    updated_at    AS alterado_em,
+    NULL          AS aprovado_em,
+    NULL          AS aprovado_por
+FROM users
+WHERE role IN ('veterinario', 'auxiliar')
+"""
+
+
+def _migrate_remove_old_plantao_auth(conn) -> None:
+    """
+    Remove tabelas isoladas de auth do plantão (plantao_perfis e plantao_sessoes)
+    caso ainda existam como tabelas — elas são substituídas pela VIEW sobre users
+    e pela tabela user_sessions da plataforma.
+    """
+    for table in ("plantao_perfis", "plantao_sessoes"):
+        row = conn.execute(
+            text("SELECT type FROM sqlite_master WHERE name = :n"),
+            {"n": table},
+        ).fetchone()
+        if row and row[0] == "table":
+            conn.execute(text(f"DROP TABLE {table}"))
+            log.info("Migração: tabela isolada '%s' removida (substituída por auth unificada).", table)
+
+
 def init_schema(engine) -> None:
     """
     Cria todas as tabelas do módulo Plantão se não existirem.
@@ -548,6 +542,10 @@ def init_schema(engine) -> None:
     ddl = _DDL_PG if is_pg else _DDL_SQLITE
 
     with engine.begin() as conn:
+        # SQLite: migra tabelas antigas → VIEW sobre users
+        if not is_pg:
+            _migrate_remove_old_plantao_auth(conn)
+
         for stmt in ddl.strip().split(";"):
             stmt = stmt.strip()
             if stmt:
@@ -561,6 +559,16 @@ def init_schema(engine) -> None:
                     else:
                         log.error("Erro ao criar schema plantão: %s\n%s", stmt[:80], e)
                         raise
+
+        # Cria a VIEW plantao_perfis (SQLite) após as tabelas do DDL
+        if not is_pg:
+            try:
+                conn.execute(text(_VIEW_PLANTAO_PERFIS_SQLITE))
+            except Exception as e:
+                msg = str(e).lower()
+                if "already exists" not in msg:
+                    log.error("Erro ao criar VIEW plantao_perfis: %s", e)
+                    raise
 
     _seed_defaults(engine, is_pg)
     log.info("Módulo Plantão: schema inicializado.")

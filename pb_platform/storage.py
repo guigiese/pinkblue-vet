@@ -15,6 +15,30 @@ ROOT = Path(__file__).resolve().parent.parent
 CONFIG_FILE = ROOT / "config.json"
 TELEGRAM_USERS_FILE = ROOT / "telegram_users.json"
 
+# ── Permissões por role/categoria ─────────────────────────────────────────────
+#
+# Roles internos:  admin, operator, viewer
+# Categorias externas (auto-cadastro): veterinario, auxiliar, colaborador
+#
+# Permissões disponíveis:
+#   platform_access   – acessa a home e módulos internos
+#   labmonitor_access – acessa /labmonitor (leitura)
+#   manage_labmonitor – gerencia lab monitor
+#   ops_tools         – acessa ops-map e sandboxes
+#   manage_users      – administra usuários
+#   plantao_access    – acessa /plantao (plantonistas)
+#   manage_plantao    – gerencia escalas e aprova cadastros (gestores)
+
+ALL_PERMISSIONS = [
+    "platform_access",
+    "labmonitor_access",
+    "manage_labmonitor",
+    "ops_tools",
+    "manage_users",
+    "plantao_access",
+    "manage_plantao",
+]
+
 DEFAULT_ROLE_PERMISSIONS: dict[str, dict[str, bool]] = {
     "admin": {
         "platform_access": True,
@@ -22,6 +46,8 @@ DEFAULT_ROLE_PERMISSIONS: dict[str, dict[str, bool]] = {
         "manage_labmonitor": True,
         "ops_tools": True,
         "manage_users": True,
+        "plantao_access": True,
+        "manage_plantao": True,
     },
     "operator": {
         "platform_access": True,
@@ -29,6 +55,8 @@ DEFAULT_ROLE_PERMISSIONS: dict[str, dict[str, bool]] = {
         "manage_labmonitor": True,
         "ops_tools": True,
         "manage_users": False,
+        "plantao_access": True,
+        "manage_plantao": True,
     },
     "viewer": {
         "platform_access": True,
@@ -36,8 +64,57 @@ DEFAULT_ROLE_PERMISSIONS: dict[str, dict[str, bool]] = {
         "manage_labmonitor": False,
         "ops_tools": False,
         "manage_users": False,
+        "plantao_access": False,
+        "manage_plantao": False,
+    },
+    # Categorias externas
+    "veterinario": {
+        "platform_access": True,
+        "labmonitor_access": False,
+        "manage_labmonitor": False,
+        "ops_tools": False,
+        "manage_users": False,
+        "plantao_access": True,
+        "manage_plantao": False,
+    },
+    "auxiliar": {
+        "platform_access": True,
+        "labmonitor_access": False,
+        "manage_labmonitor": False,
+        "ops_tools": False,
+        "manage_users": False,
+        "plantao_access": True,
+        "manage_plantao": False,
+    },
+    "colaborador": {
+        "platform_access": True,
+        "labmonitor_access": False,
+        "manage_labmonitor": False,
+        "ops_tools": False,
+        "manage_users": False,
+        "plantao_access": False,
+        "manage_plantao": False,
     },
 }
+
+# Roles que são categorias de auto-cadastro (externas)
+EXTERNAL_ROLES = {"veterinario", "auxiliar", "colaborador"}
+# Roles internos (criados por admin)
+INTERNAL_ROLES = {"admin", "operator", "viewer"}
+
+# Labels amigáveis para exibição
+ROLE_LABELS: dict[str, str] = {
+    "admin": "Administrador",
+    "operator": "Operador",
+    "viewer": "Visualizador",
+    "veterinario": "Veterinário Plantonista",
+    "auxiliar": "Auxiliar Veterinário",
+    "colaborador": "Colaborador",
+}
+
+# Rate limiting
+MAX_LOGIN_ATTEMPTS = 5
+LOCKOUT_MINUTES = 30
 
 DEFAULT_GLOBAL_THRESHOLDS: dict[str, float] = {
     "warning_multiplier": 1.0,
@@ -103,11 +180,17 @@ class PlatformStore:
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             email TEXT NOT NULL UNIQUE,
             password_hash TEXT NOT NULL,
-            role TEXT NOT NULL DEFAULT 'admin',
+            role TEXT NOT NULL DEFAULT 'viewer',
             is_active INTEGER NOT NULL DEFAULT 1,
             force_password_change INTEGER NOT NULL DEFAULT 0,
             created_at TEXT NOT NULL,
-            updated_at TEXT NOT NULL
+            updated_at TEXT NOT NULL,
+            nome TEXT NOT NULL DEFAULT '',
+            telefone TEXT NOT NULL DEFAULT '',
+            crmv TEXT NOT NULL DEFAULT '',
+            status TEXT NOT NULL DEFAULT 'ativo',
+            tentativas_login INTEGER NOT NULL DEFAULT 0,
+            bloqueado_ate TEXT
         );
 
         CREATE TABLE IF NOT EXISTS user_sessions (
@@ -150,14 +233,22 @@ class PlatformStore:
         """
         with self._connect() as conn:
             conn.executescript(schema)
-            # Coluna adicionada pelo módulo Plantão — idempotente
-            try:
-                conn.execute(
-                    "ALTER TABLE users ADD COLUMN gestor_plantao INTEGER NOT NULL DEFAULT 0"
-                )
-                conn.commit()
-            except Exception:
-                pass  # coluna já existe
+            # Colunas adicionadas incrementalmente — idempotentes
+            for alter in [
+                "ALTER TABLE users ADD COLUMN nome TEXT NOT NULL DEFAULT ''",
+                "ALTER TABLE users ADD COLUMN telefone TEXT NOT NULL DEFAULT ''",
+                "ALTER TABLE users ADD COLUMN crmv TEXT NOT NULL DEFAULT ''",
+                "ALTER TABLE users ADD COLUMN status TEXT NOT NULL DEFAULT 'ativo'",
+                "ALTER TABLE users ADD COLUMN tentativas_login INTEGER NOT NULL DEFAULT 0",
+                "ALTER TABLE users ADD COLUMN bloqueado_ate TEXT",
+                # Mantida por compatibilidade legada — não é mais usada para auth
+                "ALTER TABLE users ADD COLUMN gestor_plantao INTEGER NOT NULL DEFAULT 0",
+            ]:
+                try:
+                    conn.execute(alter)
+                    conn.commit()
+                except Exception:
+                    pass  # coluna já existe
 
     def bootstrap_legacy_runtime(self) -> None:
         if self.load_runtime_config() is None and CONFIG_FILE.exists():
@@ -186,6 +277,8 @@ class PlatformStore:
                         subscribed_at=entry.get("subscribed_at", ""),
                     )
 
+    # ── Config / KV ──────────────────────────────────────────────────────────
+
     def load_json_setting(self, key: str, default: Any = None) -> Any:
         with self._connect() as conn:
             row = conn.execute("SELECT value FROM app_kv WHERE key = ?", (key,)).fetchone()
@@ -213,6 +306,8 @@ class PlatformStore:
     def save_runtime_config(self, config: dict) -> None:
         self.save_json_setting("lab_monitor.runtime_config", config)
 
+    # ── Permissões ────────────────────────────────────────────────────────────
+
     def list_roles(self) -> list[str]:
         return list(DEFAULT_ROLE_PERMISSIONS.keys())
 
@@ -229,16 +324,27 @@ class PlatformStore:
 
     def save_role_permissions(self, role: str, permissions: dict[str, bool]) -> None:
         role = role.strip().lower()
-        matrix = self.get_role_permissions()
-        if role not in matrix:
+        if role not in DEFAULT_ROLE_PERMISSIONS:
             raise ValueError(f"role desconhecido: {role}")
+        matrix = self.get_role_permissions()
         matrix[role] = {
             key: bool(permissions.get(key, False))
-            for key in DEFAULT_ROLE_PERMISSIONS[role].keys()
+            for key in ALL_PERMISSIONS
         }
         if role == "admin":
-            matrix[role] = {key: True for key in matrix[role].keys()}
+            matrix[role] = {key: True for key in ALL_PERMISSIONS}
         self.save_json_setting("platform.role_permissions", matrix)
+
+    def get_user_permissions(self, user: dict | None) -> dict[str, bool]:
+        """Retorna o conjunto de permissões efetivas de um usuário."""
+        if not user:
+            return {k: False for k in ALL_PERMISSIONS}
+        matrix = self.get_role_permissions()
+        role = (user.get("role") or "viewer").strip().lower()
+        role_permissions = matrix.get(role) or {}
+        return {key: bool(role_permissions.get(key, False)) for key in ALL_PERMISSIONS}
+
+    # ── Thresholds ────────────────────────────────────────────────────────────
 
     def get_global_thresholds(self) -> dict[str, float]:
         current = self.load_json_setting("lab_monitor.global_thresholds", {}) or {}
@@ -251,10 +357,7 @@ class PlatformStore:
         except Exception:
             critical = DEFAULT_GLOBAL_THRESHOLDS["critical_multiplier"]
         critical = max(critical, warning)
-        return {
-            "warning_multiplier": warning,
-            "critical_multiplier": critical,
-        }
+        return {"warning_multiplier": warning, "critical_multiplier": critical}
 
     def save_global_thresholds(self, *, warning_multiplier: float, critical_multiplier: float) -> None:
         self.save_json_setting(
@@ -264,6 +367,8 @@ class PlatformStore:
                 "critical_multiplier": float(max(critical_multiplier, warning_multiplier)),
             },
         )
+
+    # ── Lab snapshots ─────────────────────────────────────────────────────────
 
     def get_lab_sync_state(self, lab_id: str) -> dict:
         return self.load_json_setting(f"lab_monitor.sync_state.{lab_id}", {}) or {}
@@ -287,14 +392,7 @@ class PlatformStore:
                 last_error[row["lab_id"]] = row["last_error"]
         return snapshots, last_check, last_error
 
-    def save_lab_snapshot(
-        self,
-        lab_id: str,
-        snapshot: dict,
-        *,
-        last_check: str = "",
-        last_error: str = "",
-    ) -> None:
+    def save_lab_snapshot(self, lab_id: str, snapshot: dict, *, last_check: str = "", last_error: str = "") -> None:
         now = _utcnow()
         with self._lock, self._connect() as conn:
             conn.execute(
@@ -311,17 +409,15 @@ class PlatformStore:
             )
             conn.commit()
 
+    # ── Notificações de eventos ───────────────────────────────────────────────
+
     def remember_notification_event(self, signature: str, kind: str, ttl_hours: int = 72) -> bool:
         cutoff = (datetime.utcnow() - timedelta(hours=ttl_hours)).isoformat(timespec="seconds")
         now = _utcnow()
         with self._lock, self._connect() as conn:
-            conn.execute(
-                "DELETE FROM notification_event_log WHERE created_at < ?",
-                (cutoff,),
-            )
+            conn.execute("DELETE FROM notification_event_log WHERE created_at < ?", (cutoff,))
             exists = conn.execute(
-                "SELECT 1 FROM notification_event_log WHERE signature = ?",
-                (signature,),
+                "SELECT 1 FROM notification_event_log WHERE signature = ?", (signature,)
             ).fetchone()
             if exists:
                 conn.commit()
@@ -338,22 +434,34 @@ class PlatformStore:
             conn.execute("DELETE FROM notification_event_log")
             conn.commit()
 
+    # ── Usuários ──────────────────────────────────────────────────────────────
+
     def ensure_master_user(self) -> None:
         email = settings.master_email.strip().lower()
         existing = self.get_user_by_email(email)
         if existing:
+            # Garante que o master sempre está ativo e com role admin
+            if existing.get("status") != "ativo" or existing.get("role") != "admin":
+                now = _utcnow()
+                with self._lock, self._connect() as conn:
+                    conn.execute(
+                        "UPDATE users SET status='ativo', role='admin', updated_at=? WHERE email=?",
+                        (now, email),
+                    )
+                    conn.commit()
             return
         self.create_user(
             email=email,
             password=settings.master_password,
             role="admin",
             force_password_change=settings.master_force_change,
+            status="ativo",
         )
 
     def _normalize_user(self, row: sqlite3.Row | None) -> dict | None:
         if not row:
             return None
-        keys = row.keys() if hasattr(row, "keys") else []
+        keys = list(row.keys()) if hasattr(row, "keys") else []
         return {
             "id": row["id"],
             "email": row["email"],
@@ -362,20 +470,37 @@ class PlatformStore:
             "force_password_change": bool(row["force_password_change"]),
             "created_at": row["created_at"],
             "updated_at": row["updated_at"],
+            "nome": row["nome"] if "nome" in keys else "",
+            "telefone": row["telefone"] if "telefone" in keys else "",
+            "crmv": row["crmv"] if "crmv" in keys else "",
+            "status": row["status"] if "status" in keys else "ativo",
+            "tentativas_login": row["tentativas_login"] if "tentativas_login" in keys else 0,
+            "bloqueado_ate": row["bloqueado_ate"] if "bloqueado_ate" in keys else None,
+            # Aliases de compatibilidade com o módulo Plantão (que usava plantao_perfis.tipo)
+            "tipo": row["role"],
+            # campo legado — mantido para não quebrar código existente
             "gestor_plantao": bool(row["gestor_plantao"]) if "gestor_plantao" in keys else False,
         }
 
     def list_users(self) -> list[dict]:
         with self._connect() as conn:
             rows = conn.execute(
-                "SELECT id, email, role, is_active, force_password_change, created_at, updated_at FROM users ORDER BY email"
+                "SELECT * FROM users ORDER BY nome ASC, email ASC"
+            ).fetchall()
+        return [self._normalize_user(row) for row in rows]
+
+    def list_pending_users(self) -> list[dict]:
+        """Retorna usuários com status='pendente' aguardando aprovação."""
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM users WHERE status = 'pendente' ORDER BY created_at ASC"
             ).fetchall()
         return [self._normalize_user(row) for row in rows]
 
     def get_user_by_email(self, email: str) -> dict | None:
         with self._connect() as conn:
             row = conn.execute(
-                "SELECT id, email, role, is_active, force_password_change, created_at, updated_at FROM users WHERE email = ?",
+                "SELECT * FROM users WHERE email = ?",
                 (email.strip().lower(),),
             ).fetchone()
         return self._normalize_user(row)
@@ -383,22 +508,74 @@ class PlatformStore:
     def get_user_by_id(self, user_id: int) -> dict | None:
         with self._connect() as conn:
             row = conn.execute(
-                "SELECT id, email, role, is_active, force_password_change, created_at, updated_at FROM users WHERE id = ?",
+                "SELECT * FROM users WHERE id = ?",
                 (user_id,),
             ).fetchone()
         return self._normalize_user(row)
 
-    def authenticate_user(self, email: str, password: str) -> dict | None:
-        with self._connect() as conn:
-            row = conn.execute(
-                "SELECT * FROM users WHERE email = ?",
-                (email.strip().lower(),),
-            ).fetchone()
-        if not row or not row["is_active"]:
-            return None
-        if not verify_password(password, row["password_hash"]):
-            return None
-        return self._normalize_user(row)
+    def authenticate_user(self, email: str, password: str) -> tuple[dict | None, str]:
+        """
+        Autentica com rate limiting.
+
+        Returns (user, 'ok') ou (None, código_erro).
+        Códigos: 'invalid', 'locked', 'pending', 'rejected', 'inactive'
+        """
+        now = _utcnow()
+        email = email.strip().lower()
+
+        with self._lock, self._connect() as conn:
+            row = conn.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
+            if not row:
+                return None, "invalid"
+
+            perfil = {k: row[k] for k in row.keys()}
+
+            # Verifica bloqueio
+            if perfil.get("bloqueado_ate") and perfil["bloqueado_ate"] > now:
+                return None, "locked"
+            if perfil.get("bloqueado_ate") and perfil["bloqueado_ate"] <= now:
+                conn.execute(
+                    "UPDATE users SET tentativas_login=0, bloqueado_ate=NULL WHERE id=?",
+                    (perfil["id"],),
+                )
+                conn.commit()
+                perfil["tentativas_login"] = 0
+                perfil["bloqueado_ate"] = None
+
+            # Verifica senha
+            if not verify_password(password, perfil["password_hash"]):
+                tentativas = (perfil.get("tentativas_login") or 0) + 1
+                bloqueado_ate = None
+                if tentativas >= MAX_LOGIN_ATTEMPTS:
+                    bloqueado_ate = (
+                        datetime.utcnow() + timedelta(minutes=LOCKOUT_MINUTES)
+                    ).isoformat(timespec="seconds")
+                conn.execute(
+                    "UPDATE users SET tentativas_login=?, bloqueado_ate=?, updated_at=? WHERE id=?",
+                    (tentativas, bloqueado_ate, now, perfil["id"]),
+                )
+                conn.commit()
+                return None, "invalid"
+
+            # Senha OK — zera tentativas
+            conn.execute(
+                "UPDATE users SET tentativas_login=0, bloqueado_ate=NULL, updated_at=? WHERE id=?",
+                (now, perfil["id"]),
+            )
+            conn.commit()
+
+        if not perfil.get("is_active"):
+            return None, "inactive"
+        status = perfil.get("status", "ativo")
+        if status == "pendente":
+            return None, "pending"
+        if status == "rejeitado":
+            return None, "rejected"
+        if status != "ativo":
+            return None, "inactive"
+
+        user = self.get_user_by_email(email)
+        return user, "ok"
 
     def create_user(
         self,
@@ -407,14 +584,19 @@ class PlatformStore:
         password: str,
         role: str = "viewer",
         force_password_change: bool = False,
+        nome: str = "",
+        telefone: str = "",
+        crmv: str = "",
+        status: str = "ativo",
     ) -> dict:
         now = _utcnow()
         email = email.strip().lower()
         with self._lock, self._connect() as conn:
             conn.execute(
                 """
-                INSERT INTO users(email, password_hash, role, is_active, force_password_change, created_at, updated_at)
-                VALUES (?, ?, ?, 1, ?, ?, ?)
+                INSERT INTO users(email, password_hash, role, is_active, force_password_change,
+                                  created_at, updated_at, nome, telefone, crmv, status)
+                VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     email,
@@ -423,20 +605,70 @@ class PlatformStore:
                     1 if force_password_change else 0,
                     now,
                     now,
+                    nome.strip(),
+                    telefone.strip(),
+                    crmv.strip(),
+                    status,
                 ),
             )
             conn.commit()
         return self.get_user_by_email(email) or {}
 
+    def create_user_request(
+        self,
+        *,
+        email: str,
+        password: str,
+        role: str,
+        nome: str,
+        telefone: str = "",
+        crmv: str = "",
+    ) -> dict:
+        """
+        Cria um usuário via auto-cadastro público com status='pendente'.
+        Levanta ValueError se o e-mail já estiver cadastrado.
+        """
+        email = email.strip().lower()
+        existing = self.get_user_by_email(email)
+        if existing:
+            raise ValueError("E-mail já cadastrado. Tente fazer login ou recuperar sua senha.")
+        if role not in DEFAULT_ROLE_PERMISSIONS:
+            raise ValueError(f"Categoria inválida: {role}")
+        return self.create_user(
+            email=email,
+            password=password,
+            role=role,
+            nome=nome,
+            telefone=telefone,
+            crmv=crmv,
+            status="pendente",
+        )
+
+    def approve_user(self, user_id: int, approved_by_id: int | None = None) -> None:
+        """Aprova um cadastro pendente, ativando o usuário."""
+        now = _utcnow()
+        with self._lock, self._connect() as conn:
+            conn.execute(
+                "UPDATE users SET status='ativo', is_active=1, updated_at=? WHERE id=? AND status='pendente'",
+                (now, user_id),
+            )
+            conn.commit()
+
+    def reject_user(self, user_id: int, motivo: str = "") -> None:
+        """Rejeita um cadastro pendente."""
+        now = _utcnow()
+        with self._lock, self._connect() as conn:
+            conn.execute(
+                "UPDATE users SET status='rejeitado', is_active=0, updated_at=? WHERE id=?",
+                (now, user_id),
+            )
+            conn.commit()
+
     def set_user_password(self, user_id: int, password: str, *, force_password_change: bool = False) -> None:
         now = _utcnow()
         with self._lock, self._connect() as conn:
             conn.execute(
-                """
-                UPDATE users
-                SET password_hash = ?, force_password_change = ?, updated_at = ?
-                WHERE id = ?
-                """,
+                "UPDATE users SET password_hash=?, force_password_change=?, updated_at=? WHERE id=?",
                 (hash_password(password), 1 if force_password_change else 0, now, user_id),
             )
             conn.commit()
@@ -445,7 +677,7 @@ class PlatformStore:
         now = _utcnow()
         with self._lock, self._connect() as conn:
             conn.execute(
-                "UPDATE users SET is_active = ?, updated_at = ? WHERE id = ?",
+                "UPDATE users SET is_active=?, updated_at=? WHERE id=?",
                 (1 if is_active else 0, now, user_id),
             )
             conn.commit()
@@ -457,10 +689,12 @@ class PlatformStore:
         now = _utcnow()
         with self._lock, self._connect() as conn:
             conn.execute(
-                "UPDATE users SET role = ?, updated_at = ? WHERE id = ?",
+                "UPDATE users SET role=?, updated_at=? WHERE id=?",
                 (role, now, user_id),
             )
             conn.commit()
+
+    # ── Sessões ───────────────────────────────────────────────────────────────
 
     def create_session(self, user_id: int) -> str:
         raw = secrets.token_urlsafe(32)
@@ -469,10 +703,7 @@ class PlatformStore:
         expires = now + timedelta(days=settings.session_ttl_days)
         with self._lock, self._connect() as conn:
             conn.execute(
-                """
-                INSERT INTO user_sessions(token_hash, user_id, created_at, expires_at)
-                VALUES (?, ?, ?, ?)
-                """,
+                "INSERT INTO user_sessions(token_hash, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)",
                 (
                     hashed,
                     user_id,
@@ -492,16 +723,19 @@ class PlatformStore:
             conn.execute("DELETE FROM user_sessions WHERE expires_at < ?", (now,))
             row = conn.execute(
                 """
-                SELECT u.id, u.email, u.role, u.is_active, u.force_password_change, u.created_at, u.updated_at
-                FROM user_sessions s
-                JOIN users u ON u.id = s.user_id
-                WHERE s.token_hash = ?
+                SELECT u.*
+                  FROM user_sessions s
+                  JOIN users u ON u.id = s.user_id
+                 WHERE s.token_hash = ?
                 """,
                 (hashed,),
             ).fetchone()
             conn.commit()
         user = self._normalize_user(row)
-        if user and not user["is_active"]:
+        if not user:
+            return None
+        # Só permite sessão para usuários ativos e aprovados
+        if not user["is_active"] or user.get("status") != "ativo":
             return None
         return user
 
@@ -512,29 +746,24 @@ class PlatformStore:
             conn.execute("DELETE FROM user_sessions WHERE token_hash = ?", (token_hash(raw_token),))
             conn.commit()
 
+    def revoke_all_sessions(self, user_id: int) -> None:
+        with self._lock, self._connect() as conn:
+            conn.execute("DELETE FROM user_sessions WHERE user_id = ?", (user_id,))
+            conn.commit()
+
+    # ── Telegram ──────────────────────────────────────────────────────────────
+
     def list_telegram_users(self) -> list[dict]:
         with self._connect() as conn:
             rows = conn.execute(
                 "SELECT chat_id, name, username, subscribed_at FROM telegram_subscriptions ORDER BY subscribed_at DESC, chat_id"
             ).fetchall()
         return [
-            {
-                "chat_id": row["chat_id"],
-                "name": row["name"],
-                "username": row["username"],
-                "subscribed_at": row["subscribed_at"],
-            }
+            {"chat_id": row["chat_id"], "name": row["name"], "username": row["username"], "subscribed_at": row["subscribed_at"]}
             for row in rows
         ]
 
-    def add_telegram_user(
-        self,
-        chat_id: str,
-        *,
-        name: str = "",
-        username: str = "",
-        subscribed_at: str = "",
-    ) -> bool:
+    def add_telegram_user(self, chat_id: str, *, name: str = "", username: str = "", subscribed_at: str = "") -> bool:
         existing = any(u["chat_id"] == str(chat_id) for u in self.list_telegram_users())
         with self._lock, self._connect() as conn:
             conn.execute(
@@ -560,14 +789,12 @@ class PlatformStore:
             conn.commit()
         return cur.rowcount > 0
 
+    # ── Exam thresholds ───────────────────────────────────────────────────────
+
     def list_exam_thresholds(self) -> list[dict]:
         with self._connect() as conn:
             rows = conn.execute(
-                """
-                SELECT exam_slug, display_name, warning_multiplier, critical_multiplier, updated_at, updated_by
-                FROM exam_thresholds
-                ORDER BY display_name
-                """
+                "SELECT exam_slug, display_name, warning_multiplier, critical_multiplier, updated_at, updated_by FROM exam_thresholds ORDER BY display_name"
             ).fetchall()
         return [
             {
@@ -585,40 +812,24 @@ class PlatformStore:
         slug = _slugify_exam(exam_name)
         with self._connect() as conn:
             row = conn.execute(
-                """
-                SELECT exam_slug, display_name, warning_multiplier, critical_multiplier, updated_at, updated_by
-                FROM exam_thresholds
-                WHERE exam_slug = ?
-                """,
-                (slug,),
+                "SELECT * FROM exam_thresholds WHERE exam_slug = ?", (slug,)
             ).fetchone()
         defaults = self.get_global_thresholds()
         if not row:
             return {
-                "exam_slug": slug,
-                "display_name": exam_name,
+                "exam_slug": slug, "display_name": exam_name,
                 "warning_multiplier": defaults["warning_multiplier"],
                 "critical_multiplier": defaults["critical_multiplier"],
-                "updated_at": "",
-                "updated_by": "",
+                "updated_at": "", "updated_by": "",
             }
         return {
-            "exam_slug": row["exam_slug"],
-            "display_name": row["display_name"],
+            "exam_slug": row["exam_slug"], "display_name": row["display_name"],
             "warning_multiplier": row["warning_multiplier"],
             "critical_multiplier": row["critical_multiplier"],
-            "updated_at": row["updated_at"],
-            "updated_by": row["updated_by"],
+            "updated_at": row["updated_at"], "updated_by": row["updated_by"],
         }
 
-    def upsert_exam_threshold(
-        self,
-        exam_name: str,
-        *,
-        warning_multiplier: float,
-        critical_multiplier: float,
-        updated_by: str = "",
-    ) -> None:
+    def upsert_exam_threshold(self, exam_name: str, *, warning_multiplier: float, critical_multiplier: float, updated_by: str = "") -> None:
         slug = _slugify_exam(exam_name)
         now = _utcnow()
         with self._lock, self._connect() as conn:

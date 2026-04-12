@@ -24,6 +24,7 @@ from pb_platform.auth import (
     attach_user_to_request,
     auth_bypassed,
     forbidden_response,
+    gerar_csrf_token,
     has_permission,
     path_requires_auth,
     required_permission,
@@ -44,12 +45,13 @@ from web.ops_map import OPS_MAP_DIR, get_ops_map_runtime
 from web.state import state
 from web.text_reports import build_report_sections
 
-# ── Módulo Plantão — engine e inicialização ───────────────────────────────────
-_DB_URL = os.environ.get("DATABASE_URL", "sqlite:///./data/pinkblue.db")
-# SQLAlchemy exige postgresql+psycopg2 para PG; Railway expõe postgres:// legado
+# ── Módulo Plantão — engine compartilhado com a plataforma ───────────────────
+# Por padrão usa o mesmo arquivo SQLite da plataforma (pinkbluevet.sqlite3).
+# Em produção, DATABASE_URL aponta para PostgreSQL.
+_DB_URL = os.environ.get("DATABASE_URL") or f"sqlite:///{settings.db_path}"
 if _DB_URL.startswith("postgres://"):
     _DB_URL = _DB_URL.replace("postgres://", "postgresql+psycopg2://", 1)
-plantao_engine = create_engine(_DB_URL, pool_pre_ping=True)
+plantao_engine = create_engine(_DB_URL, pool_pre_ping=True, connect_args={"check_same_thread": False} if "sqlite" in _DB_URL else {})
 
 TEMPLATES_DIR = Path(__file__).parent / "templates"
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
@@ -87,16 +89,22 @@ app.include_router(make_plantao_router(plantao_engine))
 
 @app.middleware("http")
 async def platform_auth_middleware(request: Request, call_next):
-    # O módulo Plantão gerencia sua própria autenticação — bypass do middleware
-    if request.url.path.startswith("/plantao"):
-        return await call_next(request)
     if auth_bypassed(request):
-        request.state.user = {"email": "tests@pinkbluevet.local", "role": "admin"}
+        request.state.user = {"email": "tests@pinkbluevet.local", "role": "admin",
+                               "nome": "Teste", "status": "ativo"}
         return await call_next(request)
+
     user = attach_user_to_request(request)
+
+    # Gera token CSRF vinculado à sessão e disponibiliza para templates
+    session_token = request.cookies.get(settings.session_cookie_name, "")
+    request.state.csrf_token = gerar_csrf_token(session_token)
+
     if path_requires_auth(request.url.path) and not user:
         return redirect_to_login(request)
     if user and request.url.path == "/login":
+        return RedirectResponse(url="/", status_code=303)
+    if user and request.url.path == "/cadastro":
         return RedirectResponse(url="/", status_code=303)
     permission = required_permission(request.url.path, request.method)
     if permission and user and not has_permission(request, permission):
@@ -142,9 +150,16 @@ async def login_action(
     password: str = Form(...),
     next: str = Form("/"),
 ):
-    user = store.authenticate_user(email, password)
+    _ERROR_MAP = {
+        "invalid": "E-mail ou senha inválidos.",
+        "locked": "Conta bloqueada temporariamente. Tente novamente em alguns minutos.",
+        "pending": "Seu cadastro ainda está aguardando aprovação.",
+        "rejected": "Seu cadastro foi rejeitado. Entre em contato com a clínica.",
+        "inactive": "Conta desativada. Entre em contato com a clínica.",
+    }
+    user, code = store.authenticate_user(email, password)
     if not user:
-        return _render(request, "login.html", next=next or "/", error="Email ou senha invÃ¡lidos.")
+        return _render(request, "login.html", next=next or "/", error=_ERROR_MAP.get(code, "Erro ao entrar."))
 
     token = store.create_session(user["id"])
     response = RedirectResponse(url=next or "/", status_code=303)
@@ -166,6 +181,75 @@ async def logout(request: Request):
     return response
 
 
+# ── Cadastro público (auto-registro com aprovação) ────────────────────────────
+
+@app.get("/cadastro", response_class=HTMLResponse)
+async def cadastro_page(request: Request, erro: str = ""):
+    return _render(request, "cadastro.html", erro=erro)
+
+
+@app.post("/cadastro")
+async def cadastro_action(
+    request: Request,
+    nome: str = Form(...),
+    email: str = Form(...),
+    password: str = Form(...),
+    password_confirm: str = Form(...),
+    role: str = Form(...),
+    telefone: str = Form(""),
+    crmv: str = Form(""),
+):
+    from pb_platform.storage import EXTERNAL_ROLES
+    erros = []
+    if password != password_confirm:
+        erros.append("As senhas não coincidem.")
+    if len(password) < 8:
+        erros.append("A senha deve ter no mínimo 8 caracteres.")
+    if role not in EXTERNAL_ROLES:
+        erros.append("Categoria inválida.")
+    if role == "veterinario" and not crmv.strip():
+        erros.append("CRMV é obrigatório para veterinários.")
+    if erros:
+        return _render(request, "cadastro.html", erro=" ".join(erros), dados={
+            "nome": nome, "email": email, "role": role, "telefone": telefone,
+        })
+    try:
+        store.create_user_request(
+            email=email.strip().lower(),
+            password=password,
+            role=role,
+            nome=nome.strip(),
+            telefone=telefone.strip(),
+            crmv=crmv.strip(),
+        )
+    except ValueError as exc:
+        return _render(request, "cadastro.html", erro=str(exc))
+    return RedirectResponse("/cadastro/aguardando", status_code=303)
+
+
+@app.get("/cadastro/aguardando", response_class=HTMLResponse)
+async def cadastro_aguardando(request: Request):
+    return _render(request, "cadastro_aguardando.html")
+
+
+# ── Aprovação de cadastros pendentes ─────────────────────────────────────────
+
+@app.post("/admin/usuarios/{user_id}/aprovar")
+async def aprovar_usuario(request: Request, user_id: int):
+    if not has_permission(request, "manage_users"):
+        return RedirectResponse(url="/", status_code=303)
+    store.approve_user(user_id, approved_by_id=(getattr(request.state, "user", None) or {}).get("id"))
+    return RedirectResponse(url="/admin/usuarios?saved=aprovado", status_code=303)
+
+
+@app.post("/admin/usuarios/{user_id}/rejeitar")
+async def rejeitar_usuario(request: Request, user_id: int):
+    if not has_permission(request, "manage_users"):
+        return RedirectResponse(url="/", status_code=303)
+    store.reject_user(user_id)
+    return RedirectResponse(url="/admin/usuarios?saved=rejeitado", status_code=303)
+
+
 @app.get("/", response_class=HTMLResponse)
 async def landing(request: Request):
     return _render(request, "index.html", users=store.list_users())
@@ -175,12 +259,25 @@ async def landing(request: Request):
 async def users_admin(request: Request, saved: str = ""):
     if not has_permission(request, "manage_users"):
         return RedirectResponse(url="/", status_code=303)
+    from pb_platform.storage import ROLE_LABELS
+    _PERM_LABELS = {
+        "platform_access": "Home da plataforma",
+        "labmonitor_access": "Lab Monitor",
+        "manage_labmonitor": "Gerenciar Lab Monitor",
+        "ops_tools": "Ops-map e sandboxes",
+        "manage_users": "Administrar acessos",
+        "plantao_access": "Módulo Plantão",
+        "manage_plantao": "Gerenciar Plantão",
+    }
     return _render(
         request,
         "admin_users.html",
         users=store.list_users(),
+        pending_users=store.list_pending_users(),
         roles=store.list_roles(),
         permissions=store.get_role_permissions(),
+        all_permissions=_PERM_LABELS,
+        role_labels=ROLE_LABELS,
         save_state=saved,
     )
 
@@ -239,16 +336,9 @@ async def update_role_permissions(
 ):
     if not has_permission(request, "manage_users"):
         return RedirectResponse(url="/", status_code=303)
-    permissions = {
-        "platform_access": False,
-        "labmonitor_access": False,
-        "manage_labmonitor": False,
-        "ops_tools": False,
-        "manage_users": False,
-    }
+    from pb_platform.storage import ALL_PERMISSIONS
     form = await request.form()
-    for permission in permissions.keys():
-        permissions[permission] = form.get(permission) == "on"
+    permissions = {p: form.get(p) == "on" for p in ALL_PERMISSIONS}
     store.save_role_permissions(role, permissions)
     return RedirectResponse(url="/admin/usuarios?saved=1", status_code=303)
 
