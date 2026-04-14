@@ -26,14 +26,7 @@
         <span class="hidden rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-500 md:inline-flex">
           {{ platform_user.email }}
         </span>
-        {% block header_module_link %}
-        {% if platform_permissions.plantao_access or platform_permissions.manage_plantao %}
-        <a href="/"
-           class="rounded-xl border border-gray-200 px-3 py-2 text-sm font-medium text-gray-600 transition hover:bg-gray-50">
-          Plataforma
-        </a>
-        {% endif %}
-        {% endblock %}
+        {% block header_module_link %}{% endblock %}
         {% if platform_permissions.manage_users %}
         <a href="/admin/usuarios"
            class="rounded-xl border border-gray-200 px-3 py-2 text-sm font-medium text-gray-600 transition hover:bg-gray-50">
@@ -41,12 +34,12 @@
         </a>
         {% endif %}
         <a href="/logout"
-           class="rounded-xl bg-indigo-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-indigo-700">
+           class="rounded-xl bg-rose-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-rose-700">
           Sair
         </a>
         {% else %}
         <a href="/login"
-           class="rounded-xl bg-indigo-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-indigo-700">
+           class="rounded-xl bg-rose-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-rose-700">
           Entrar
         </a>
         {% endif %}
