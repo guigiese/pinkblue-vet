@@ -52,7 +52,7 @@
 
     {# Botão abrir painel de criação #}
     <button onclick="abrirPainelEscala()"
-            class="rounded-2xl bg-rose-600 hover:bg-rose-700 text-white text-sm font-semibold px-4 py-2 flex items-center gap-2">
+            class="rounded-2xl bg-pink-600 hover:bg-pink-700 text-white text-sm font-semibold px-4 py-2 flex items-center gap-2">
       <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
       </svg>
@@ -121,7 +121,7 @@
         {# Botão de adicionar no dia — abre painel pré-preenchendo a data #}
         {% if not cell.is_past %}
         <button onclick="abrirPainelEscalaDia('{{ cell.date }}')"
-                class="absolute bottom-1.5 right-1.5 h-5 w-5 flex items-center justify-center rounded-full bg-gray-100 hover:bg-rose-100 text-gray-400 hover:text-rose-600 transition text-xs font-bold">
+                class="absolute bottom-1.5 right-1.5 h-5 w-5 flex items-center justify-center rounded-full bg-gray-100 hover:bg-pink-100 text-gray-400 hover:text-pink-600 transition text-xs font-bold">
           +
         </button>
         {% endif %}
@@ -281,7 +281,7 @@
   {# Botão salvar #}
   <div class="px-6 py-4 mt-auto border-t border-gray-100 shrink-0">
     <button id="btn-criar-escala" onclick="salvarEscala()"
-            class="w-full rounded-2xl bg-rose-600 hover:bg-rose-700 text-white text-sm font-semibold px-4 py-3">
+            class="w-full rounded-2xl bg-pink-600 hover:bg-pink-700 text-white text-sm font-semibold px-4 py-3">
       Criar Escala
     </button>
   </div>

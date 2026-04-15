@@ -42,12 +42,12 @@
     {# Toggle calendário / lista #}
     <div class="flex rounded-xl border border-gray-200 bg-white overflow-hidden text-xs font-medium">
       <button @click="viewMode='calendario'"
-              :class="viewMode==='calendario' ? 'bg-rose-600 text-white' : 'text-gray-600 hover:bg-gray-50'"
+              :class="viewMode==='calendario' ? 'bg-pink-600 text-white' : 'text-gray-600 hover:bg-gray-50'"
               class="px-3 py-1.5 transition">
         Calendário
       </button>
       <button @click="viewMode='lista'"
-              :class="viewMode==='lista' ? 'bg-rose-600 text-white' : 'text-gray-600 hover:bg-gray-50'"
+              :class="viewMode==='lista' ? 'bg-pink-600 text-white' : 'text-gray-600 hover:bg-gray-50'"
               class="px-3 py-1.5 transition">
         Lista
       </button>
@@ -58,12 +58,12 @@
   <div class="flex flex-wrap gap-2">
     <span class="text-xs font-medium text-gray-400 self-center mr-1">Tipo:</span>
     <button @click="toggleFiltro('tipo','plantao_vet')"
-            :class="filtros.tipo.includes('plantao_vet') ? 'bg-rose-600 text-white border-rose-600' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'"
+            :class="filtros.tipo.includes('plantao_vet') ? 'bg-pink-600 text-white border-pink-600' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'"
             class="rounded-full border px-3 py-1 text-xs font-medium transition">
       Plantão Vet
     </button>
     <button @click="toggleFiltro('tipo','plantao_aux')"
-            :class="filtros.tipo.includes('plantao_aux') ? 'bg-rose-600 text-white border-rose-600' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'"
+            :class="filtros.tipo.includes('plantao_aux') ? 'bg-pink-600 text-white border-pink-600' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'"
             class="rounded-full border px-3 py-1 text-xs font-medium transition">
       Plantão Aux
     </button>
@@ -135,7 +135,7 @@
         <div class="min-h-[90px] bg-gray-50/40"></div>
         {% else %}
         <div class="min-h-[90px] p-2 relative cursor-pointer transition
-                    {% if cell.is_today %}ring-2 ring-inset ring-rose-400{% endif %}
+                    {% if cell.is_today %}ring-2 ring-inset ring-pink-400{% endif %}
                     {% if cell.is_holiday %}bg-red-50/60
                     {% elif cell.is_sunday %}bg-orange-50/40{% endif %}
                     hover:bg-rose-50/40 active:bg-rose-100/60"
@@ -144,7 +144,7 @@
           {# Número do dia + marcadores de feriado/domingo #}
           <div class="flex items-start justify-between gap-1">
             <span class="text-sm font-semibold
-                         {% if cell.is_today %}text-rose-600
+                         {% if cell.is_today %}text-pink-600
                          {% elif cell.is_past %}text-gray-300
                          {% elif cell.is_sunday %}text-orange-500
                          {% else %}text-gray-700{% endif %}">
@@ -248,7 +248,7 @@
             {% if ev.status == 'livre' and ev.posicao_id %}
             <form method="post" action="/plantao/escalas/{{ ev.posicao_id }}/candidatar">
               <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-              <button class="rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold px-3 py-2">
+              <button class="rounded-xl bg-pink-600 hover:bg-pink-700 text-white text-xs font-semibold px-3 py-2">
                 Candidatar
               </button>
             </form>
@@ -417,7 +417,7 @@ function abrirDia(data) {
       if (ev.status === 'livre' && ev.posicao_id) {
         acaoHtml = `<form method="post" action="/plantao/escalas/${ev.posicao_id}/candidatar">
           <input type="hidden" name="csrf_token" value="${csrfToken}">
-          <button class="w-full rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold px-3 py-2 mt-3">
+          <button class="w-full rounded-xl bg-pink-600 hover:bg-pink-700 text-white text-xs font-semibold px-3 py-2 mt-3">
             Candidatar-se
           </button></form>`;
       } else if (ev.status === 'meu_turno' && ev.candidatura_id) {

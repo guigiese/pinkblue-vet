@@ -12,7 +12,7 @@
   <header class="sticky top-0 z-40 border-b border-gray-200 bg-white/95 backdrop-blur">
     <div class="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 md:px-6">
       <a href="{% block home_href %}/{% endblock %}" class="flex min-w-0 items-center gap-3">
-        <span class="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-rose-600 text-sm font-bold text-white">
+        <span class="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-pink-500 text-sm font-bold text-white">
           {% block header_icon %}PB{% endblock %}
         </span>
         <span class="min-w-0">
@@ -21,25 +21,52 @@
         </span>
       </a>
 
-      <div class="flex items-center gap-2 text-sm">
+      {# ── Menu de conta ── #}
+      <div class="flex items-center gap-2">
         {% if platform_user %}
-        <span class="hidden rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-500 md:inline-flex">
-          {{ platform_user.email }}
-        </span>
-        {% block header_module_link %}{% endblock %}
-        {% if platform_permissions.manage_users %}
-        <a href="/admin/usuarios"
-           class="rounded-xl border border-gray-200 px-3 py-2 text-sm font-medium text-gray-600 transition hover:bg-gray-50">
-          Acessos
-        </a>
-        {% endif %}
-        <a href="/logout"
-           class="rounded-xl bg-rose-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-rose-700">
-          Sair
-        </a>
+        <div class="relative" id="account-menu-wrapper">
+          <button onclick="toggleAccountMenu()"
+                  class="flex items-center gap-2 rounded-xl border border-gray-200 px-2.5 py-1.5 text-sm font-medium text-gray-600 transition hover:bg-gray-50">
+            <span class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-pink-500 text-xs font-bold text-white select-none">
+              {{ platform_user.email[0] | upper }}
+            </span>
+            <span class="hidden max-w-[160px] truncate text-xs text-gray-500 md:block">{{ platform_user.email }}</span>
+            <svg class="h-3.5 w-3.5 shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+            </svg>
+          </button>
+
+          <div id="account-menu"
+               style="display:none"
+               class="absolute right-0 top-full mt-2 w-56 rounded-2xl border border-gray-200 bg-white py-1 shadow-lg z-50">
+            <div class="border-b border-gray-100 px-4 py-3">
+              <p class="truncate text-xs font-semibold text-gray-800">{{ platform_user.email }}</p>
+              <p class="mt-0.5 text-[11px] text-gray-400">{{ platform_user.role | title }}</p>
+            </div>
+            {% if platform_permissions.plantao_access %}
+            <a href="/plantao/perfil"
+               class="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50">
+              Meu cadastro
+            </a>
+            {% endif %}
+            {% block header_account_links %}{% endblock %}
+            {% if platform_permissions.manage_users %}
+            <a href="/admin/usuarios"
+               class="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50">
+              Gestão de acessos
+            </a>
+            {% endif %}
+            <div class="border-t border-gray-100 pt-1">
+              <a href="/logout"
+                 class="flex w-full items-center gap-2 px-4 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50">
+                Sair
+              </a>
+            </div>
+          </div>
+        </div>
         {% else %}
         <a href="/login"
-           class="rounded-xl bg-rose-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-rose-700">
+           class="rounded-xl bg-pink-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-pink-700">
           Entrar
         </a>
         {% endif %}
@@ -50,7 +77,6 @@
   {# ── Dev user switcher colapsável (apenas em ambiente de desenvolvimento) ── #}
   {% if is_dev and platform_user %}
   <div id="dev-switcher" class="fixed bottom-4 right-4 z-50">
-    {# Estado colapsado: badge compacto #}
     <button id="dev-badge"
             onclick="devSwitcherExpand()"
             class="flex items-center gap-1.5 rounded-2xl border border-amber-300 bg-amber-50 px-3 py-2 shadow-lg text-xs font-semibold text-amber-800 hover:bg-amber-100 transition">
@@ -58,7 +84,6 @@
       DEV
     </button>
 
-    {# Estado expandido: painel com select #}
     <div id="dev-expanded"
          class="hidden absolute bottom-0 right-0 rounded-2xl border border-amber-300 bg-amber-50 p-3 shadow-lg text-xs min-w-[280px]">
       <div class="mb-2 flex items-center justify-between gap-2">
@@ -93,9 +118,7 @@
       document.getElementById('dev-badge').classList.remove('hidden');
       sessionStorage.removeItem('devSwitcherOpen');
     }
-    // Restaurar estado expandido após reload (ex: troca de usuário)
     if (sessionStorage.getItem('devSwitcherOpen')) devSwitcherExpand();
-    // Carregar usuários
     (async () => {
       try {
         const res = await fetch('/dev/switch-user');
@@ -134,5 +157,20 @@
       </section>
     </div>
   </main>
+
+  <script>
+    function toggleAccountMenu() {
+      const m = document.getElementById('account-menu');
+      if (!m) return;
+      m.style.display = m.style.display === 'none' ? 'block' : 'none';
+    }
+    document.addEventListener('click', function(e) {
+      const wrapper = document.getElementById('account-menu-wrapper');
+      const menu = document.getElementById('account-menu');
+      if (wrapper && menu && !wrapper.contains(e.target)) {
+        menu.style.display = 'none';
+      }
+    });
+  </script>
 </body>
 </html>

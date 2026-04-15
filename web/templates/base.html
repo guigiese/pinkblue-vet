@@ -40,7 +40,7 @@
         </svg>
       </button>
       <a href="/" class="flex min-w-0 items-center gap-3">
-        <span class="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-rose-600 text-sm font-bold text-white">PB</span>
+        <span class="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-pink-500 text-sm font-bold text-white">PB</span>
         <span class="min-w-0">
           <strong class="block truncate text-sm font-semibold text-gray-800">{{ platform_name }}</strong>
           <span class="block truncate text-xs text-gray-400">{{ module_name }}</span>
@@ -53,7 +53,7 @@
       {% if platform_permissions.manage_users %}
       <a href="/admin/usuarios" class="rounded-xl border border-gray-200 px-3 py-2 text-sm font-medium text-gray-600 transition hover:bg-gray-50">Acessos</a>
       {% endif %}
-      <a href="/logout" class="rounded-xl bg-rose-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-rose-700">Sair</a>
+      <a href="/logout" class="rounded-xl bg-pink-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-pink-700">Sair</a>
       {% endif %}
     </div>
   </div>
@@ -99,8 +99,8 @@
       {% set active = request.url.path == href or request.url.path == href + '/' %}
       <a href="{{ href }}" onclick="closeSidebar()"
          class="flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium transition-colors
-                {% if active %}bg-indigo-50 text-indigo-700{% else %}text-gray-600 hover:bg-gray-100 hover:text-gray-900{% endif %}">
-        <svg class="w-4 h-4 shrink-0 {% if active %}text-indigo-600{% else %}text-gray-400{% endif %}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                {% if active %}bg-pink-50 text-pink-700{% else %}text-gray-600 hover:bg-gray-100 hover:text-gray-900{% endif %}">
+        <svg class="w-4 h-4 shrink-0 {% if active %}text-pink-600{% else %}text-gray-400{% endif %}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           {% if icon == "grid" %}
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/>
           {% elif icon == "beaker" %}
