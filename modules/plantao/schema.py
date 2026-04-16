@@ -79,10 +79,10 @@ t_plantao_tarifas = Table(
     Column("id", Integer, primary_key=True, autoincrement=True),
     # tipo_perfil: 'veterinario' | 'auxiliar'
     Column("tipo_perfil", Text, nullable=False),
-    # dia_semana: 0=seg…6=dom, 7=feriado, NULL=qualquer (auxiliar)
+    # dia_semana: 0=seg…6=dom, NULL=qualquer dia
     Column("dia_semana", Integer, nullable=True),
-    # subtipo_turno: 'regular'|'substituicao'|'feriado'|NULL=qualquer
-    Column("subtipo_turno", Text, nullable=True),
+    # feriado: 1=apenas feriados, 0=apenas não-feriados, NULL=ambos
+    Column("feriado", Integer, nullable=True),
     Column("valor_hora", Real, nullable=False),
     Column("vigente_de", Text, nullable=False, server_default="2000-01-01"),
     Column("vigente_ate", Text, nullable=True),
@@ -256,7 +256,7 @@ CREATE TABLE IF NOT EXISTS plantao_tarifas (
     id              SERIAL PRIMARY KEY,
     tipo_perfil     TEXT NOT NULL,
     dia_semana      INTEGER,
-    subtipo_turno   TEXT,
+    feriado         INTEGER,
     valor_hora      REAL NOT NULL,
     vigente_de      TEXT NOT NULL DEFAULT '2000-01-01',
     vigente_ate     TEXT,
@@ -376,6 +376,7 @@ CREATE TABLE IF NOT EXISTS plantao_audit_log (
 CREATE INDEX IF NOT EXISTS idx_plantao_audit_acao ON plantao_audit_log(acao);
 CREATE INDEX IF NOT EXISTS idx_plantao_audit_entidade ON plantao_audit_log(entidade, entidade_id);
 CREATE INDEX IF NOT EXISTS idx_plantao_audit_criado ON plantao_audit_log(criado_em);
+ALTER TABLE plantao_tarifas ADD COLUMN IF NOT EXISTS feriado INTEGER;
 """
 
 # SQLite-compatible DDL (sem SERIAL, sem BIGSERIAL, sem partial indexes, sem ALTER ADD IF NOT EXISTS)
@@ -394,9 +395,10 @@ CREATE TABLE IF NOT EXISTS plantao_locais (
 );
 CREATE TABLE IF NOT EXISTS plantao_tarifas (
     id INTEGER PRIMARY KEY AUTOINCREMENT, tipo_perfil TEXT NOT NULL, dia_semana INTEGER,
-    subtipo_turno TEXT, valor_hora REAL NOT NULL, vigente_de TEXT NOT NULL DEFAULT '2000-01-01',
+    feriado INTEGER, valor_hora REAL NOT NULL, vigente_de TEXT NOT NULL DEFAULT '2000-01-01',
     vigente_ate TEXT, criado_em TEXT NOT NULL, criado_por INTEGER
 );
+ALTER TABLE plantao_tarifas ADD COLUMN feriado INTEGER;
 CREATE TABLE IF NOT EXISTS plantao_feriados (
     id INTEGER PRIMARY KEY AUTOINCREMENT, data TEXT NOT NULL, nome TEXT NOT NULL,
     tipo TEXT NOT NULL DEFAULT 'nacional', local_id INTEGER
@@ -652,7 +654,7 @@ def _seed_defaults(engine, is_pg: bool) -> None:
         ).fetchone()
         if not aux_exists:
             conn.execute(text(
-                "INSERT INTO plantao_tarifas (tipo_perfil, dia_semana, subtipo_turno, valor_hora, vigente_de, criado_em)"
+                "INSERT INTO plantao_tarifas (tipo_perfil, dia_semana, feriado, valor_hora, vigente_de, criado_em)"
                 " VALUES ('auxiliar', NULL, NULL, 15.0, '2026-01-01', :t)"
             ), {"t": now})
             log.info("Seed: tarifa padrão auxiliar inserida (R$15/h).")

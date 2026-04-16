@@ -4,7 +4,7 @@ import hashlib
 import hmac
 import os
 import secrets
-from urllib.parse import quote
+from urllib.parse import quote, urlsplit
 
 from fastapi import Request
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -87,7 +87,7 @@ def user_permissions(user: dict | None) -> dict[str, bool]:
     return store.get_user_permissions(user)
 
 
-def default_redirect_for_user(user: dict | None) -> str:
+def preferred_redirect_for_user(user: dict | None) -> str | None:
     permissions = user_permissions(user)
     if permissions.get("manage_plantao"):
         return "/plantao/admin/"
@@ -97,7 +97,19 @@ def default_redirect_for_user(user: dict | None) -> str:
         return "/plantao/"
     if permissions.get("labmonitor_access"):
         return "/labmonitor/"
-    return "/"
+    return None
+
+
+def default_redirect_for_user(user: dict | None) -> str:
+    return preferred_redirect_for_user(user) or "/"
+
+
+def can_access_target(user: dict | None, target: str, method: str = "GET") -> bool:
+    path = urlsplit(target).path or "/"
+    permission = required_permission(path, method)
+    if not permission:
+        return True
+    return bool(user_permissions(user).get(permission))
 
 
 def has_permission(request: Request, permission: str) -> bool:
@@ -140,10 +152,51 @@ def required_permission(path: str, method: str) -> str | None:
     return None
 
 
+def no_access_response(user: dict | None = None) -> HTMLResponse:
+    user_email = (user or {}).get("email")
+    subtitle = (
+        "Seu usuário está autenticado, mas não possui nenhum módulo liberado no momento."
+        if user_email
+        else "Seu usuário não possui acesso a esta área no momento."
+    )
+    return HTMLResponse(
+        f"""<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Acesso não liberado · PinkBlue Vet</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen bg-gray-50 text-gray-900">
+  <main class="mx-auto flex min-h-screen max-w-3xl items-center px-6 py-10">
+    <section class="w-full rounded-3xl border border-gray-200 bg-white p-8 shadow-sm">
+      <span class="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-red-50 text-xl font-bold text-red-600">!</span>
+      <h1 class="mt-5 text-2xl font-bold text-gray-900">Acesso não liberado</h1>
+      <p class="mt-3 text-sm leading-6 text-gray-600">{subtitle}</p>
+      <div class="mt-6 rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600">
+        Solicite a liberação do módulo ou o ajuste das permissões com um administrador da plataforma.
+      </div>
+      <div class="mt-6 flex flex-wrap gap-3">
+        <a href="/logout" class="rounded-xl bg-red-600 px-4 py-2.5 text-sm font-semibold text-white">Sair</a>
+        <a href="/login" class="rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-medium text-gray-600">Voltar ao login</a>
+      </div>
+    </section>
+  </main>
+</body>
+</html>""",
+        status_code=403,
+    )
+
+
 def forbidden_response(request: Request):
     if request.headers.get("HX-Request") == "true":
         return HTMLResponse(
             '<div class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">Você não tem permissão para acessar esta área.</div>',
             status_code=403,
         )
-    return RedirectResponse(url=default_redirect_for_user(getattr(request.state, "user", None)), status_code=303)
+    user = getattr(request.state, "user", None)
+    target = preferred_redirect_for_user(user)
+    if target and urlsplit(target).path != request.url.path:
+        return RedirectResponse(url=target, status_code=303)
+    return no_access_response(user)

@@ -149,59 +149,63 @@ def calcular_valor_base(
     tipo_perfil: str,
     dia_semana: int,
     is_feriado: bool,
-    subtipo: str,
     horas: float,
     tarifas: list[dict[str, Any]],
+    tipo_data: str = "presencial",
 ) -> tuple[float | None, float | None]:
     """Calcula valor_hora_snapshot e valor_base_calculado para uma candidatura.
 
     Para sobreaviso retorna (None, None) — não é remunerado.
 
-    Lógica de lookup de tarifa (primeira correspondência vence):
-      1. tipo_perfil + dia_semana_exato + subtipo_exato  (mais específico)
-      2. tipo_perfil + dia_semana_exato + subtipo NULL
-      3. tipo_perfil + dia_semana NULL  + subtipo_exato
-      4. tipo_perfil + dia_semana NULL  + subtipo NULL  (mais genérico)
+    Lógica de scoring (maior score = mais específico = preferido):
+      +2  match exato de dia_semana
+       0  dia_semana NULL (wildcard)
+      -∞  dia_semana diferente (descarta)
+      +1  match exato de feriado flag
+       0  feriado NULL (wildcard)
+      -∞  feriado diferente (descarta)
 
-    dia_semana: 0=seg … 6=dom, 7=feriado (sobrepõe dia da semana)
-    subtipo: 'regular' | 'substituicao' | 'feriado' | 'sobreaviso'
+    Empate → tarifa com maior id (criado mais recentemente) vence.
 
     Args:
         tipo_perfil: 'veterinario' | 'auxiliar'
-        dia_semana:  0-6 (weekday Python), usado para indexar tarifas
-        is_feriado:  se True, usa dia_semana=7 para lookup
-        subtipo:     subtipo do turno
+        dia_semana:  0-6 (weekday Python)
+        is_feriado:  True se a data do turno é feriado
         horas:       duração do turno em horas
         tarifas:     lista de dicts com campos da tabela plantao_tarifas,
                      já filtrada por vigência (vigente_de <= hoje <= vigente_ate or NULL).
+        tipo_data:   tipo da escala ('presencial' | 'sobreaviso'); sobreaviso não remunera.
 
     Returns:
         (valor_hora_snapshot, valor_base_calculado) — ambos float ou ambos None.
     """
-    if subtipo == "sobreaviso":
+    if tipo_data == "sobreaviso":
         return None, None
 
-    # dia_semana efetivo: feriado substitui qualquer dia da semana
-    dia_efetivo = 7 if is_feriado else dia_semana
+    feriado_int = 1 if is_feriado else 0
 
     # filtra tarifas pelo tipo_perfil
     candidatas = [t for t in tarifas if t["tipo_perfil"] == tipo_perfil]
 
     def _score(t: dict) -> int:
-        """Maior score = mais específico = preferido."""
+        """Maior score = mais específico = preferido. -1 = descarta."""
         score = 0
-        if t.get("dia_semana") == dia_efetivo:
+        t_dia = t.get("dia_semana")
+        if t_dia == dia_semana:
             score += 2
-        elif t.get("dia_semana") is None:
+        elif t_dia is None:
             score += 0
         else:
-            return -1  # dia diferente do necessário, descarta
-        if t.get("subtipo_turno") == subtipo:
+            return -1  # dia não corresponde
+
+        t_fer = t.get("feriado")
+        if t_fer == feriado_int:
             score += 1
-        elif t.get("subtipo_turno") is None:
+        elif t_fer is None:
             score += 0
         else:
-            return -1  # subtipo diferente do necessário, descarta
+            return -1  # flag feriado não corresponde
+
         return score
 
     scored = [(t, _score(t)) for t in candidatas]
@@ -209,27 +213,11 @@ def calcular_valor_base(
     if not validas:
         return None, None
 
-    melhor, _ = max(validas, key=lambda x: x[1])
+    # Empate: maior id (mais recente) vence
+    melhor, _ = max(validas, key=lambda x: (x[1], x[0].get("id", 0)))
     valor_hora = float(melhor["valor_hora"])
     valor_base = round(valor_hora * horas, 2)
     return valor_hora, valor_base
-
-
-# ── Subtipo automático ────────────────────────────────────────────────────────
-
-def inferir_subtipo(data_turno: date, feriados: set[date]) -> str:
-    """Infere o subtipo de um turno pela data.
-
-    Regra:
-    - feriado → 'feriado'
-    - domingo (6) ou sábado (5) → 'regular'   (FDS = plantão regular)
-    - dia de semana (0-4) → 'substituicao'     (dia útil = substituição)
-    """
-    if data_turno in feriados:
-        return "feriado"
-    if data_turno.weekday() >= 5:
-        return "regular"
-    return "substituicao"
 
 
 # ── Remuneração final (para módulo financeiro) ────────────────────────────────

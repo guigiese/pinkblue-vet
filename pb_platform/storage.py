@@ -605,6 +605,7 @@ class PlatformStore:
             ).mappings().first()
             if not row:
                 return None, "invalid"
+            row = dict(row)
 
             if row.get("bloqueado_ate") and row["bloqueado_ate"] > now:
                 return None, "locked"

@@ -22,11 +22,14 @@ from notification_settings import NOTIFICATION_TEMPLATE_VARIABLES
 from pb_platform.auth import (
     attach_user_to_request,
     auth_bypassed,
+    can_access_target,
     default_redirect_for_user,
     forbidden_response,
     gerar_csrf_token,
     has_permission,
+    no_access_response,
     path_requires_auth,
+    preferred_redirect_for_user,
     required_permission,
     redirect_to_login,
     user_permissions,
@@ -167,8 +170,18 @@ async def login_action(
 
     token = store.create_session(user["id"])
     destination = next or default_redirect_for_user(user)
-    if destination == "/" and not user_permissions(user).get("platform_access"):
-        destination = default_redirect_for_user(user)
+    if destination and not can_access_target(user, destination):
+        destination = preferred_redirect_for_user(user)
+    if not destination:
+        response = no_access_response(user)
+        response.set_cookie(
+            settings.session_cookie_name,
+            token,
+            httponly=True,
+            samesite="lax",
+            max_age=settings.session_ttl_days * 24 * 60 * 60,
+        )
+        return response
     response = RedirectResponse(url=destination, status_code=303)
     response.set_cookie(
         settings.session_cookie_name,
@@ -948,7 +961,7 @@ def _load_resultado_payload(item_id: str) -> tuple[list[dict], str, str, dict | 
 
     connector = BitlabConnector()
     token = connector._login()
-    raw = connector.buscar_resultado_html(token, item_id)
+    raw = connector.buscar_resultado_payload(token, item_id)
     rows = connector.parse_resultado(raw, record)
     report_text = ""
     diagnosis_text = ""

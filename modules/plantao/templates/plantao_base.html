@@ -9,7 +9,7 @@
   {% set cur = request.url.path %}
 
   {# Início — adaptativo por role #}
-  <a href="/plantao/"
+  <a href="/plantao/" onclick="closeSidebar()"
      class="flex items-center gap-2.5 rounded-xl px-3 py-2 font-semibold transition-colors
             {% if cur == '/plantao/' or cur == '/plantao' %}bg-brand-light text-brand-pink
             {% else %}text-gray-600 hover:bg-gray-100 hover:text-gray-900{% endif %}">
@@ -23,8 +23,8 @@
 
   {# ── PLANTONISTA ─────────────────────────────────────────────────────────── #}
   {% if platform_permissions.plantao_access %}
-  {% set agenda_active = cur.startswith('/plantao/agenda') or cur.startswith('/plantao/escalas') or cur.startswith('/plantao/meus-turnos') or cur.startswith('/plantao/trocas') or cur.startswith('/plantao/disponibilidade') %}
-  <a href="/plantao/agenda"
+  {% set agenda_active = cur.startswith('/plantao/escalas') or cur.startswith('/plantao/meus-turnos') or cur.startswith('/plantao/trocas') or cur.startswith('/plantao/disponibilidade') %}
+  <a href="/plantao/escalas" onclick="closeSidebar()"
      class="flex items-center gap-2.5 rounded-xl px-3 py-2 font-medium transition-colors
             {% if agenda_active %}bg-brand-light text-brand-pink{% else %}text-gray-600 hover:bg-gray-100 hover:text-gray-900{% endif %}">
     <svg class="h-4 w-4 shrink-0 {% if agenda_active %}text-brand-pink{% else %}text-gray-400{% endif %}"
@@ -32,7 +32,7 @@
       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
             d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
     </svg>
-    Minha Agenda
+    Escalas
   </a>
   {% endif %}
 
@@ -41,23 +41,9 @@
 
   <div class="mt-4 mb-1 px-2 text-[10px] font-semibold uppercase tracking-widest text-gray-400">Gestão</div>
 
-  {% if platform_permissions.plantao_gerir_escalas %}
-  {% set esc_active = cur.startswith('/plantao/admin/escalas') %}
-  <a href="/plantao/admin/escalas"
-     class="flex items-center gap-2.5 rounded-xl px-3 py-2 font-medium transition-colors
-            {% if esc_active %}bg-brand-light text-brand-pink{% else %}text-gray-600 hover:bg-gray-100 hover:text-gray-900{% endif %}">
-    <svg class="h-4 w-4 shrink-0 {% if esc_active %}text-brand-pink{% else %}text-gray-400{% endif %}"
-         fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-            d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
-    </svg>
-    Escalas
-  </a>
-  {% endif %}
-
   {% if platform_permissions.plantao_aprovar_candidaturas %}
   {% set cand_active = cur.startswith('/plantao/admin/candidaturas') or cur.startswith('/plantao/admin/aprovacoes') %}
-  <a href="/plantao/admin/aprovacoes"
+  <a href="/plantao/admin/aprovacoes" onclick="closeSidebar()"
      class="flex items-center justify-between gap-2.5 rounded-xl px-3 py-2 font-medium transition-colors
             {% if cand_active %}bg-brand-light text-brand-pink{% else %}text-gray-600 hover:bg-gray-100 hover:text-gray-900{% endif %}">
     <span class="flex items-center gap-2.5">
@@ -74,7 +60,7 @@
   </a>
 
   {% set disp_active = cur.startswith('/plantao/admin/disponibilidade') or cur.startswith('/plantao/admin/sobreaviso') %}
-  <a href="/plantao/admin/disponibilidade"
+  <a href="/plantao/admin/disponibilidade" onclick="closeSidebar()"
      class="flex items-center gap-2.5 rounded-xl px-3 py-2 font-medium transition-colors
             {% if disp_active %}bg-brand-light text-brand-pink{% else %}text-gray-600 hover:bg-gray-100 hover:text-gray-900{% endif %}">
     <svg class="h-4 w-4 shrink-0 {% if disp_active %}text-brand-pink{% else %}text-gray-400{% endif %}"
@@ -88,7 +74,7 @@
 
   {% if platform_permissions.plantao_aprovar_cadastros %}
   {% set cad_active = cur.startswith('/plantao/admin/cadastros') %}
-  <a href="/plantao/admin/cadastros"
+  <a href="/plantao/admin/cadastros" onclick="closeSidebar()"
      class="flex items-center gap-2.5 rounded-xl px-3 py-2 font-medium transition-colors
             {% if cad_active %}bg-brand-light text-brand-pink{% else %}text-gray-600 hover:bg-gray-100 hover:text-gray-900{% endif %}">
     <svg class="h-4 w-4 shrink-0 {% if cad_active %}text-brand-pink{% else %}text-gray-400{% endif %}"
@@ -112,7 +98,7 @@
     ('/plantao/admin/configuracoes', 'Configurações'),
   ] %}
   {% set is_active = cur.startswith(href) %}
-  <a href="{{ href }}"
+  <a href="{{ href }}" onclick="closeSidebar()"
      class="flex items-center gap-2.5 rounded-xl px-3 py-2 font-medium transition-colors
             {% if is_active %}bg-brand-light text-brand-pink{% else %}text-gray-600 hover:bg-gray-100 hover:text-gray-900{% endif %}">
     {{ label }}
@@ -125,7 +111,7 @@
   <div class="mt-4 mb-1 px-2 text-[10px] font-semibold uppercase tracking-widest text-gray-400">Análise</div>
 
   {% set rel_active = cur.startswith('/plantao/admin/relatorios') or cur.startswith('/plantao/admin/audit-log') %}
-  <a href="/plantao/admin/relatorios"
+  <a href="/plantao/admin/relatorios" onclick="closeSidebar()"
      class="flex items-center gap-2.5 rounded-xl px-3 py-2 font-medium transition-colors
             {% if rel_active %}bg-brand-light text-brand-pink{% else %}text-gray-600 hover:bg-gray-100 hover:text-gray-900{% endif %}">
     <svg class="h-4 w-4 shrink-0 {% if rel_active %}text-brand-pink{% else %}text-gray-400{% endif %}"
@@ -140,7 +126,7 @@
   {# ── Notificações ────────────────────────────────────────────────────────── #}
   <div class="mt-2 border-t border-gray-100 pt-2">
     {% set notif_active = cur.startswith('/plantao/notificacoes') %}
-    <a href="/plantao/notificacoes"
+    <a href="/plantao/notificacoes" onclick="closeSidebar()"
        class="flex items-center gap-2.5 rounded-xl px-3 py-2 font-medium transition-colors
               {% if notif_active %}bg-brand-light text-brand-pink{% else %}text-gray-600 hover:bg-gray-100 hover:text-gray-900{% endif %}">
       <svg class="h-4 w-4 shrink-0 {% if notif_active %}text-brand-pink{% else %}text-gray-400{% endif %}"

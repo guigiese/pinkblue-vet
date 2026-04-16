@@ -113,10 +113,16 @@
           <span class="text-sm text-gray-600">{{ u.nome or u.email }}</span>
           <span class="ml-2 text-xs text-gray-400">{{ u.email }}</span>
         </div>
-        <span class="rounded-full text-[10px] font-semibold px-2 py-0.5
+        <span class="rounded-full text-[10px] font-semibold px-2 py-0.5 mr-2
                      {% if u.status == 'rejeitado' %}bg-red-100 text-red-700{% else %}bg-gray-100 text-gray-500{% endif %}">
           {{ u.status }}
         </span>
+        <form method="post" action="/plantao/admin/cadastros/{{ u.id }}/reativar">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button class="rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50 text-xs font-semibold px-3 py-1.5 transition">
+            Reativar
+          </button>
+        </form>
       </div>
       {% endfor %}
     </div>

@@ -88,8 +88,8 @@ def listar_tarifas_vigentes(engine: Any, data_ref: str) -> list[dict]:
          ORDER BY tipo_perfil ASC,
                   CASE WHEN dia_semana IS NULL THEN 1 ELSE 0 END ASC,
                   dia_semana ASC,
-                  CASE WHEN subtipo_turno IS NULL THEN 1 ELSE 0 END ASC,
-                  subtipo_turno ASC,
+                  CASE WHEN feriado IS NULL THEN 1 ELSE 0 END ASC,
+                  feriado ASC,
                   id ASC
         """,
         {"data_ref": data_ref},

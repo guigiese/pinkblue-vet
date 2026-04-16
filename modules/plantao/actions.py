@@ -16,7 +16,6 @@ from .audit import audit
 from .business import (
     calcular_horas_turno,
     calcular_valor_base,
-    inferir_subtipo,
     pode_cancelar,
 )
 from .notifications import notificar, notificar_gestores
@@ -119,9 +118,9 @@ def _calcular_snapshot_remuneracao(
         tipo_perfil=perfil_tipo,
         dia_semana=dia.weekday(),
         is_feriado=is_feriado,
-        subtipo=data_turno["subtipo"],
         horas=horas,
         tarifas=tarifas,
+        tipo_data=data_turno.get("tipo", "presencial"),
     )
     return valor_hora, valor_base, horas
 
@@ -228,6 +227,40 @@ def desativar_plantonista(
         "perfil_desativado",
         "Conta desativada",
         "Seu acesso foi desativado por um gestor.",
+        entidade="users",
+        entidade_id=perfil_id,
+    )
+
+
+def reativar_plantonista(
+    engine: Any,
+    perfil_id: int,
+    gestor_id: int,
+    ip: str = "",
+) -> None:
+    """Reativa conta de plantonista inativo ou rejeitado."""
+    usuario = store.get_user_by_id(perfil_id)
+    if not usuario:
+        raise ValueError("Usuário não encontrado.")
+    if usuario.get("status") == "ativo":
+        raise ValueError("Plantonista já está ativo.")
+
+    store.set_user_active(perfil_id, True)
+
+    audit(
+        engine,
+        "perfil.reativado",
+        gestor_id=gestor_id,
+        entidade="users",
+        entidade_id=perfil_id,
+        ip=ip,
+    )
+    notificar(
+        engine,
+        perfil_id,
+        "perfil_reativado",
+        "Conta reativada",
+        "Seu acesso foi reativado por um gestor.",
         entidade="users",
         entidade_id=perfil_id,
     )
@@ -400,7 +433,7 @@ def criar_tarifa(
     valor_hora: float,
     gestor_id: int,
     dia_semana: int | None = None,
-    subtipo_turno: str | None = None,
+    feriado: int | None = None,
     vigente_de: str = "2000-01-01",
     vigente_ate: str | None = None,
 ) -> int:
@@ -408,24 +441,24 @@ def criar_tarifa(
         raise ValueError("Tipo de perfil invalido.")
     if valor_hora <= 0:
         raise ValueError("Valor/hora deve ser maior que zero.")
-    if dia_semana is not None and dia_semana not in range(0, 8):
-        raise ValueError("Dia da semana invalido. Use 0..7.")
-    if subtipo_turno is not None and subtipo_turno not in ("regular", "substituicao", "feriado"):
-        raise ValueError("Subtipo de turno invalido.")
+    if dia_semana is not None and dia_semana not in range(0, 7):
+        raise ValueError("Dia da semana invalido. Use 0..6.")
+    if feriado is not None and feriado not in (0, 1):
+        raise ValueError("Flag feriado invalido. Use 0 ou 1.")
 
     with engine.begin() as conn:
         tarifa_id = _insert_and_get_id(
             conn,
             """
             INSERT INTO plantao_tarifas
-                (tipo_perfil, dia_semana, subtipo_turno, valor_hora, vigente_de, vigente_ate, criado_em, criado_por)
+                (tipo_perfil, dia_semana, feriado, valor_hora, vigente_de, vigente_ate, criado_em, criado_por)
             VALUES
-                (:tipo_perfil, :dia_semana, :subtipo_turno, :valor_hora, :vigente_de, :vigente_ate, :agora, :criado_por)
+                (:tipo_perfil, :dia_semana, :feriado, :valor_hora, :vigente_de, :vigente_ate, :agora, :criado_por)
             """,
             {
                 "tipo_perfil": tipo_perfil,
                 "dia_semana": dia_semana,
-                "subtipo_turno": subtipo_turno,
+                "feriado": feriado,
                 "valor_hora": float(valor_hora),
                 "vigente_de": vigente_de,
                 "vigente_ate": vigente_ate,
@@ -444,6 +477,83 @@ def criar_tarifa(
         entidade_id=tarifa_id,
     )
     return tarifa_id
+
+
+def editar_tarifa(
+    engine: Any,
+    tarifa_id: int,
+    gestor_id: int,
+    tipo_perfil: str | None = None,
+    dia_semana: int | None = ...,  # type: ignore[assignment]
+    feriado: int | None = ...,  # type: ignore[assignment]
+    valor_hora: float | None = None,
+    vigente_de: str | None = None,
+    vigente_ate: str | None = ...,  # type: ignore[assignment]
+) -> None:
+    campos: dict[str, Any] = {}
+    if tipo_perfil is not None:
+        if tipo_perfil not in ("veterinario", "auxiliar"):
+            raise ValueError("Tipo de perfil invalido.")
+        campos["tipo_perfil"] = tipo_perfil
+    if dia_semana is not ...:
+        if dia_semana is not None and dia_semana not in range(0, 7):
+            raise ValueError("Dia da semana invalido. Use 0..6.")
+        campos["dia_semana"] = dia_semana
+    if feriado is not ...:
+        if feriado is not None and feriado not in (0, 1):
+            raise ValueError("Flag feriado invalido. Use 0 ou 1.")
+        campos["feriado"] = feriado
+    if valor_hora is not None:
+        if valor_hora <= 0:
+            raise ValueError("Valor/hora deve ser maior que zero.")
+        campos["valor_hora"] = float(valor_hora)
+    if vigente_de is not None:
+        campos["vigente_de"] = vigente_de
+    if vigente_ate is not ...:
+        campos["vigente_ate"] = vigente_ate
+
+    if not campos:
+        return
+
+    sets = ", ".join(f"{k} = :{k}" for k in campos)
+    params = {**campos, "id": tarifa_id}
+    with engine.begin() as conn:
+        row = conn.execute(
+            text("SELECT id FROM plantao_tarifas WHERE id = :id"),
+            {"id": tarifa_id},
+        ).mappings().first()
+        if not row:
+            raise ValueError("Tarifa nao encontrada.")
+        conn.execute(text(f"UPDATE plantao_tarifas SET {sets} WHERE id = :id"), params)
+
+    audit(
+        engine,
+        "tarifa.editada",
+        gestor_id=gestor_id,
+        entidade="plantao_tarifas",
+        entidade_id=tarifa_id,
+        detalhes=json.dumps(campos, ensure_ascii=False),
+    )
+
+
+def excluir_tarifa(engine: Any, tarifa_id: int, gestor_id: int, ip: str = "") -> None:
+    with engine.begin() as conn:
+        row = conn.execute(
+            text("SELECT id FROM plantao_tarifas WHERE id = :id"),
+            {"id": tarifa_id},
+        ).mappings().first()
+        if not row:
+            raise ValueError("Tarifa nao encontrada.")
+        conn.execute(text("DELETE FROM plantao_tarifas WHERE id = :id"), {"id": tarifa_id})
+
+    audit(
+        engine,
+        "tarifa.excluida",
+        gestor_id=gestor_id,
+        entidade="plantao_tarifas",
+        entidade_id=tarifa_id,
+        ip=ip,
+    )
 
 
 def criar_feriado(
@@ -487,7 +597,6 @@ def criar_data_plantao(
     engine: Any,
     local_id: int,
     tipo: str,
-    subtipo: str,
     data: str,
     hora_inicio: str,
     hora_fim: str,
@@ -499,8 +608,6 @@ def criar_data_plantao(
 ) -> int:
     if tipo not in ("presencial", "sobreaviso"):
         raise ValueError("Tipo de plantao invalido.")
-    if subtipo not in ("regular", "substituicao", "feriado", "sobreaviso_emergencia"):
-        raise ValueError("Subtipo de plantao invalido.")
     if tipo == "presencial" and not posicoes:
         raise ValueError("Plantoes presenciais exigem ao menos uma posicao.")
 
@@ -517,14 +624,13 @@ def criar_data_plantao(
             conn,
             """
             INSERT INTO plantao_datas
-                (local_id, tipo, subtipo, data, hora_inicio, hora_fim, observacoes, status, auto_approve, criado_em, alterado_em, criado_por)
+                (local_id, tipo, data, hora_inicio, hora_fim, observacoes, status, auto_approve, criado_em, alterado_em, criado_por)
             VALUES
-                (:local_id, :tipo, :subtipo, :data, :hora_inicio, :hora_fim, :observacoes, 'rascunho', :auto_approve, :agora, :agora, :gestor_id)
+                (:local_id, :tipo, :data, :hora_inicio, :hora_fim, :observacoes, 'rascunho', :auto_approve, :agora, :agora, :gestor_id)
             """,
             {
                 "local_id": local_id,
                 "tipo": tipo,
-                "subtipo": subtipo,
                 "data": data,
                 "hora_inicio": hora_inicio,
                 "hora_fim": hora_fim,
@@ -566,7 +672,6 @@ def criar_lote_plantao(
     engine: Any,
     local_id: int,
     tipo: str,
-    subtipo: str,
     data_inicio: str,
     data_fim: str,
     dias_semana: list[int],
@@ -614,7 +719,6 @@ def criar_lote_plantao(
                         engine,
                         local_id=local_id,
                         tipo=tipo,
-                        subtipo=subtipo,
                         data=d.isoformat(),
                         hora_inicio=hora_inicio,
                         hora_fim=hora_fim,
@@ -749,18 +853,16 @@ def gerar_escala_mensal(
                 {"local_id": local_id, "data": data_str},
             ).mappings().first()
             if not existe_presencial:
-                subtipo = inferir_subtipo(d, feriados)
                 data_id = _insert_and_get_id(
                     conn,
                     """
                     INSERT INTO plantao_datas
-                        (local_id, tipo, subtipo, data, hora_inicio, hora_fim, observacoes, status, criado_em, alterado_em, criado_por)
+                        (local_id, tipo, data, hora_inicio, hora_fim, observacoes, status, criado_em, alterado_em, criado_por)
                     VALUES
-                        (:local_id, 'presencial', :subtipo, :data, :hora_inicio, :hora_fim, '', 'rascunho', :agora, :agora, :gestor_id)
+                        (:local_id, 'presencial', :data, :hora_inicio, :hora_fim, '', 'rascunho', :agora, :agora, :gestor_id)
                     """,
                     {
                         "local_id": local_id,
-                        "subtipo": subtipo,
                         "data": data_str,
                         "hora_inicio": hora_inicio,
                         "hora_fim": hora_fim,
@@ -792,9 +894,9 @@ def gerar_escala_mensal(
                     conn,
                     """
                     INSERT INTO plantao_datas
-                        (local_id, tipo, subtipo, data, hora_inicio, hora_fim, observacoes, status, criado_em, alterado_em, criado_por)
+                        (local_id, tipo, data, hora_inicio, hora_fim, observacoes, status, criado_em, alterado_em, criado_por)
                     VALUES
-                        (:local_id, 'sobreaviso', 'sobreaviso_emergencia', :data, :hora_inicio, :hora_fim, '', 'rascunho', :agora, :agora, :gestor_id)
+                        (:local_id, 'sobreaviso', :data, :hora_inicio, :hora_fim, '', 'rascunho', :agora, :agora, :gestor_id)
                     """,
                     {
                         "local_id": local_id,
@@ -933,7 +1035,7 @@ def confirmar_candidatura(
             "data": cand["data"],
             "hora_inicio": cand["hora_inicio"],
             "hora_fim": cand["hora_fim"],
-            "subtipo": cand["data_subtipo"],
+            "tipo": cand.get("data_tipo", "presencial"),
             "local_id": cand["local_id"],
         },
     )
@@ -1317,7 +1419,7 @@ def aceitar_troca(
                     "data": cand_a["data"],
                     "hora_inicio": cand_a["hora_inicio"],
                     "hora_fim": cand_a["hora_fim"],
-                    "subtipo": cand_a["data_subtipo"],
+                    "tipo": cand_a.get("data_tipo", "presencial"),
                     "local_id": cand_a["local_id"],
                 },
             )
@@ -1328,7 +1430,7 @@ def aceitar_troca(
                     "data": cand_b["data"],
                     "hora_inicio": cand_b["hora_inicio"],
                     "hora_fim": cand_b["hora_fim"],
-                    "subtipo": cand_b["data_subtipo"],
+                    "tipo": cand_b.get("data_tipo", "presencial"),
                     "local_id": cand_b["local_id"],
                 },
             )
@@ -1384,7 +1486,7 @@ def aceitar_troca(
                     "data": cand_a["data"],
                     "hora_inicio": cand_a["hora_inicio"],
                     "hora_fim": cand_a["hora_fim"],
-                    "subtipo": cand_a["data_subtipo"],
+                    "tipo": cand_a.get("data_tipo", "presencial"),
                     "local_id": cand_a["local_id"],
                 },
             )

@@ -184,202 +184,26 @@ def make_router(engine: Any) -> APIRouter:
     async def recuperar_senha_compat():
         return RedirectResponse("/login", status_code=301)
 
-    # ── Agenda unificada ───────────────────────────────────────────────────────
+    # ── Agenda legada → redireciona para /escalas ─────────────────────────────
 
     @router.get("/agenda", response_class=HTMLResponse)
-    async def agenda_page(
-        request: Request,
-        mes: int = 0,
-        ano: int = 0,
-    ):
-        """
-        Tela unificada do plantonista: calendário interativo + filtros rápidos.
-        Unifica: escalas abertas, meus turnos, trocas/cedido e lista de disponibilidade.
-        """
-        from .queries import (
-            listar_datas_por_mes,
-            listar_datas_com_vagas_abertas,
-            listar_candidaturas_por_perfil,
-            listar_substituicoes_abertas,
-            listar_sobreaviso_por_perfil,
-        )
-        from .calendar_utils import build_month_calendar
-        from datetime import date as _date
-        from collections import defaultdict
+    async def agenda_redirect(request: Request, mes: int = 0, ano: int = 0):
+        parts = []
+        if ano:
+            parts.append(f"ano={ano}")
+        if mes:
+            parts.append(f"mes={mes}")
+        qs = "?" + "&".join(parts) if parts else ""
+        return RedirectResponse(f"/plantao/escalas{qs}", status_code=301)
 
-        perfil = _exige_plantonista(request)
-        if isinstance(perfil, RedirectResponse):
-            return perfil
-
-        hoje = _date.today()
-        ano = ano or hoje.year
-        mes = mes or hoje.month
-
-        # ── Coletar todas as fontes de dados ──────────────────────────────────
-
-        # 1. Escalas do mês (presencial publicado)
-        escalas_mes = listar_datas_por_mes(engine, ano, mes, None, status="publicado")
-
-        # 2. Vagas abertas do vet (posições com vaga livre)
-        vagas_abertas = listar_datas_com_vagas_abertas(engine, None, perfil.get("tipo"))
-
-        # 3. Meus turnos confirmados / provisórios
-        minhas_candidaturas = listar_candidaturas_por_perfil(engine, perfil["id"])
-
-        # 4. Substituições abertas (cedido — outro vet liberou o turno)
-        substituicoes = listar_substituicoes_abertas(engine, perfil.get("tipo", ""))
-
-        # 5. Sobreaviso/disponibilidade — abertos no mês
-        sobreavisos_abertos = listar_datas_por_mes(
-            engine, ano, mes, None, tipo="sobreaviso", status="publicado"
-        )
-
-        # 6. Minhas adesões de disponibilidade
-        minhas_adesoes = listar_sobreaviso_por_perfil(engine, perfil["id"])
-        minhas_adesoes_ids = {a["data_id"]: a for a in minhas_adesoes}
-
-        # ── Mapas auxiliares ──────────────────────────────────────────────────
-        vagas_map = {v["posicao_id"]: v for v in vagas_abertas}
-        # Minhas candidaturas por posicao_id (status ativo)
-        minhas_cand_map = {}
-        for c in minhas_candidaturas:
-            if c["status"] in ("confirmado", "provisorio"):
-                minhas_cand_map[c["posicao_id"]] = c
-
-        # Substituições abertas por troca_id
-        subst_map = {s["id"]: s for s in substituicoes}
-
-        # ── Montar eventos_por_data ──────────────────────────────────────────
-        eventos_por_data: dict[str, list[dict]] = defaultdict(list)
-
-        # Escalas presenciais
-        for e in escalas_mes:
-            data = e["data"]
-            # tipo do perfil da posição
-            tipo_raw = e.get("subtipo") or ""
-            tipo = "plantao_aux" if "aux" in tipo_raw.lower() else "plantao_vet"
-
-            ev: dict = {
-                "tipo": tipo,
-                "hora_inicio": e.get("hora_inicio", ""),
-                "hora_fim": e.get("hora_fim", ""),
-                "local_nome": e.get("local_nome", ""),
-                "posicao_id": None,
-                "candidatura_id": None,
-                "substituicao_id": None,
-                "data_id": e["id"],
-                "adesao_id": None,
-            }
-
-            # Verificar se é meu turno
-            posicoes_data = [v for v in vagas_abertas if v["data_id"] == e["id"]]
-            meu_status = None
-            for cand in minhas_candidaturas:
-                if cand["data_id"] == e["id"] and cand["status"] in ("confirmado", "provisorio"):
-                    ev["candidatura_id"] = cand["id"]
-                    meu_status = "meu_turno"
-                    break
-
-            if meu_status:
-                ev["status"] = "meu_turno"
-            elif any(v["data_id"] == e["id"] for v in vagas_abertas):
-                # Tem vaga aberta
-                vaga = next(v for v in vagas_abertas if v["data_id"] == e["id"])
-                ev["status"] = "livre"
-                ev["posicao_id"] = vaga["posicao_id"]
-                if "aux" in (vaga.get("tipo_perfil") or "").lower():
-                    ev["tipo"] = "plantao_aux"
-                else:
-                    ev["tipo"] = "plantao_vet"
-            else:
-                ev["status"] = "preenchido"
-
-            eventos_por_data[data].append(ev)
-
-        # Substituições abertas (cedido)
-        for s in substituicoes:
-            data = s["data"]
-            tipo_raw = s.get("subtipo") or s.get("tipo_posicao") or ""
-            tipo = "plantao_aux" if "aux" in tipo_raw.lower() else "plantao_vet"
-            eventos_por_data[data].append({
-                "tipo": tipo,
-                "status": "cedido",
-                "hora_inicio": s.get("hora_inicio", ""),
-                "hora_fim": s.get("hora_fim", ""),
-                "local_nome": s.get("local_nome", ""),
-                "posicao_id": None,
-                "candidatura_id": None,
-                "substituicao_id": s["id"],
-                "data_id": None,
-                "adesao_id": None,
-            })
-
-        # Disponibilidades do mês
-        for d in sobreavisos_abertos:
-            data = d["data"]
-            if d["id"] in minhas_adesoes_ids:
-                adesao = minhas_adesoes_ids[d["id"]]
-                st = "minha_disponibilidade"
-                adesao_id = adesao["id"]
-            else:
-                st = "disponibilidade_aberta"
-                adesao_id = None
-            eventos_por_data[data].append({
-                "tipo": "disponibilidade",
-                "status": st,
-                "hora_inicio": d.get("hora_inicio", ""),
-                "hora_fim": d.get("hora_fim", ""),
-                "local_nome": d.get("local_nome", ""),
-                "posicao_id": None,
-                "candidatura_id": None,
-                "substituicao_id": None,
-                "data_id": d["id"],
-                "adesao_id": adesao_id,
-            })
-
-        # Ordenar datas
-        datas_ordenadas = sorted(eventos_por_data.keys())
-
-        # ── Feriados do mês para o calendário ────────────────────────────────
-        from .queries import listar_feriados_por_periodo
-        import calendar as _cal
-        _ultimo_dia = _cal.monthrange(ano, mes)[1]
-        inicio_mes = f"{ano:04d}-{mes:02d}-01"
-        fim_mes = f"{ano:04d}-{mes:02d}-{_ultimo_dia:02d}"
-        feriados_rows = listar_feriados_por_periodo(engine, inicio_mes, fim_mes)
-        feriados_dict = {r["data"]: r["nome"] for r in feriados_rows}
-
-        # ── Calendário enriquecido ────────────────────────────────────────────
-        calendario = build_month_calendar(
-            ano, mes, escalas_mes, [], [],
-            eventos_por_data=dict(eventos_por_data),
-            feriados=feriados_dict,
-        )
-
-        csrf = getattr(request.state, "csrf_token", "")
-        return _render(
-            request,
-            "plantao_agenda.html",
-            perfil=perfil,
-            ano=ano,
-            mes=mes,
-            hoje=hoje.isoformat(),
-            calendario=calendario,
-            eventos_por_data=dict(eventos_por_data),
-            datas_ordenadas=datas_ordenadas,
-            csrf_token=csrf,
-            erro=request.query_params.get("erro", ""),
-            ok=request.query_params.get("ok", ""),
-        )
-
-    # Redirecionamentos das rotas antigas do plantonista → agenda unificada
+    # Redirecionamentos das rotas antigas do plantonista → escalas unificadas
     @router.get("/meus-turnos", response_class=HTMLResponse)
     async def meus_turnos_redirect(request: Request):
-        return RedirectResponse("/plantao/agenda", status_code=302)
+        return RedirectResponse("/plantao/escalas", status_code=302)
 
     @router.get("/trocas", response_class=HTMLResponse)
     async def trocas_redirect(request: Request):
-        return RedirectResponse("/plantao/agenda", status_code=302)
+        return RedirectResponse("/plantao/escalas", status_code=302)
 
     @router.get("/sobreaviso", response_class=HTMLResponse)
     async def sobreaviso_redirect(request: Request):
@@ -418,43 +242,215 @@ def make_router(engine: Any) -> APIRouter:
         mes: int = 0,
         ano: int = 0,
         local_id: int = 0,
-        view: str = "calendario",
     ):
+        """
+        Tela unificada de escalas. Adapta por permissão:
+        - Plantonistas: veem escalas publicadas, suas candidaturas, disponibilidades
+        - Gestores: veem tudo (inclusive rascunhos), podem criar/publicar escalas
+        """
         from .queries import (
-            listar_datas_com_vagas_abertas,
             listar_datas_por_mes,
-            listar_locais,
+            listar_datas_com_vagas_abertas,
             listar_candidaturas_por_perfil,
+            listar_substituicoes_abertas,
+            listar_sobreaviso_por_perfil,
+            listar_feriados_por_periodo,
+            listar_locais,
         )
         from .calendar_utils import build_month_calendar
+        from datetime import date as _date
+        from collections import defaultdict
+        import calendar as _cal
 
         perfil = _exige_plantonista(request)
         if isinstance(perfil, RedirectResponse):
             return perfil
 
-        from datetime import date as _date
+        is_gestor = bool(
+            has_permission(request, "plantao_gerir_escalas")
+            or has_permission(request, "manage_plantao")
+        )
+
         hoje = _date.today()
         ano = ano or hoje.year
         mes = mes or hoje.month
+
+        # ── Dados compartilhados ─────────────────────────────────────────────
+        locais = listar_locais(engine)
         local_sel = local_id or None
-        datas_mes = listar_datas_por_mes(engine, ano, mes, local_sel, status="publicado")
-        vagas_abertas = listar_datas_com_vagas_abertas(engine, local_sel, perfil["tipo"])
-        candidaturas = listar_candidaturas_por_perfil(engine, perfil["id"])
-        calendario = build_month_calendar(ano, mes, datas_mes, vagas_abertas, candidaturas)
+        # Auto-selecionar quando há apenas 1 local
+        if not local_sel and len(locais) == 1:
+            local_sel = locais[0]["id"]
+            local_id = local_sel
+
+        _ultimo_dia = _cal.monthrange(ano, mes)[1]
+        inicio_mes = f"{ano:04d}-{mes:02d}-01"
+        fim_mes = f"{ano:04d}-{mes:02d}-{_ultimo_dia:02d}"
+        feriados_rows = listar_feriados_por_periodo(engine, inicio_mes, fim_mes)
+        feriados_dict = {r["data"]: r["nome"] for r in feriados_rows}
+
+        # ── Camada admin (gestores): todas as escalas incluindo rascunhos ─────
+        datas_mes_admin: list[dict] = []
+        if is_gestor:
+            datas_mes_admin = listar_datas_por_mes(engine, ano, mes, local_sel)
+
+        # ── Camada plantonista: dados enriquecidos com status por usuário ─────
+        escalas_mes_pub = listar_datas_por_mes(engine, ano, mes, local_sel, status="publicado")
+        vagas_abertas = listar_datas_com_vagas_abertas(engine, local_sel)
+        minhas_candidaturas = listar_candidaturas_por_perfil(engine, perfil["id"])
+        substituicoes = listar_substituicoes_abertas(engine, perfil.get("tipo", ""))
+        sobreavisos_abertos = listar_datas_por_mes(
+            engine, ano, mes, local_sel, tipo="sobreaviso", status="publicado"
+        )
+        minhas_adesoes = listar_sobreaviso_por_perfil(engine, perfil["id"])
+        minhas_adesoes_ids = {a["data_id"]: a for a in minhas_adesoes}
+
+        # ── Montar eventos_por_data ──────────────────────────────────────────
+        eventos_por_data: dict[str, list[dict]] = defaultdict(list)
+
+        # Índices para lookup eficiente
+        vagas_por_data: dict[int, list[dict]] = defaultdict(list)
+        for _v in vagas_abertas:
+            vagas_por_data[_v["data_id"]].append(_v)
+
+        cands_conf_por_data: dict[int, list[dict]] = defaultdict(list)
+        for _c in minhas_candidaturas:
+            if _c["status"] in ("confirmado", "provisorio"):
+                cands_conf_por_data[_c["data_id"]].append(_c)
+
+        # Escalas presenciais publicadas
+        for e in escalas_mes_pub:
+            data = e["data"]
+            data_id = e["id"]
+            _base = {
+                "hora_inicio": e.get("hora_inicio", ""),
+                "hora_fim": e.get("hora_fim", ""),
+                "local_nome": e.get("local_nome", ""),
+                "posicao_id": None,
+                "candidatura_id": None,
+                "substituicao_id": None,
+                "data_id": data_id,
+                "adesao_id": None,
+                "escala_id": data_id,
+                "admin_only": False,
+                "vagas_total": e.get("vagas_total", 0),
+                "confirmados_total": e.get("confirmados_total", 0),
+            }
+
+            # Agrupa vagas abertas por tipo para esta data
+            vagas_desta: dict[str, dict] = {}
+            for _v in vagas_por_data.get(data_id, []):
+                tp = _v.get("tipo_perfil", "")
+                tipo_ev = "plantao_aux" if "aux" in tp.lower() else "plantao_vet"
+                if tipo_ev not in vagas_desta:
+                    vagas_desta[tipo_ev] = _v
+
+            # Agrupa candidaturas confirmadas por tipo para esta data
+            cands_desta: dict[str, dict] = {}
+            for _c in cands_conf_por_data.get(data_id, []):
+                tp = _c.get("posicao_tipo", "")
+                tipo_ev = "plantao_aux" if "aux" in tp.lower() else "plantao_vet"
+                cands_desta[tipo_ev] = _c
+
+            todos_tipos = set(vagas_desta.keys()) | set(cands_desta.keys())
+
+            if not todos_tipos:
+                # Sem vagas abertas e sem candidaturas → preenchido (fallback)
+                eventos_por_data[data].append({**_base, "tipo": "plantao_vet", "status": "preenchido"})
+                continue
+
+            for tipo in todos_tipos:
+                ev = {**_base, "tipo": tipo}
+                if tipo in cands_desta:
+                    ev["status"] = "meu_turno"
+                    ev["candidatura_id"] = cands_desta[tipo]["id"]
+                else:
+                    vaga = vagas_desta[tipo]
+                    ev["status"] = "livre"
+                    ev["posicao_id"] = vaga["posicao_id"]
+                eventos_por_data[data].append(ev)
+
+        # Substituições abertas (cedido)
+        for s in substituicoes:
+            data = s["data"]
+            tp = s.get("tipo_posicao") or ""
+            tipo = "plantao_aux" if "aux" in tp.lower() else "plantao_vet"
+            eventos_por_data[data].append({
+                "tipo": tipo, "status": "cedido",
+                "hora_inicio": s.get("hora_inicio", ""),
+                "hora_fim": s.get("hora_fim", ""),
+                "local_nome": s.get("local_nome", ""),
+                "posicao_id": None, "candidatura_id": None,
+                "substituicao_id": s["id"], "data_id": None, "adesao_id": None,
+                "escala_id": None, "admin_only": False,
+                "vagas_total": 0, "confirmados_total": 0,
+            })
+
+        # Disponibilidades do mês
+        for d in sobreavisos_abertos:
+            data = d["data"]
+            if d["id"] in minhas_adesoes_ids:
+                adesao = minhas_adesoes_ids[d["id"]]
+                st = "minha_disponibilidade"
+                adesao_id = adesao["id"]
+            else:
+                st = "disponibilidade_aberta"
+                adesao_id = None
+            eventos_por_data[data].append({
+                "tipo": "disponibilidade", "status": st,
+                "hora_inicio": d.get("hora_inicio", ""),
+                "hora_fim": d.get("hora_fim", ""),
+                "local_nome": d.get("local_nome", ""),
+                "posicao_id": None, "candidatura_id": None,
+                "substituicao_id": None, "data_id": d["id"], "adesao_id": adesao_id,
+                "escala_id": d["id"], "admin_only": False,
+                "vagas_total": 0, "confirmados_total": 0,
+            })
+
+        # Gestor: injetar rascunhos e outros status não visíveis ao plantonista
+        if is_gestor:
+            pub_ids = {e["id"] for e in escalas_mes_pub}
+            for e in datas_mes_admin:
+                if e["id"] not in pub_ids:
+                    data = e["data"]
+                    tipo = "plantao_vet"  # rascunho: sem info de vagas; fallback
+                    eventos_por_data[data].append({
+                        "tipo": tipo, "status": e.get("status", "rascunho"),
+                        "hora_inicio": e.get("hora_inicio", ""),
+                        "hora_fim": e.get("hora_fim", ""),
+                        "local_nome": e.get("local_nome", ""),
+                        "posicao_id": None, "candidatura_id": None,
+                        "substituicao_id": None, "data_id": e["id"], "adesao_id": None,
+                        "escala_id": e["id"], "admin_only": True,
+                        "vagas_total": e.get("vagas_total", 0),
+                        "confirmados_total": e.get("confirmados_total", 0),
+                    })
+
+        datas_ordenadas = sorted(eventos_por_data.keys())
+
+        # ── Calendário enriquecido ────────────────────────────────────────────
+        datas_para_cal = datas_mes_admin if is_gestor else escalas_mes_pub
+        calendario = build_month_calendar(
+            ano, mes, datas_para_cal, vagas_abertas, minhas_candidaturas,
+            eventos_por_data=dict(eventos_por_data),
+            feriados=feriados_dict,
+        )
+
         csrf = getattr(request.state, "csrf_token", "")
         return _render(
             request,
             "plantao_escalas.html",
             perfil=perfil,
-            locais=listar_locais(engine),
-            mes=mes,
             ano=ano,
-            local_id=local_id,
-            view=view,
-            datas_mes=datas_mes,
-            vagas_abertas=vagas_abertas,
-            calendario=calendario,
+            mes=mes,
             hoje=hoje.isoformat(),
+            calendario=calendario,
+            eventos_por_data=dict(eventos_por_data),
+            datas_ordenadas=datas_ordenadas,
+            locais=locais,
+            local_id=local_id,
+            feriados_dict=feriados_dict,
+            is_gestor=is_gestor,
             csrf_token=csrf,
             erro=request.query_params.get("erro", ""),
             ok=request.query_params.get("ok", ""),
@@ -772,51 +768,31 @@ def make_router(engine: Any) -> APIRouter:
             return _redir_erro("/plantao/admin/cadastros", str(exc))
         return RedirectResponse("/plantao/admin/cadastros", status_code=303)
 
-    @router.get("/admin/escalas", response_class=HTMLResponse)
-    async def admin_escalas(request: Request, mes: int = 0, ano: int = 0, local_id: int = 0):
-        from .queries import listar_datas_por_mes, listar_locais, listar_feriados_por_periodo
-        from .calendar_utils import build_month_calendar
-        import calendar as _cal
+    @router.post("/admin/cadastros/{perfil_id}/reativar")
+    async def admin_reativar(request: Request, perfil_id: int):
+        from .actions import reativar_plantonista
 
-        gestor = _exige_gestor(request, "plantao_gerir_escalas")
+        gestor = _exige_gestor(request, "plantao_aprovar_cadastros")
         if isinstance(gestor, RedirectResponse) or isinstance(gestor, HTMLResponse):
             return gestor
-        now = datetime.utcnow()
-        ano = ano or now.year
-        mes = mes or now.month
-        local_sel = local_id or None
+        await _validar_csrf_ou_403(request)
+        try:
+            reativar_plantonista(engine, perfil_id, gestor["id"], ip=request.client.host if request.client else "")
+        except ValueError as exc:
+            return _redir_erro("/plantao/admin/cadastros", str(exc))
+        return RedirectResponse("/plantao/admin/cadastros", status_code=303)
 
-        datas = listar_datas_por_mes(engine, ano, mes, local_sel)
-        locais = listar_locais(engine)
-
-        # Feriados do mês para o calendário e para o painel JS
-        _ultimo_dia = _cal.monthrange(ano, mes)[1]
-        inicio_mes = f"{ano:04d}-{mes:02d}-01"
-        fim_mes = f"{ano:04d}-{mes:02d}-{_ultimo_dia:02d}"
-        feriados_rows = listar_feriados_por_periodo(engine, inicio_mes, fim_mes)
-        feriados_dict = {r["data"]: r["nome"] for r in feriados_rows}
-
-        # Calendário enriquecido com datas e feriados
-        calendario = build_month_calendar(
-            ano, mes, datas, [], [],
-            feriados=feriados_dict,
-        )
-
-        csrf = getattr(request.state, "csrf_token", "")
-        return _render(
-            request,
-            "admin/escalas.html",
-            mes=mes,
-            ano=ano,
-            local_id=local_id,
-            locais=locais,
-            datas=datas,
-            calendario=calendario,
-            feriados_dict=feriados_dict,
-            csrf_token=csrf,
-            erro=request.query_params.get("erro", ""),
-            ok=request.query_params.get("ok", ""),
-        )
+    @router.get("/admin/escalas", response_class=HTMLResponse)
+    async def admin_escalas_redirect(request: Request, mes: int = 0, ano: int = 0, local_id: int = 0):
+        parts = []
+        if ano:
+            parts.append(f"ano={ano}")
+        if mes:
+            parts.append(f"mes={mes}")
+        if local_id:
+            parts.append(f"local_id={local_id}")
+        qs = "?" + "&".join(parts) if parts else ""
+        return RedirectResponse(f"/plantao/escalas{qs}", status_code=301)
 
     @router.post("/admin/escalas/criar")
     async def admin_criar_data(request: Request):
@@ -831,7 +807,6 @@ def make_router(engine: Any) -> APIRouter:
         try:
             local_id = int(form.get("local_id", 0))
             tipo = str(form.get("tipo", "presencial"))
-            subtipo = str(form.get("subtipo", "regular"))
             data_ref = str(form.get("data", ""))
             hora_inicio = str(form.get("hora_inicio", "08:00"))
             hora_fim = str(form.get("hora_fim", "20:00"))
@@ -849,7 +824,6 @@ def make_router(engine: Any) -> APIRouter:
                 engine,
                 local_id=local_id,
                 tipo=tipo,
-                subtipo=subtipo,
                 data=data_ref,
                 hora_inicio=hora_inicio,
                 hora_fim=hora_fim,
@@ -860,7 +834,7 @@ def make_router(engine: Any) -> APIRouter:
                 auto_approve=auto_approve,
             )
         except Exception as exc:
-            return _redir_erro("/plantao/admin/escalas", str(exc))
+            return _redir_erro("/plantao/escalas", str(exc))
         return RedirectResponse("/plantao/admin/escalas?ok=1", status_code=303)
 
     @router.post("/admin/escalas/criar-lote")
@@ -876,7 +850,6 @@ def make_router(engine: Any) -> APIRouter:
         try:
             local_id = int(form.get("local_id", 0))
             tipo = str(form.get("tipo", "presencial"))
-            subtipo = str(form.get("subtipo", "regular"))
             data_inicio = str(form.get("data_inicio", ""))
             data_fim = str(form.get("data_fim", ""))
             hora_inicio = str(form.get("hora_inicio", "08:00"))
@@ -891,7 +864,6 @@ def make_router(engine: Any) -> APIRouter:
                 engine,
                 local_id=local_id,
                 tipo=tipo,
-                subtipo=subtipo,
                 data_inicio=data_inicio,
                 data_fim=data_fim,
                 dias_semana=dias_semana,
@@ -906,7 +878,7 @@ def make_router(engine: Any) -> APIRouter:
             )
             total = resultado["total"]
         except Exception as exc:
-            return _redir_erro("/plantao/admin/escalas", str(exc))
+            return _redir_erro("/plantao/escalas", str(exc))
         return RedirectResponse(f"/plantao/admin/escalas?ok={total}_criadas", status_code=303)
 
     @router.post("/admin/escalas/{data_id}/publicar")
@@ -920,7 +892,7 @@ def make_router(engine: Any) -> APIRouter:
         try:
             publicar_data_plantao(engine, data_id, gestor["id"], ip=request.client.host if request.client else "")
         except ValueError as exc:
-            return _redir_erro("/plantao/admin/escalas", str(exc))
+            return _redir_erro("/plantao/escalas", str(exc))
         return RedirectResponse("/plantao/admin/escalas?ok=1", status_code=303)
 
     @router.post("/admin/escalas/{data_id}/cancelar")
@@ -934,7 +906,7 @@ def make_router(engine: Any) -> APIRouter:
         try:
             cancelar_data_plantao(engine, data_id, gestor["id"], ip=request.client.host if request.client else "")
         except ValueError as exc:
-            return _redir_erro("/plantao/admin/escalas", str(exc))
+            return _redir_erro("/plantao/escalas", str(exc))
         return RedirectResponse("/plantao/admin/escalas?ok=1", status_code=303)
 
     @router.post("/admin/escalas/gerar-mensal")
@@ -953,7 +925,7 @@ def make_router(engine: Any) -> APIRouter:
         try:
             gerar_escala_mensal(engine, local_id, ano, mes, gestor["id"])
         except ValueError as exc:
-            return _redir_erro("/plantao/admin/escalas", str(exc))
+            return _redir_erro("/plantao/escalas", str(exc))
         return RedirectResponse("/plantao/admin/escalas?ok=1", status_code=303)
 
     # ── Fila unificada de aprovações ──────────────────────────────────────────
@@ -1274,18 +1246,82 @@ def make_router(engine: Any) -> APIRouter:
         if isinstance(gestor, RedirectResponse) or isinstance(gestor, HTMLResponse):
             return gestor
         await _validar_csrf_ou_403(request)
+        import json as _json
+        form = await request.form()
+        tipo_perfil = str(form.get("tipo_perfil", ""))
+        valor_hora = float(form.get("valor_hora", "0") or 0)
+        feriado_val = int(form["feriado"]) if form.get("feriado") not in (None, "") else None
+        vigente_de = str(form.get("vigente_de", "2000-01-01"))
+        vigente_ate = str(form.get("vigente_ate")) if form.get("vigente_ate") else None
+
+        # Suporte a batch (múltiplos dias via _dias_json) ou dia único
+        dias_json = form.get("_dias_json", "")
+        if dias_json:
+            try:
+                dias = _json.loads(dias_json)
+            except Exception:
+                dias = []
+        else:
+            dias = []
+
+        if form.get("dia_semana") not in (None, ""):
+            dias = [int(form["dia_semana"])]
+
+        if not dias:
+            dias = [None]  # qualquer dia
+
+        try:
+            for dia in dias:
+                criar_tarifa(
+                    engine,
+                    tipo_perfil=tipo_perfil,
+                    valor_hora=valor_hora,
+                    gestor_id=gestor["id"],
+                    dia_semana=dia,
+                    feriado=feriado_val,
+                    vigente_de=vigente_de,
+                    vigente_ate=vigente_ate,
+                )
+        except Exception as exc:
+            return _redir_erro("/plantao/admin/tarifas", str(exc))
+        return RedirectResponse("/plantao/admin/tarifas?ok=1", status_code=303)
+
+    @router.post("/admin/tarifas/{tarifa_id}/editar")
+    async def admin_editar_tarifa(request: Request, tarifa_id: int):
+        from .actions import editar_tarifa
+
+        gestor = _exige_gestor(request)
+        if isinstance(gestor, RedirectResponse) or isinstance(gestor, HTMLResponse):
+            return gestor
+        await _validar_csrf_ou_403(request)
         form = await request.form()
         try:
-            criar_tarifa(
+            editar_tarifa(
                 engine,
-                tipo_perfil=str(form.get("tipo_perfil", "")),
-                valor_hora=float(form.get("valor_hora", "0") or 0),
+                tarifa_id=tarifa_id,
                 gestor_id=gestor["id"],
+                tipo_perfil=str(form["tipo_perfil"]) if form.get("tipo_perfil") else None,
                 dia_semana=int(form["dia_semana"]) if form.get("dia_semana") not in (None, "") else None,
-                subtipo_turno=str(form.get("subtipo_turno")) if form.get("subtipo_turno") else None,
-                vigente_de=str(form.get("vigente_de", "2000-01-01")),
-                vigente_ate=str(form.get("vigente_ate")) if form.get("vigente_ate") else None,
+                feriado=int(form["feriado"]) if form.get("feriado") not in (None, "") else None,
+                valor_hora=float(form["valor_hora"]) if form.get("valor_hora") else None,
+                vigente_de=str(form["vigente_de"]) if form.get("vigente_de") else None,
+                vigente_ate=str(form["vigente_ate"]) if form.get("vigente_ate") else None,
             )
+        except Exception as exc:
+            return _redir_erro("/plantao/admin/tarifas", str(exc))
+        return RedirectResponse("/plantao/admin/tarifas?ok=1", status_code=303)
+
+    @router.post("/admin/tarifas/{tarifa_id}/excluir")
+    async def admin_excluir_tarifa(request: Request, tarifa_id: int):
+        from .actions import excluir_tarifa
+
+        gestor = _exige_gestor(request)
+        if isinstance(gestor, RedirectResponse) or isinstance(gestor, HTMLResponse):
+            return gestor
+        await _validar_csrf_ou_403(request)
+        ip = request.client.host if request.client else ""
+        try:
+            excluir_tarifa(engine, tarifa_id=tarifa_id, gestor_id=gestor["id"], ip=ip)
         except Exception as exc:
             return _redir_erro("/plantao/admin/tarifas", str(exc))
         return RedirectResponse("/plantao/admin/tarifas?ok=1", status_code=303)
