@@ -23,13 +23,18 @@ O repositório é um monorepo. O nome da pasta local pode variar — o que impor
 
 **Sessão de trabalho normal:** leia apenas `SESSION_PRIMER.md`. Ele é suficiente.
 
+Exceção:
+- se a tarefa envolver mapeamento, testes, QA, validação de módulo ou revisão de comportamento/UI,
+  leia também `docs/testing/AI_TESTING_STANDARD.md` antes de agir.
+
 **Onboarding completo** (primeira vez no repositório ou dúvida de protocolo):
 
 1. `SESSION_PRIMER.md` — contexto operacional e protocolo
-2. `docs/WORKING_MODEL.md` — governança, regras de Jira, DoR/DoD
-3. `docs/CONTEXT.md` — arquitetura técnica atual
-4. card Jira da tarefa — escopo e histórico da entrega específica
-5. arquivos de código relevantes — somente então
+2. `docs/testing/AI_TESTING_STANDARD.md` — obrigatório para tarefas de teste/QA
+3. `docs/WORKING_MODEL.md` — governança, regras de Jira, DoR/DoD
+4. `docs/CONTEXT.md` — arquitetura técnica atual
+5. card Jira da tarefa — escopo e histórico da entrega específica
+6. arquivos de código relevantes — somente então
 
 ---
 
@@ -44,6 +49,9 @@ O repositório é um monorepo. O nome da pasta local pode variar — o que impor
 | `docs/integrations/<sistema>.md` | Domínio externo | Tarefas com sistema terceiro |
 | `docs/DEVLOG.md` | Histórico | Debugging / contexto histórico |
 | `docs/discovery/` | Notas de sessão | Pesquisa ativa ou spike |
+| `docs/testing/AI_TESTING_STANDARD.md` | Canônico de testes com IA | Tarefas de teste, QA e validação |
+| `docs/testing/mappings/` | Histórico de mapeamentos | Antes de novo mapeamento |
+| `docs/testing/runs/` | Histórico de rodadas | Antes de nova rodada de teste |
 
 ---
 

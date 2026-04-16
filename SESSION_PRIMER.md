@@ -6,6 +6,9 @@ Novos módulos como CRM e conciliação financeira devem entrar sob a mesma cama
 Leia este arquivo inteiro. Depois execute a tarefa recebida.
 Consulte os arquivos referenciados abaixo apenas se a tarefa exigir.
 
+Se a tarefa envolver mapeamento, testes, QA, validação de módulo ou revisão de comportamento/UI,
+considere `docs/testing/AI_TESTING_STANDARD.md` leitura obrigatória logo após este arquivo.
+
 ---
 
 ## Vocabulário canônico
@@ -56,6 +59,9 @@ Cada arquivo tem um tipo de conhecimento específico. Carregar apenas o que a ta
 | `docs/DEVLOG.md` | **Histórico** — o que aconteceu, bugs, lições aprendidas | Debugging ou contexto histórico |
 | `AI_START_HERE.md` | **Onboarding** — para IAs que chegam sem contexto nenhum | Primeira sessão neste repositório |
 | `docs/discovery/` | **Notas de sessão** — ephemeral, profundidade pontual | Pesquisa ativa ou spike |
+| `docs/testing/AI_TESTING_STANDARD.md` | **Canônico de testes com IA** — protocolo oficial de mapeamento, rodada, severidade e governança | Qualquer tarefa de teste, QA ou validação de módulo |
+| `docs/testing/mappings/` | **Histórico de mapeamentos** — o que já foi entendido de cada módulo | Antes de iniciar novo mapeamento ou reaproveitar contexto |
+| `docs/testing/runs/` | **Histórico de rodadas** — o que já foi testado e encontrado | Antes de executar nova rodada de teste |
 
 ---
 
