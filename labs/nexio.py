@@ -217,8 +217,8 @@ class NexioConnector(LabConnector):
             if not num:
                 continue
             label = f"{exame['paciente']} - {exame['proprietario']}".strip(" -")
-            raw_date = exame["data_liberacao"] or exame["data_prometida"]
-            data_iso = raw_date
+            raw_date = exame["data_liberacao"] or ""
+            data_iso = ""
             for fmt in ("%d/%m/%Y", "%d/%m/%y"):
                 try:
                     data_iso = datetime.strptime(raw_date, fmt).strftime("%Y-%m-%d")

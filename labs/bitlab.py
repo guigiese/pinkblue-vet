@@ -558,10 +558,14 @@ class BitlabConnector(LabConnector):
         if not _is_empty_report_payload(raw_html):
             return raw_html
 
+        print(f"  [BitLab payload] item_id={item_id} html_empty={len(raw_html)}b — tentando PDF")
         try:
             raw_pdf = self.buscar_resultado_pdf(token, item_id)
-        except Exception:
+        except Exception as e:
+            print(f"  [BitLab payload] item_id={item_id} pdf_fallback_failed: {e}")
             return raw_html
+        if raw_pdf and len(raw_pdf) > 100:
+            print(f"  [BitLab payload] item_id={item_id} pdf_fallback_ok={len(raw_pdf)}b")
         return raw_pdf or raw_html
 
     def buscar_requisicao_pdf(self, token: str, requisicao_portal_id: str) -> bytes:
@@ -863,6 +867,8 @@ class BitlabConnector(LabConnector):
         for rid, iid, item_id in to_fetch:
             try:
                 raw = self.buscar_resultado_payload(token, item_id)
+                payload_size = len(raw) if raw else 0
+                is_empty = _is_empty_report_payload(raw)
                 rows = self.parse_resultado(raw, atual[rid])
                 report_text = ""
                 if not rows:
@@ -876,7 +882,11 @@ class BitlabConnector(LabConnector):
                 atual[rid]["itens"][iid]["resultado"] = rows
                 if report_text:
                     atual[rid]["itens"][iid]["report_text"] = report_text
-                print(f"  [BitLab resultados] {iid} -> alerta={worst}")
+                print(
+                    f"  [BitLab resultados] {iid}"
+                    f" payload={payload_size}b empty={is_empty}"
+                    f" rows={len(rows)} alerta={worst}"
+                )
             except Exception as e:
                 print(f"  [BitLab resultados] {iid}: {e}")
             time.sleep(0.1)
