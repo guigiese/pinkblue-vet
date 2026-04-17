@@ -80,6 +80,10 @@ jobs:
         run: python -m py_compile labs/bitlab.py labs/nexio.py web/app.py web/state.py core.py
 
       - name: Import check
+        env:
+          DATABASE_URL: "sqlite:///:memory:"
+          PB_ALLOW_LEGACY_SQLITE_RUNTIME: "true"
+          APP_ENV: "production"
         run: python -c "from labs import CONNECTORS; from web.app import app; print('Import OK')"
 
   full-merge:
