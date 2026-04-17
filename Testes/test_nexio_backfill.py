@@ -1,7 +1,7 @@
 import unittest
 
 import core
-from labs.nexio import NexioConnector
+from modules.lab_monitor.labs.nexio import NexioConnector
 
 
 class NexioBackfillTests(unittest.TestCase):

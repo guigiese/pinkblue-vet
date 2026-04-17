@@ -7,7 +7,7 @@ from zoneinfo import ZoneInfo
 
 from pb_platform.storage import store
 
-from notification_settings import (
+from modules.lab_monitor.settings import (
     DEFAULT_NOTIFICATION_SETTINGS,
     apply_notification_settings,
     build_notification_preview_context,

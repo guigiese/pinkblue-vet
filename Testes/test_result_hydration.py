@@ -3,8 +3,8 @@ import zlib
 
 import core
 from fastapi.testclient import TestClient
-from labs.bitlab import BitlabConnector
-from labs.nexio import NexioConnector, _build_exam_display_name
+from modules.lab_monitor.labs.bitlab import BitlabConnector
+from modules.lab_monitor.labs.nexio import NexioConnector, _build_exam_display_name
 from web import app as web_app
 from web.state import state
 

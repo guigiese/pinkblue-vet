@@ -10,9 +10,9 @@ from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 
 from pb_platform.storage import store
-from labs import CONNECTORS
-from notifiers import NOTIFIERS
-from notification_settings import ensure_notification_settings, render_notification_template
+from modules.lab_monitor.labs import CONNECTORS
+from modules.lab_monitor.notifiers import NOTIFIERS
+from modules.lab_monitor.settings import ensure_notification_settings, render_notification_template
 from web.state import normalize_status
 
 _EXTERNAL_EVENT_CACHE: dict[str, float] = {}
