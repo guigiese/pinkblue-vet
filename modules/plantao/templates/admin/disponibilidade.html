@@ -28,7 +28,7 @@
       </div>
       {% endfor %}
     </div>
-    <form method="post" action="/plantao/admin/sobreaviso/{{ data_id }}/reordenar" class="pt-2 flex flex-col sm:flex-row gap-2">
+    <form method="post" action="/plantao/admin/disponibilidade/{{ data_id }}/reordenar" class="pt-2 flex flex-col sm:flex-row gap-2">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <input type="text" name="nova_ordem" placeholder="Ex: 10,9,8" class="rounded-lg border border-gray-300 px-3 py-2 text-sm flex-1">
       <button class="rounded-lg border border-pink-700 text-pink-700 text-sm font-semibold px-3 py-2 hover:bg-pink-50">Aplicar ordem</button>

@@ -109,9 +109,9 @@ t_plantao_datas = Table(
     "plantao_datas", metadata,
     Column("id", Integer, primary_key=True, autoincrement=True),
     Column("local_id", Integer, nullable=False),
-    # tipo: 'presencial' | 'sobreaviso'
+    # tipo: 'presencial' | 'disponibilidade'
     Column("tipo", Text, nullable=False, server_default="presencial"),
-    # subtipo: 'regular' | 'substituicao' | 'feriado' | 'sobreaviso_emergencia'
+    # subtipo: 'regular' | 'substituicao' | 'feriado' | 'disponibilidade_emergencia'
     Column("subtipo", Text, nullable=False, server_default="regular"),
     Column("data", Text, nullable=False),            # YYYY-MM-DD
     Column("hora_inicio", Text, nullable=False),     # HH:MM
@@ -179,8 +179,8 @@ t_plantao_trocas = Table(
 
 # ── Sobreaviso (adesões à escala de disponibilidade) ─────────────────────────
 
-t_plantao_sobreaviso = Table(
-    "plantao_sobreaviso", metadata,
+t_plantao_disponibilidade = Table(
+    "plantao_disponibilidade", metadata,
     Column("id", Integer, primary_key=True, autoincrement=True),
     Column("data_id", Integer, nullable=False),
     Column("perfil_id", Integer, nullable=False),
@@ -336,7 +336,7 @@ CREATE TABLE IF NOT EXISTS plantao_trocas (
 );
 CREATE INDEX IF NOT EXISTS idx_plantao_trocas_status ON plantao_trocas(status);
 
-CREATE TABLE IF NOT EXISTS plantao_sobreaviso (
+CREATE TABLE IF NOT EXISTS plantao_disponibilidade (
     id           SERIAL PRIMARY KEY,
     data_id      INTEGER NOT NULL,
     perfil_id    INTEGER NOT NULL,
@@ -345,8 +345,8 @@ CREATE TABLE IF NOT EXISTS plantao_sobreaviso (
     criado_em    TEXT NOT NULL,
     cancelado_em TEXT
 );
-CREATE UNIQUE INDEX IF NOT EXISTS idx_plantao_sobreaviso_ativo ON plantao_sobreaviso(data_id, perfil_id) WHERE status = 'ativo';
-CREATE UNIQUE INDEX IF NOT EXISTS idx_plantao_sobreaviso_prio ON plantao_sobreaviso(data_id, prioridade) WHERE status = 'ativo';
+CREATE UNIQUE INDEX IF NOT EXISTS idx_plantao_disponibilidade_ativo ON plantao_disponibilidade(data_id, perfil_id) WHERE status = 'ativo';
+CREATE UNIQUE INDEX IF NOT EXISTS idx_plantao_disponibilidade_prio ON plantao_disponibilidade(data_id, prioridade) WHERE status = 'ativo';
 
 CREATE TABLE IF NOT EXISTS plantao_notificacoes (
     id          SERIAL PRIMARY KEY,
@@ -430,7 +430,7 @@ CREATE TABLE IF NOT EXISTS plantao_trocas (
     status TEXT NOT NULL DEFAULT 'solicitado', mensagem TEXT NOT NULL DEFAULT '',
     respondido_em TEXT, criado_em TEXT NOT NULL, expira_em TEXT NOT NULL
 );
-CREATE TABLE IF NOT EXISTS plantao_sobreaviso (
+CREATE TABLE IF NOT EXISTS plantao_disponibilidade (
     id INTEGER PRIMARY KEY AUTOINCREMENT, data_id INTEGER NOT NULL,
     perfil_id INTEGER NOT NULL, prioridade INTEGER NOT NULL,
     status TEXT NOT NULL DEFAULT 'ativo', criado_em TEXT NOT NULL, cancelado_em TEXT

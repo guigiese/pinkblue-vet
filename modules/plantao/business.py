@@ -155,7 +155,7 @@ def calcular_valor_base(
 ) -> tuple[float | None, float | None]:
     """Calcula valor_hora_snapshot e valor_base_calculado para uma candidatura.
 
-    Para sobreaviso retorna (None, None) — não é remunerado.
+    Para disponibilidade retorna (None, None) — não é remunerado.
 
     Lógica de scoring (maior score = mais específico = preferido):
       +2  match exato de dia_semana
@@ -174,12 +174,12 @@ def calcular_valor_base(
         horas:       duração do turno em horas
         tarifas:     lista de dicts com campos da tabela plantao_tarifas,
                      já filtrada por vigência (vigente_de <= hoje <= vigente_ate or NULL).
-        tipo_data:   tipo da escala ('presencial' | 'sobreaviso'); sobreaviso não remunera.
+        tipo_data:   tipo da escala ('presencial' | 'disponibilidade'); disponibilidade não remunera.
 
     Returns:
         (valor_hora_snapshot, valor_base_calculado) — ambos float ou ambos None.
     """
-    if tipo_data == "sobreaviso":
+    if tipo_data == "disponibilidade":
         return None, None
 
     feriado_int = 1 if is_feriado else 0

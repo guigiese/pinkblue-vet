@@ -23,7 +23,7 @@
           <div class="font-medium text-gray-800">{{ a.data }} · {{ a.hora_inicio }}-{{ a.hora_fim }}</div>
           <div class="text-gray-500">{{ a.local_nome }} · prioridade #{{ a.prioridade }}</div>
         </div>
-        <form method="post" action="/plantao/sobreaviso/{{ a.id }}/cancelar">
+        <form method="post" action="/plantao/disponibilidade/{{ a.id }}/cancelar">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
           <button class="rounded-lg border border-red-300 text-red-700 text-xs font-semibold px-3 py-2 hover:bg-red-50">Cancelar</button>
         </form>
@@ -37,15 +37,15 @@
 
   <section class="space-y-2">
     <h3 class="text-sm font-semibold text-gray-700">Datas com disponibilidade em aberto</h3>
-    {% if sobreavisos_abertos %}
+    {% if disponibilidades_abertas %}
     <div class="space-y-2">
-      {% for d in sobreavisos_abertos %}
+      {% for d in disponibilidades_abertas %}
       <div class="bg-white border border-gray-200 rounded-xl p-3 flex items-center justify-between gap-3">
         <div class="text-sm">
           <div class="font-medium text-gray-800">{{ d.data }} · {{ d.hora_inicio }}-{{ d.hora_fim }}</div>
           <div class="text-gray-500">{{ d.local_nome }} · {{ d.status }}</div>
         </div>
-        <form method="post" action="/plantao/sobreaviso/{{ d.id }}/aderir">
+        <form method="post" action="/plantao/disponibilidade/{{ d.id }}/aderir">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
           <button class="rounded-lg bg-pink-700 hover:bg-pink-800 text-white text-xs font-semibold px-3 py-2">Aderir</button>
         </form>

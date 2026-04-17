@@ -296,14 +296,14 @@
               </button>
             </form>
             {% elif ev.tipo == 'disponibilidade' and ev.status == 'disponibilidade_aberta' and ev.data_id %}
-            <form method="post" action="/plantao/sobreaviso/{{ ev.data_id }}/aderir">
+            <form method="post" action="/plantao/disponibilidade/{{ ev.data_id }}/aderir">
               <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
               <button class="rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold px-3 py-2">
                 Entrar na lista
               </button>
             </form>
             {% elif ev.tipo == 'disponibilidade' and ev.status == 'minha_disponibilidade' and ev.adesao_id %}
-            <form method="post" action="/plantao/sobreaviso/{{ ev.adesao_id }}/cancelar">
+            <form method="post" action="/plantao/disponibilidade/{{ ev.adesao_id }}/cancelar">
               <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
               <button class="rounded-xl border border-red-200 text-red-600 hover:bg-red-50 text-xs font-semibold px-3 py-2">
                 Sair da lista
@@ -403,7 +403,7 @@
       <select id="campo-tipo" name="tipo"
               class="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:border-brand-pink focus:outline-none">
         <option value="presencial">Presencial</option>
-        <option value="sobreaviso">Disponibilidade</option>
+        <option value="disponibilidade">Disponibilidade</option>
       </select>
     </div>
     <div class="grid grid-cols-2 gap-3">
@@ -707,13 +707,13 @@ function abrirDia(data) {
             Assumir este turno
           </button></form>`;
       } else if (ev.tipo === 'disponibilidade' && ev.status === 'disponibilidade_aberta' && ev.data_id) {
-        acaoHtml = `<form method="post" action="/plantao/sobreaviso/${ev.data_id}/aderir">
+        acaoHtml = `<form method="post" action="/plantao/disponibilidade/${ev.data_id}/aderir">
           <input type="hidden" name="csrf_token" value="${csrfToken}">
           <button class="w-full rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold px-3 py-2 mt-3">
             Entrar na lista
           </button></form>`;
       } else if (ev.tipo === 'disponibilidade' && ev.status === 'minha_disponibilidade' && ev.adesao_id) {
-        acaoHtml = `<form method="post" action="/plantao/sobreaviso/${ev.adesao_id}/cancelar">
+        acaoHtml = `<form method="post" action="/plantao/disponibilidade/${ev.adesao_id}/cancelar">
           <input type="hidden" name="csrf_token" value="${csrfToken}">
           <button class="w-full rounded-xl border border-red-200 text-red-600 hover:bg-red-50 text-xs font-semibold px-3 py-2 mt-3">
             Sair da lista
@@ -802,11 +802,16 @@ let modoAtual = 'unica';
 
 function setModo(modo) {
   modoAtual = modo;
-  document.getElementById('campos-unica').classList.toggle('hidden', modo !== 'unica');
-  document.getElementById('campos-lote').classList.toggle('hidden', modo !== 'lote');
-  document.getElementById('tab-unica').className = `flex-1 px-4 py-2 transition text-sm font-medium ${modo === 'unica' ? 'bg-brand-pink text-white' : 'text-gray-600 hover:bg-gray-100'}`;
-  document.getElementById('tab-lote').className = `flex-1 px-4 py-2 transition text-sm font-medium ${modo === 'lote' ? 'bg-brand-pink text-white' : 'text-gray-600 hover:bg-gray-100'}`;
-  document.getElementById('btn-criar-escala').textContent = modo === 'unica' ? 'Criar Escala' : 'Criar ' + (contarDatasLote() || '') + ' Escalas';
+  const camposUnica = document.getElementById('campos-unica');
+  const camposLote  = document.getElementById('campos-lote');
+  const tabUnica    = document.getElementById('tab-unica');
+  const tabLote     = document.getElementById('tab-lote');
+  const btnCriar    = document.getElementById('btn-criar-escala');
+  if (camposUnica) camposUnica.classList.toggle('hidden', modo !== 'unica');
+  if (camposLote)  camposLote.classList.toggle('hidden', modo !== 'lote');
+  if (tabUnica)    tabUnica.className = `flex-1 px-4 py-2 transition text-sm font-medium ${modo === 'unica' ? 'bg-brand-pink text-white' : 'text-gray-600 hover:bg-gray-100'}`;
+  if (tabLote)     tabLote.className = `flex-1 px-4 py-2 transition text-sm font-medium ${modo === 'lote' ? 'bg-brand-pink text-white' : 'text-gray-600 hover:bg-gray-100'}`;
+  if (btnCriar)    btnCriar.textContent = modo === 'unica' ? 'Criar Escala' : 'Criar ' + (contarDatasLote() || '') + ' Escalas';
 }
 
 function abrirPainelEscala() {
