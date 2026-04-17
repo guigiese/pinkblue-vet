@@ -901,3 +901,43 @@ Estrutura de entrada de IAs (CLAUDE.md/AGENTS.md → SESSION_PRIMER.md → AI_ST
 - Consolidação Jira (PBCORE-64): criação do projeto PB + migração de cards (tarefa dedicada)
 - Atualização do workflow Jira (adicionar etapa Refinamento nos projetos existentes)
 - Pasta local ainda se chama `SimplesVet` — baixo impacto, pode ser renomeada a qualquer momento
+
+---
+
+## Fase 18 — Política de integridade Git entre local, remoto e worktrees
+
+### Contexto
+
+O protocolo já exigia `session/*` branch + PR para proteger `main`, mas ainda deixava uma lacuna:
+sessões ativas podiam acumular trabalho útil apenas no ambiente local, sem upstream e sem regra
+clara para worktrees temporárias.
+
+Na prática isso criava três riscos:
+- branch ativa existir só na máquina local;
+- `main` local ficar tratada como área de trabalho em vez de referência alinhada ao remoto;
+- worktrees extras virarem cópias "semi-oficiais" sem promoção controlada ao histórico principal.
+
+### Decisão executada
+
+Os documentos operacionais foram refinados para deixar explícito que:
+- GitHub/remoto é a referência operacional para qualquer sessão ativa;
+- `git fetch --prune origin` abre toda sessão;
+- branch `session/*` com trabalho útil deve ser publicada com `git push -u` após o primeiro commit relevante ou antes de 30-60 min;
+- branch local-only só é aceitável como spike curto, explicitamente temporário e documentado;
+- `main` local deve acompanhar `origin/main` e não é branch de trabalho;
+- worktree extra é ferramenta de paralelismo, não fonte de verdade;
+- toda worktree temporária deve ser removida após merge, abandono ou arquivamento da sessão;
+- antes de pausar/encerrar sessão, o mínimo é verificar `git status --short --branch`, `git branch -vv` e `git worktree list`.
+
+### Documentos atualizados
+
+- `SESSION_PRIMER.md`
+- `AI_START_HERE.md`
+- `docs/WORKING_MODEL.md`
+- `README.md`
+
+### Objetivo da mudança
+
+Preservar o acordo já existente (`session/*` + PR + branch protection em `main`) e completar o
+que faltava para integridade operacional: alinhamento entre ambiente local e remoto, handoff entre
+sessões e uso disciplinado de worktrees.

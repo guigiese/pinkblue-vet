@@ -20,3 +20,6 @@ runtime-data/
 
 # Node
 node_modules/
+
+# Local Windows helper scripts
+start_dev.bat

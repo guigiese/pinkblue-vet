@@ -58,7 +58,10 @@ Exceção:
 ## Regras não-negociáveis
 
 - Nunca pushar direto em `main`. Sempre via `session/` branch + PR.
+- Nunca deixar sessão ativa com trabalho útil só local. Publicar a branch com `git push -u` após o primeiro commit relevante ou antes de 30 min.
+- Nunca usar `main` local como branch de trabalho. Ela deve permanecer alinhada com `origin/main`.
 - Nunca executar entrega sem card Jira ativo.
 - Nunca introduzir credenciais em arquivos versionados.
 - Nunca mutar sistemas de terceiros em produção sem aprovação explícita.
 - Sempre registrar `[CLAIM]` antes de editar, `[CLOSE-OUT]` ao concluir.
+- Worktree extra é ferramenta de paralelismo, não fonte de verdade. A branch publicada no remoto é o estado confiável da sessão.

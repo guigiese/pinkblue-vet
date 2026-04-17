@@ -17,7 +17,7 @@ Nunca usar "projeto" de forma ambígua.
 | **Repositório** | O monorepo GitHub: guigiese/pinkblue-vet |
 | **Projeto Jira** | Escopo de rastreamento (ver seção 1) |
 | **Serviço** | Container deployado no Railway |
-| **Sessão** | Unidade de trabalho: branch + card Jira + PR |
+| **Sessão** | Unidade de trabalho: branch `session/*` + card Jira + PR |
 
 ## 0A. Workspace Design Decisions
 
@@ -30,9 +30,13 @@ Decisões estruturais sobre o workspace que não devem ser re-questionadas sem u
 - `docs/` tem taxonomia explícita por tipo de conhecimento: Governança / Arquitetura / Decisões / Domínio externo / Histórico
 - Esta estrutura é intencional. Não simplificar sem card PBVET.
 
-**Branch cleanup policy (decidido em 2026-04-07):**
+**Branch and remote integrity policy (decidido em 2026-04-07, refinado em 2026-04-17):**
 - Auto-delete de branches ativado no GitHub (branches deletadas ao merge)
 - `git fetch --prune` deve ser executado no início de cada sessão
+- `main` local deve acompanhar `origin/main` e não acumular commits locais de trabalho
+- Branch `session/*` com trabalho útil deve ser publicada no remoto com upstream logo após o primeiro commit relevante ou antes de 30-60 min
+- Branch local-only só é aceitável como spike curto, explicitamente temporário e documentado no Jira
+- Worktree extra só deve existir para paralelismo real; cada worktree adicional mapeia 1:1 para uma branch e uma frente ativa
 - Tags de release em `main` a cada conjunto significativo de mudanças
 
 **Nomenclatura (decidido em 2026-04-07):**
@@ -208,13 +212,15 @@ Close-out:
 
 Every AI working on the project is expected to:
 
-- read `AI_START_HERE.md` first;
-- read this file before coding;
+- load `SESSION_PRIMER.md` before acting;
+- use `AI_START_HERE.md` only for zero-context onboarding or when introducing a new AI/tool to the repository;
+- read this file when process or governance matters, or during full onboarding;
 - read `docs/CONTEXT.md` and `docs/DEVLOG.md`;
 - treat Jira as a living execution artifact;
 - document meaningful decisions;
 - create follow-up cards instead of burying debt;
-- keep output aligned with the current platform naming.
+- keep output aligned with the current platform naming;
+- keep active session branches aligned with the remote policy from section 11.
 
 If there is active work in progress by another AI or developer:
 - default to parallel-safe work first;
@@ -317,6 +323,23 @@ session/YYYYMMDD-XXXX
 
 Pushing directly to `main` is not allowed. Every change goes through a PR.
 
+### Remote Truth And Upstream
+
+GitHub is the operational source of truth for any active session branch.
+A branch with useful work that exists only locally is considered temporary and incomplete.
+
+Minimum rules:
+- start every session with `git fetch --prune origin`;
+- after the first useful commit, or before 30-60 min of active work, publish the branch:
+
+```bash
+git push -u origin session/YYYYMMDD-XXXX
+```
+
+- if the work is only a short local spike, add a Jira comment such as `[LOCAL-ONLY]` with the reason and either promote or discard it in the same day;
+- local `main` must track `origin/main` and should not accumulate local-only work;
+- if a remote `session/*` branch no longer exists, either recreate/publish it intentionally or close/archive the local session. Do not leave orphaned active work indefinitely.
+
 ### PR Format
 
 When opening a PR to main:
@@ -352,6 +375,22 @@ Files unlocked: web/app.py, labs/bitlab.py
 
 If another session sees a `[CLAIM]` on a file it needs, it should prefer different files or coordinate explicitly before proceeding.
 
+### Worktree Usage
+
+A worktree is an additional local folder for the same repository.
+It is a parallelism tool, not a second source of truth.
+
+Use a worktree only when:
+- two or more fronts must stay open at the same time;
+- switching branches in one folder would create operational risk or confusion;
+- a longer experiment needs physical isolation from the main workspace.
+
+Rules:
+- one extra worktree = one branch = one active task;
+- publish the branch from that worktree with upstream just like any other active session;
+- do not treat an isolated worktree copy as authoritative if its branch is not published;
+- remove temporary worktrees after merge, abandonment, or archive.
+
 ### Valid Session Close-Out
 
 A session is closed-out when all of the following are true:
@@ -359,7 +398,24 @@ A session is closed-out when all of the following are true:
 1. The `session/` branch has an open or merged PR targeting `main`
 2. The Jira card has a `[CLOSE-OUT]` comment describing: what changed, how it was validated, which docs were updated, and any follow-ups
 3. A `[RELEASE]` comment was added for all claimed files
-4. The `session/` branch is deleted (merged PRs auto-delete if configured)
+4. The `session/` branch is deleted or intentionally archived after merge/abandonment
+5. Any temporary extra worktree created for that session was removed
+
+### Minimum Git Health Check
+
+Before declaring a session paused, handed over, or closed, inspect:
+
+```bash
+git status --short --branch
+git branch -vv
+git worktree list
+```
+
+These commands are the minimum check for:
+- uncommitted changes;
+- orphaned local branches;
+- missing upstreams on active work;
+- stale extra worktrees.
 
 ### Shared Artifact Rules
 

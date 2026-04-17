@@ -20,7 +20,7 @@ considere `docs/testing/AI_TESTING_STANDARD.md` leitura obrigatória logo após 
 | **Repositório** | O monorepo GitHub (único): guigiese/pinkblue-vet |
 | **Projeto Jira** | Escopo de rastreamento: PBVET (unificado), PBINC (incubadora) |
 | **Serviço** | Container deployado no Railway |
-| **Sessão** | Unidade de trabalho: branch + card Jira + PR |
+| **Sessão** | Unidade de trabalho: branch `session/*` + card Jira + PR |
 
 Use esses termos. Não use "projeto" de forma ambígua.
 
@@ -42,6 +42,7 @@ Repositório: github.com/guigiese/pinkblue-vet
 
 Deploy: abrir PR de `session/*` → GitHub Actions faz merge + deploy automaticamente.
 Nunca fazer push direto em `main`.
+GitHub/remoto é a referência operacional das sessões ativas. `main` local deve acompanhar `origin/main`.
 
 ---
 
@@ -92,13 +93,36 @@ Nunca execute entrega sem card ativo.
 python -c "import secrets; from datetime import date; \
 print(f'{date.today().strftime(\"%Y%m%d\")}-{secrets.token_hex(2)}')"
 
-# 2. Criar branch
+# 2. Atualizar refs locais
+git fetch --prune origin
+
+# 3. Criar branch
 git checkout -b session/YYYYMMDD-XXXX
 ```
 
-3. Comentar `[CLAIM] session-id + arquivos em escopo` no card antes de editar.
-4. Abrir PR ao concluir → Actions faz merge + deploy.
-5. Comentar `[CLOSE-OUT]` + `[RELEASE]` no card e mover para Concluído.
+4. Comentar `[CLAIM] session-id + arquivos em escopo` no card antes de editar.
+5. Publicar a branch e configurar upstream assim que existir trabalho útil
+   (primeiro commit relevante) ou antes de 30 min de sessão:
+
+```bash
+git push -u origin session/YYYYMMDD-XXXX
+```
+
+6. Abrir PR ao concluir → Actions faz merge + deploy.
+7. Comentar `[CLOSE-OUT]` + `[RELEASE]` no card e mover para Concluído.
+
+### Integridade Git mínima
+
+- Não deixar branch ativa com trabalho útil apenas local além de um spike curto e descartável.
+- `main` local não é branch de trabalho. Mantê-la alinhada com `origin/main`.
+- Criar worktree extra apenas para trabalho paralelo real. Cada worktree extra usa sua própria branch.
+- Antes de pausar ou encerrar uma sessão, verificar:
+
+```bash
+git status --short --branch
+git branch -vv
+git worktree list
+```
 
 ---
 

@@ -32,7 +32,7 @@ Persistencia/auth fase 1 ja em andamento:
 
 Antes de qualquer trabalho:
 - leia `SESSION_PRIMER.md`
-- leia `AI_START_HERE.md`
+- leia `AI_START_HERE.md` apenas se estiver entrando sem contexto ou configurando uma nova IA/ferramenta
 - busque o card Jira relacionado
 
 ## Documentos principais
