@@ -1,0 +1,79 @@
+{% extends "plantao_base.html" %}
+
+{% block title %}Trocas{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+  <h2 class="text-lg font-semibold text-gray-800">Trocas e Substituicoes</h2>
+
+  {% if erro %}
+  <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{{ erro }}</div>
+  {% endif %}
+  {% if ok %}
+  <div class="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">Operacao concluida.</div>
+  {% endif %}
+
+  <section class="bg-white border border-gray-200 rounded-xl p-4 space-y-3">
+    <h3 class="text-sm font-semibold text-gray-700">Solicitar troca direta</h3>
+    <form method="post" action="/plantao/trocas/solicitar" class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="number" name="candidatura_a_id" required placeholder="Minha candidatura ID" class="rounded-lg border border-gray-300 px-3 py-2 text-sm">
+      <input type="number" name="candidatura_b_id" required placeholder="Candidatura colega ID" class="rounded-lg border border-gray-300 px-3 py-2 text-sm">
+      <input type="text" name="mensagem" placeholder="Mensagem (opcional)" class="rounded-lg border border-gray-300 px-3 py-2 text-sm">
+      <button class="sm:col-span-3 rounded-lg bg-pink-700 text-white font-semibold text-sm px-3 py-2">Solicitar troca</button>
+    </form>
+  </section>
+
+  <section class="bg-white border border-gray-200 rounded-xl p-4 space-y-3">
+    <h3 class="text-sm font-semibold text-gray-700">Abrir substituicao</h3>
+    <form method="post" action="/plantao/trocas/substituicao" class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="number" name="candidatura_a_id" required placeholder="Minha candidatura ID" class="rounded-lg border border-gray-300 px-3 py-2 text-sm">
+      <input type="text" name="mensagem" placeholder="Mensagem (opcional)" class="rounded-lg border border-gray-300 px-3 py-2 text-sm">
+      <button class="sm:col-span-2 rounded-lg border border-pink-700 text-pink-700 font-semibold text-sm px-3 py-2 hover:bg-pink-50">Abrir substituicao</button>
+    </form>
+  </section>
+
+  <section class="space-y-2">
+    <h3 class="text-sm font-semibold text-gray-700">Minhas trocas</h3>
+    {% if trocas %}
+    <div class="space-y-2">
+      {% for t in trocas %}
+      <div class="bg-white border border-gray-200 rounded-xl p-3 space-y-2">
+        <div class="text-sm font-medium text-gray-800">#{{ t.id }} · {{ t.tipo }} · {{ t.status }}</div>
+        <div class="text-xs text-gray-500">Criada em {{ t.criado_em }} · expira {{ t.expira_em }}</div>
+        <div class="flex gap-2">
+          <form method="post" action="/plantao/trocas/{{ t.id }}/aceitar">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button class="rounded-lg bg-green-600 text-white text-xs font-semibold px-3 py-2">Aceitar</button>
+          </form>
+          <form method="post" action="/plantao/trocas/{{ t.id }}/recusar">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button class="rounded-lg border border-red-300 text-red-700 text-xs font-semibold px-3 py-2">Recusar</button>
+          </form>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-sm text-gray-500">Nenhuma troca registrada.</div>
+    {% endif %}
+  </section>
+
+  <section class="space-y-2">
+    <h3 class="text-sm font-semibold text-gray-700">Substituicoes abertas</h3>
+    {% if substituicoes_abertas %}
+    <div class="space-y-2">
+      {% for s in substituicoes_abertas %}
+      <div class="bg-white border border-gray-200 rounded-xl p-3 text-sm">
+        <div class="font-medium text-gray-800">{{ s.data }} · {{ s.hora_inicio }}-{{ s.hora_fim }}</div>
+        <div class="text-gray-500">{{ s.local_nome }} · Solicitante: {{ s.solicitante_nome }}</div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-sm text-gray-500">Nenhuma substituicao aberta para seu perfil.</div>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

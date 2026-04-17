@@ -1,133 +1,288 @@
 {% extends "platform_base.html" %}
-{% block title %}Acessos · Plataforma{% endblock %}
-{% block header %}Administrar acessos{% endblock %}
-{% block subheader %}
-Controle inicial de usuários, senhas e status de acesso para a home e para todos os módulos protegidos da plataforma.
-{% endblock %}
-{% block content %}
+{% block title %}Usuários · Acessos · {{ platform_name }}{% endblock %}
+{% block shell_caption %}Administração da plataforma{% endblock %}
+{% block header %}Usuários{% endblock %}
+{% block subheader %}Gerencie os acessos da equipe à plataforma.{% endblock %}
 
+{% block sidebar %}
+<nav class="flex flex-col gap-1 text-sm">
+  {% set cur = request.url.path %}
+  <a href="/admin/usuarios"
+     class="rounded-2xl px-3 py-2 font-medium {% if cur.startswith('/admin/usuarios') %}bg-violet-50 text-violet-700{% else %}text-gray-600 hover:bg-gray-50{% endif %}">
+    Usuários
+  </a>
+  <a href="/admin/perfis"
+     class="rounded-2xl px-3 py-2 font-medium {% if cur.startswith('/admin/perfis') %}bg-violet-50 text-violet-700{% else %}text-gray-600 hover:bg-gray-50{% endif %}">
+    Perfis de acesso
+  </a>
+</nav>
+{% endblock %}
+
+{% block content %}
 <div class="space-y-6">
+
+  {# ── Feedback ── #}
   {% if save_state %}
   <div class="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
-    Ajustes de acesso atualizados.
+    Alteração salva com sucesso.
   </div>
   {% endif %}
 
-  <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-    <h2 class="text-base font-semibold text-gray-800">Novo usuário</h2>
-    <p class="mt-1 text-sm text-gray-500">Crie acessos simples por e-mail e senha. O admin master continua gerindo os demais.</p>
-    <form method="post" action="/admin/usuarios" class="mt-4 grid gap-3 md:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_170px_140px]">
-      <input name="email" type="email" required placeholder="email@exemplo.com"
-             class="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm">
-      <input name="password" type="text" required placeholder="Senha inicial"
-             class="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm">
-      <select name="role" class="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm">
-        <option value="viewer">viewer</option>
-        <option value="operator">operator</option>
-        <option value="admin">admin</option>
-      </select>
-      <button type="submit" class="rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-indigo-700">
-        Criar usuário
-      </button>
-    </form>
-  </section>
-
-  <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-    <div>
-      <h2 class="text-base font-semibold text-gray-800">Permissões por perfil</h2>
-      <p class="mt-1 text-sm text-gray-500">Essas permissões valem para todos os usuários do perfil correspondente.</p>
-    </div>
-    <div class="mt-4 space-y-4">
-      {% for role in roles %}
-      <form method="post" action="/admin/permissoes" class="rounded-xl border border-gray-200 bg-gray-50/70 p-4">
-        <input type="hidden" name="role" value="{{ role }}">
-        <div class="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p class="text-sm font-semibold text-gray-800">{{ role }}</p>
-            <p class="mt-1 text-xs text-gray-500">Controle simples de acesso por área da plataforma.</p>
-          </div>
-          <button type="submit" class="rounded-xl border border-indigo-200 bg-white px-4 py-2 text-sm font-medium text-indigo-600 hover:bg-indigo-50">
-            Salvar permissões
-          </button>
-        </div>
-        <div class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-          {% set role_perms = permissions.get(role, {}) %}
-          {% set labels = {
-            "platform_access": "Home da plataforma",
-            "labmonitor_access": "Lab Monitor",
-            "manage_labmonitor": "Gerenciar módulo",
-            "ops_tools": "Ops-map e sandboxes",
-            "manage_users": "Administrar acessos",
-          } %}
-          {% for key, label in labels.items() %}
-          <label class="flex items-start gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-700">
-            <input type="checkbox" name="{{ key }}" {% if role_perms.get(key) %}checked{% endif %}
-                   class="mt-0.5 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
-            <span>{{ label }}</span>
-          </label>
-          {% endfor %}
-        </div>
-      </form>
-      {% endfor %}
-    </div>
-  </section>
-
-  <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+  {# ── Solicitações pendentes ── #}
+  {% if pending_users %}
+  <section class="rounded-2xl border border-amber-200 bg-amber-50 p-5 shadow-sm">
     <div class="flex items-center justify-between gap-3">
       <div>
-        <h2 class="text-base font-semibold text-gray-800">Usuários da plataforma</h2>
-        <p class="mt-1 text-sm text-gray-500">Esses acessos valem para a home e todos os módulos protegidos.</p>
+        <h2 class="text-base font-semibold text-amber-900">Solicitações pendentes</h2>
+        <p class="mt-1 text-sm text-amber-700">Novos cadastros aguardando aprovação.</p>
       </div>
-      <span class="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-500">{{ users|length }} acesso(s)</span>
+      <span class="rounded-full bg-amber-200 px-3 py-1 text-xs font-semibold text-amber-800">{{ pending_users|length }}</span>
     </div>
-
-    <div class="mt-4 space-y-4">
-      {% for user in users %}
-      <div class="rounded-xl border border-gray-200 bg-gray-50/70 p-4">
+    <div class="mt-4 space-y-3">
+      {% for u in pending_users %}
+      <div class="rounded-xl border border-amber-200 bg-white p-4">
         <div class="flex flex-wrap items-start justify-between gap-3">
           <div class="min-w-0">
-            <div class="flex items-center gap-2 flex-wrap">
-              <p class="truncate font-semibold text-gray-800">{{ user.email }}</p>
-              <span class="rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-indigo-700">{{ user.role }}</span>
-              {% if not user.is_active %}
-              <span class="rounded-full bg-gray-200 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-gray-600">Inativo</span>
+            <p class="font-semibold text-gray-800">{{ u.nome or u.email }}</p>
+            <p class="text-xs text-gray-500">{{ u.email }}</p>
+            <div class="mt-1.5 flex flex-wrap gap-2">
+              {% if u.role %}
+              <span class="rounded-full bg-brand-light px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-brand-pink">
+                {{ (role_labels or {})[u.role] or u.role }}
+              </span>
               {% endif %}
+              {% if u.crmv %}<span class="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] text-gray-600">CRMV: {{ u.crmv }}</span>{% endif %}
+              {% if u.telefone %}<span class="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] text-gray-600">{{ u.telefone }}</span>{% endif %}
             </div>
-            <p class="mt-1 text-xs text-gray-400">Criado em {{ user.created_at }}</p>
+            <p class="mt-1 text-xs text-gray-400">Solicitado em {{ u.created_at }}</p>
           </div>
-          <div class="flex flex-wrap items-center gap-2">
-            <form method="post" action="/admin/usuarios/{{ user.id }}/role" class="flex items-center gap-2">
-              <select name="role" class="rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs text-gray-700">
-                {% for role in roles %}
-                <option value="{{ role }}" {% if user.role == role %}selected{% endif %}>{{ role }}</option>
-                {% endfor %}
-              </select>
-              <button type="submit"
-                      class="rounded-xl border border-indigo-200 bg-white px-3 py-2 text-xs font-medium text-indigo-600 hover:bg-indigo-50">
-                Salvar perfil
-              </button>
+          <div class="flex items-center gap-2">
+            <form method="post" action="/admin/usuarios/{{ u.id }}/aprovar">
+              <button type="submit" class="rounded-xl bg-green-600 px-3 py-2 text-xs font-semibold text-white hover:bg-green-700">Aprovar</button>
             </form>
-            <form method="post" action="/admin/usuarios/{{ user.id }}/toggle">
-              <button type="submit"
-                      class="rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50">
-                {% if user.is_active %}Desativar{% else %}Reativar{% endif %}
-              </button>
+            <form method="post" action="/admin/usuarios/{{ u.id }}/rejeitar">
+              <button type="submit" class="rounded-xl border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50">Rejeitar</button>
             </form>
           </div>
         </div>
-
-        <form method="post" action="/admin/usuarios/{{ user.id }}/senha" class="mt-4 flex flex-col gap-2 sm:flex-row">
-          <input name="password" type="text" required placeholder="Nova senha"
-                 class="flex-1 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm">
-          <button type="submit"
-                  class="rounded-xl border border-indigo-200 bg-white px-4 py-2 text-sm font-medium text-indigo-600 hover:bg-indigo-50">
-            Atualizar senha
-          </button>
-        </form>
       </div>
       {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  {# ── Lista de usuários ── #}
+  <section class="rounded-2xl border border-gray-200 bg-white shadow-sm">
+    <div class="flex items-center justify-between gap-3 px-5 py-4 border-b border-gray-100">
+      <div>
+        <h2 class="text-base font-semibold text-gray-800">Usuários da plataforma</h2>
+        <p class="text-xs text-gray-400 mt-0.5">{{ users|length }} acesso(s) cadastrado(s)</p>
+      </div>
+      <button onclick="abrirPainelNovoUsuario()"
+              class="rounded-xl bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700">
+        + Novo usuário
+      </button>
+    </div>
+
+    <div class="divide-y divide-gray-100">
+      {% for user in users %}
+      <div class="flex items-center gap-4 px-5 py-3.5">
+        {# Info do usuário #}
+        <div class="min-w-0 flex-1">
+          <div class="flex items-center gap-2 flex-wrap">
+            {% if user.nome %}
+            <span class="text-sm font-semibold text-gray-800">{{ user.nome }}</span>
+            <span class="text-xs text-gray-400">{{ user.email }}</span>
+            {% else %}
+            <span class="text-sm font-semibold text-gray-800">{{ user.email }}</span>
+            {% endif %}
+            {# Perfil de acesso vinculado #}
+            {% if user.profile_id and profiles %}
+            {% for p in profiles %}{% if p.id == user.profile_id %}
+            <span class="rounded-full bg-violet-50 px-2 py-0.5 text-[11px] font-medium text-violet-700">{{ p.nome }}</span>
+            {% endif %}{% endfor %}
+            {% else %}
+            <span class="rounded-full bg-brand-light px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-brand-pink">
+              {{ role_labels.get(user.role, user.role) }}
+            </span>
+            {% endif %}
+            {% if user.status and user.status != 'ativo' %}
+            <span class="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-amber-700">{{ user.status }}</span>
+            {% endif %}
+          </div>
+          <p class="mt-0.5 text-[11px] text-gray-400">Criado em {{ user.created_at }}</p>
+        </div>
+
+        {# Ações: toggle + editar #}
+        <div class="flex shrink-0 items-center gap-3">
+          {# Toggle ativo/inativo #}
+          <form method="post" action="/admin/usuarios/{{ user.id }}/toggle" class="flex items-center gap-1.5">
+            <span class="text-xs text-gray-400">{% if user.is_active %}Ativo{% else %}Inativo{% endif %}</span>
+            <button type="submit" role="switch" aria-checked="{{ 'true' if user.is_active else 'false' }}"
+                    class="relative inline-flex h-5 w-9 cursor-pointer items-center rounded-full transition-colors
+                           {% if user.is_active %}bg-green-500{% else %}bg-gray-300{% endif %}">
+              <span class="inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform
+                           {% if user.is_active %}translate-x-4{% else %}translate-x-0.5{% endif %}"></span>
+            </button>
+          </form>
+          {# Botão editar — abre painel flutuante #}
+          <button onclick="abrirPainelEditarUsuario({{ user.id }}, '{{ user.email }}', '{{ user.role }}', {{ user.profile_id or 'null' }})"
+                  class="rounded-xl border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50">
+            Editar
+          </button>
+        </div>
+      </div>
+      {% endfor %}
+
+      {% if not users %}
+      <div class="px-5 py-8 text-center text-sm text-gray-400">Nenhum usuário cadastrado.</div>
+      {% endif %}
     </div>
   </section>
 </div>
 
+{# ══════════════════════════════════════════════════════════════════════════ #}
+{# PAINEL FLUTUANTE — Novo usuário                                            #}
+{# ══════════════════════════════════════════════════════════════════════════ #}
+<div id="painel-novo-usuario" class="hidden fixed inset-y-0 right-0 z-50 w-full max-w-md bg-white shadow-2xl border-l border-gray-200 flex flex-col">
+  <div class="flex items-center justify-between border-b border-gray-100 px-6 py-4">
+    <h3 class="text-sm font-semibold text-gray-900">Novo usuário interno</h3>
+    <button onclick="fecharPainelUsuario()" class="text-gray-400 hover:text-gray-600">
+      <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+      </svg>
+    </button>
+  </div>
+  <div class="flex-1 overflow-y-auto p-6">
+    <p class="mb-5 text-sm text-gray-500">Crie acessos internos por e-mail e senha. Usuários externos devem solicitar via formulário.</p>
+    <form method="post" action="/admin/usuarios" class="space-y-4">
+      <div>
+        <label class="mb-1 block text-xs font-medium text-gray-600">E-mail</label>
+        <input name="email" type="email" required placeholder="email@exemplo.com"
+               class="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm focus:border-violet-400 focus:outline-none focus:ring-1 focus:ring-violet-400">
+      </div>
+      <div>
+        <label class="mb-1 block text-xs font-medium text-gray-600">Senha inicial</label>
+        <input name="password" type="text" required placeholder="Senha temporária"
+               class="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm focus:border-violet-400 focus:outline-none focus:ring-1 focus:ring-violet-400">
+      </div>
+      <div>
+        <label class="mb-1 block text-xs font-medium text-gray-600">Perfil de acesso</label>
+        <select name="role"
+                class="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm focus:border-violet-400 focus:outline-none">
+          {% for role, label in role_labels.items() %}
+          <option value="{{ role }}">{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="pt-2">
+        <button type="submit"
+                class="w-full rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-violet-700">
+          Criar usuário
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{# ══════════════════════════════════════════════════════════════════════════ #}
+{# PAINEL FLUTUANTE — Editar usuário                                          #}
+{# ══════════════════════════════════════════════════════════════════════════ #}
+<div id="painel-editar-usuario" class="hidden fixed inset-y-0 right-0 z-50 w-full max-w-md bg-white shadow-2xl border-l border-gray-200 flex flex-col">
+  <div class="flex items-center justify-between border-b border-gray-100 px-6 py-4">
+    <div>
+      <h3 class="text-sm font-semibold text-gray-900">Editar usuário</h3>
+      <p id="painel-edit-email" class="text-xs text-gray-400 mt-0.5"></p>
+    </div>
+    <button onclick="fecharPainelEditarUsuario()" class="text-gray-400 hover:text-gray-600">
+      <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+      </svg>
+    </button>
+  </div>
+  <div class="flex-1 overflow-y-auto p-6 space-y-5">
+
+    {# Perfil de acesso (role) #}
+    <form id="form-edit-role" method="post" class="space-y-3">
+      <h4 class="text-xs font-semibold uppercase tracking-widest text-gray-400">Perfil de acesso</h4>
+      <select name="role" id="edit-role-select"
+              class="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm focus:border-violet-400 focus:outline-none">
+        {% for role, label in role_labels.items() %}
+        <option value="{{ role }}">{{ label }}</option>
+        {% endfor %}
+      </select>
+      {% if profiles %}
+      <div class="mt-1">
+        <label class="mb-1 block text-xs font-medium text-gray-500">Perfil customizado (opcional)</label>
+        <select name="profile_id" id="edit-profile-select"
+                class="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm focus:border-violet-400 focus:outline-none">
+          <option value="">— Usar perfil base do role —</option>
+          {% for p in profiles %}{% if not p.is_system %}
+          <option value="{{ p.id }}">{{ p.nome }}</option>
+          {% endif %}{% endfor %}
+        </select>
+      </div>
+      {% endif %}
+      <button type="submit"
+              class="w-full rounded-xl bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700">
+        Salvar perfil
+      </button>
+    </form>
+
+    <div class="border-t border-gray-100"></div>
+
+    {# Senha #}
+    <form id="form-edit-senha" method="post" class="space-y-3">
+      <h4 class="text-xs font-semibold uppercase tracking-widest text-gray-400">Redefinir senha</h4>
+      <input name="password" type="text" required placeholder="Nova senha"
+             class="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm focus:border-violet-400 focus:outline-none focus:ring-1 focus:ring-violet-400">
+      <button type="submit"
+              class="w-full rounded-xl border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50">
+        Atualizar senha
+      </button>
+    </form>
+  </div>
+</div>
+
+{# Overlay compartilhado #}
+<div id="overlay-usuario" class="hidden fixed inset-0 z-40 bg-black/20"
+     onclick="fecharPainelUsuario(); fecharPainelEditarUsuario();"></div>
+
+<script>
+function abrirPainelNovoUsuario() {
+  document.getElementById('painel-novo-usuario').classList.remove('hidden');
+  document.getElementById('overlay-usuario').classList.remove('hidden');
+}
+function fecharPainelUsuario() {
+  document.getElementById('painel-novo-usuario').classList.add('hidden');
+  document.getElementById('overlay-usuario').classList.add('hidden');
+}
+
+function abrirPainelEditarUsuario(userId, email, role, profileId) {
+  document.getElementById('painel-edit-email').textContent = email;
+
+  // Configurar action dos forms
+  document.getElementById('form-edit-role').action = `/admin/usuarios/${userId}/role`;
+  document.getElementById('form-edit-senha').action = `/admin/usuarios/${userId}/senha`;
+
+  // Pré-selecionar role atual
+  const roleSelect = document.getElementById('edit-role-select');
+  if (roleSelect) roleSelect.value = role || '';
+
+  // Pré-selecionar perfil customizado atual
+  const profSelect = document.getElementById('edit-profile-select');
+  if (profSelect) profSelect.value = profileId ? String(profileId) : '';
+
+  document.getElementById('painel-editar-usuario').classList.remove('hidden');
+  document.getElementById('overlay-usuario').classList.remove('hidden');
+}
+function fecharPainelEditarUsuario() {
+  document.getElementById('painel-editar-usuario').classList.add('hidden');
+  document.getElementById('overlay-usuario').classList.add('hidden');
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { fecharPainelUsuario(); fecharPainelEditarUsuario(); }
+});
+</script>
 {% endblock %}

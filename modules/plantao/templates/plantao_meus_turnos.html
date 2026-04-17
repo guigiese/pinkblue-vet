@@ -1,0 +1,42 @@
+{% extends "plantao_base.html" %}
+
+{% block title %}Meus Turnos{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+  <h2 class="text-lg font-semibold text-gray-800">Meus Turnos</h2>
+
+  {% if erro %}
+  <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{{ erro }}</div>
+  {% endif %}
+  {% if ok %}
+  <div class="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">Operacao concluida.</div>
+  {% endif %}
+
+  {% for status in ['confirmado', 'provisorio', 'lista_espera', 'cancelado', 'recusado'] %}
+  <section class="space-y-2">
+    <h3 class="text-sm font-semibold text-gray-700">{{ status|replace('_', ' ')|title }}</h3>
+    {% if grupos[status] %}
+    <div class="space-y-2">
+      {% for c in grupos[status] %}
+      <div class="bg-white border border-gray-200 rounded-xl p-3 flex items-center justify-between gap-3">
+        <div class="text-sm">
+          <div class="font-medium text-gray-800">{{ c.data }} · {{ c.hora_inicio }}-{{ c.hora_fim }}</div>
+          <div class="text-gray-500">{{ c.local_nome }} · {{ c.posicao_tipo }}</div>
+        </div>
+        {% if c.status in ['confirmado', 'provisorio'] %}
+        <form method="post" action="/plantao/candidaturas/{{ c.id }}/cancelar">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button class="rounded-lg border border-red-300 text-red-700 px-3 py-2 text-xs font-semibold hover:bg-red-50">Cancelar</button>
+        </form>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-sm text-gray-500">Nenhum registro.</div>
+    {% endif %}
+  </section>
+  {% endfor %}
+</div>
+{% endblock %}

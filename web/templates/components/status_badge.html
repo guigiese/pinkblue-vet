@@ -1,0 +1,41 @@
+{#
+  Badge de status padronizado.
+  Parâmetros:
+    status  — string — valor do status
+    label   — string — texto exibido (padrão: status)
+
+  Mapeamento canônico de cores:
+    ativo / confirmado / publicado  → verde
+    pendente / aguardando            → âmbar
+    rejeitado / cancelado            → vermelho
+    sobreaviso / alerta              → laranja
+    inativo / encerrado / rascunho   → cinza
+    expirado / solicitado            → cinza-azulado
+
+  Uso:
+    {% include "components/status_badge.html" with status=user.status %}
+    {% include "components/status_badge.html" with status="confirmado" label="Confirmado" %}
+#}
+{% set _label = label if label is defined and label else status %}
+{% set _map = {
+  'ativo':       'bg-green-100 text-green-700',
+  'confirmado':  'bg-green-100 text-green-700',
+  'publicado':   'bg-green-100 text-green-700',
+  'aprovado':    'bg-green-100 text-green-700',
+  'pendente':    'bg-amber-100 text-amber-700',
+  'aguardando':  'bg-amber-100 text-amber-700',
+  'rejeitado':   'bg-red-100 text-red-700',
+  'cancelado':   'bg-red-100 text-red-700',
+  'vago':        'bg-red-100 text-red-700',
+  'sobreaviso':  'bg-orange-100 text-orange-700',
+  'alerta':      'bg-orange-100 text-orange-700',
+  'inativo':     'bg-gray-200 text-gray-600',
+  'encerrado':   'bg-gray-200 text-gray-600',
+  'rascunho':    'bg-gray-200 text-gray-600',
+  'expirado':    'bg-slate-100 text-slate-600',
+  'solicitado':  'bg-slate-100 text-slate-600',
+} %}
+{% set _cls = _map.get(status | lower, 'bg-gray-100 text-gray-600') %}
+<span class="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide {{ _cls }}">
+  {{ _label }}
+</span>

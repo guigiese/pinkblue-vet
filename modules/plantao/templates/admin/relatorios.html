@@ -1,0 +1,25 @@
+{% extends "plantao_admin_base.html" %}
+
+{% block page_title %}Relatorios{% endblock %}
+{% block title %}Relatorios{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+  <a href="/plantao/admin/relatorios/escalas" class="bg-white border border-gray-200 rounded-xl p-4 hover:border-pink-300">
+    <h3 class="font-semibold text-gray-800">Escalas por periodo</h3>
+    <p class="text-sm text-gray-500">Visao de status e preenchimento.</p>
+  </a>
+  <a href="/plantao/admin/relatorios/participacao" class="bg-white border border-gray-200 rounded-xl p-4 hover:border-pink-300">
+    <h3 class="font-semibold text-gray-800">Participacao por plantonista</h3>
+    <p class="text-sm text-gray-500">Quantidade de turnos confirmados.</p>
+  </a>
+  <a href="/plantao/admin/relatorios/cancelamentos" class="bg-white border border-gray-200 rounded-xl p-4 hover:border-pink-300">
+    <h3 class="font-semibold text-gray-800">Cancelamentos e trocas</h3>
+    <p class="text-sm text-gray-500">Historico de mudancas no periodo.</p>
+  </a>
+  <a href="/plantao/admin/relatorios/pre-fechamento" class="bg-white border border-gray-200 rounded-xl p-4 hover:border-pink-300">
+    <h3 class="font-semibold text-gray-800">Pre-fechamento</h3>
+    <p class="text-sm text-gray-500">Base financeira sem disponibilidade no cálculo.</p>
+  </a>
+</div>
+{% endblock %}

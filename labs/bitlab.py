@@ -72,6 +72,61 @@ def _clean_report_text(text: str) -> str:
     return "\n".join(cleaned).strip()
 
 
+def _has_cached_result_payload(item: dict) -> bool:
+    if item.get("resultado"):
+        return True
+    if (item.get("report_text") or "").strip():
+        return True
+    if (item.get("diagnosis_text") or "").strip():
+        return True
+    return False
+
+
+def _is_empty_report_payload(raw_bytes: bytes) -> bool:
+    return not (raw_bytes or b"").strip(b"\x00\r\n\t ")
+
+
+def _looks_like_pdf(raw_bytes: bytes) -> bool:
+    return (raw_bytes or b"").lstrip(b"\x00\r\n\t ").startswith(b"%PDF")
+
+
+def _extract_pdf_entries(raw_pdf: bytes) -> list[tuple[float, float, str]]:
+    try:
+        text = raw_pdf.decode("latin-1", errors="ignore")
+    except Exception:
+        return []
+
+    entries: list[tuple[float, float, str]] = []
+    for match in _PDF_TEXT_PAT.finditer(text):
+        value = _pdf_unescape(match.group("text")).strip()
+        if not value:
+            continue
+        entries.append(
+            (
+                float(match.group("x")),
+                float(match.group("y")),
+                value,
+            )
+        )
+    return entries
+
+
+def _group_pdf_entries_as_text(raw_pdf: bytes) -> str:
+    rows_by_y: dict[int, list[tuple[float, str]]] = {}
+    for x_pos, y_pos, value in _extract_pdf_entries(raw_pdf):
+        bucket = int(round(y_pos / 3.0) * 3)
+        rows_by_y.setdefault(bucket, []).append((x_pos, value))
+
+    lines: list[str] = []
+    for y_pos in sorted(rows_by_y.keys(), reverse=True):
+        parts = [text for _, text in sorted(rows_by_y[y_pos], key=lambda col: col[0])]
+        line = re.sub(r"\s+", " ", " ".join(parts)).strip()
+        if line:
+            lines.append(line)
+
+    return _clean_report_text("\n".join(lines))
+
+
 def _compose_species_sex(species_raw: str, sex_raw: str) -> str:
     species_norm = _strip_accents((species_raw or "").strip().lower())
     sex_norm = (sex_raw or "").strip().upper()
@@ -476,7 +531,7 @@ class BitlabConnector(LabConnector):
         return r.json()
 
     def buscar_resultado_html(self, token: str, item_id: str) -> bytes:
-        """Returns raw (zlib-compressed) HTML for a single exam result."""
+        """Returns raw HTML payload for a single exam result."""
         r = requests.get(
             f"{self.BASE}/ItemRequisicao/{item_id}?type=Html",
             headers={"Authorization": f"Bearer {token}"},
@@ -484,6 +539,30 @@ class BitlabConnector(LabConnector):
         )
         r.raise_for_status()
         return r.content
+
+    def buscar_resultado_pdf(self, token: str, item_id: str) -> bytes:
+        r = requests.get(
+            f"{self.BASE}/ItemRequisicao/{item_id}?type=Pdf",
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=20,
+        )
+        r.raise_for_status()
+        return r.content
+
+    def buscar_resultado_payload(self, token: str, item_id: str) -> bytes:
+        """
+        BitLab can return a null-byte sentinel on the HTML route for newer
+        reports while the PDF route still contains the actual laudo.
+        """
+        raw_html = self.buscar_resultado_html(token, item_id)
+        if not _is_empty_report_payload(raw_html):
+            return raw_html
+
+        try:
+            raw_pdf = self.buscar_resultado_pdf(token, item_id)
+        except Exception:
+            return raw_html
+        return raw_pdf or raw_html
 
     def buscar_requisicao_pdf(self, token: str, requisicao_portal_id: str) -> bytes:
         r = requests.get(
@@ -733,6 +812,8 @@ class BitlabConnector(LabConnector):
 
     @staticmethod
     def parse_resultado_text(raw_bytes: bytes) -> str:
+        if _looks_like_pdf(raw_bytes):
+            return _group_pdf_entries_as_text(raw_bytes)
         try:
             html = zlib.decompress(raw_bytes).decode("latin-1")
         except Exception:
@@ -759,9 +840,14 @@ class BitlabConnector(LabConnector):
                 ant_item = ant_rec.get("itens", {}).get(iid, {})
                 # Only carry forward if we actually have parsed rows (non-empty resultado).
                 # alerta=None + resultado=[] means old parse failed → re-fetch.
-                if "alerta" in ant_item and ant_item.get("resultado"):
-                    item["alerta"]    = ant_item["alerta"]
-                    item["resultado"] = ant_item["resultado"]
+                if _has_cached_result_payload(ant_item):
+                    if "alerta" in ant_item:
+                        item["alerta"] = ant_item["alerta"]
+                    item["resultado"] = ant_item.get("resultado") or []
+                    if ant_item.get("report_text"):
+                        item["report_text"] = ant_item["report_text"]
+                    if ant_item.get("diagnosis_text"):
+                        item["diagnosis_text"] = ant_item["diagnosis_text"]
                 elif item.get("item_id"):
                     to_fetch.append((rid, iid, item["item_id"]))
 
@@ -776,7 +862,7 @@ class BitlabConnector(LabConnector):
 
         for rid, iid, item_id in to_fetch:
             try:
-                raw = self.buscar_resultado_html(token, item_id)
+                raw = self.buscar_resultado_payload(token, item_id)
                 rows = self.parse_resultado(raw, atual[rid])
                 report_text = ""
                 if not rows:

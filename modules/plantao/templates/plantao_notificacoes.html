@@ -1,0 +1,52 @@
+{% extends "plantao_base.html" %}
+
+{% block title %}Notificações{% endblock %}
+
+{% block content %}
+<div class="space-y-4">
+
+  <div class="flex items-center justify-between">
+    <h2 class="text-lg font-semibold text-gray-800">Notificações</h2>
+    {% if notificacoes %}
+    <form method="post" action="/plantao/notificacoes/todas-lidas">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+      <button type="submit" class="text-xs text-pink-700 hover:underline">Marcar todas como lidas</button>
+    </form>
+    {% endif %}
+  </div>
+
+  {% if not notificacoes %}
+  <div class="text-center py-12 text-gray-400">
+    <div class="text-4xl mb-3">🔔</div>
+    <p class="text-sm">Nenhuma notificação por enquanto.</p>
+  </div>
+  {% else %}
+  <div class="flex flex-col gap-2">
+    {% for n in notificacoes %}
+    <div class="bg-white rounded-xl border border-gray-200 px-4 py-3 flex items-start gap-3 {{ '' if n.lida else 'border-l-4 border-l-pink-500' }}">
+      <div class="flex-1 min-w-0">
+        <p class="text-sm {{ 'text-gray-500' if n.lida else 'text-gray-800 font-medium' }}">
+          {{ n.titulo }}
+        </p>
+        {% if n.corpo %}
+        <p class="text-xs text-gray-500 mt-0.5">{{ n.corpo }}</p>
+        {% endif %}
+        <p class="text-xs text-gray-400 mt-0.5">{{ n.criado_em[:16].replace('T', ' ') }}</p>
+      </div>
+      {% if not n.lida %}
+      <button
+        hx-post="/plantao/notificacoes/{{ n.id }}/lida"
+        hx-headers='{"X-CSRF-Token": "{{ csrf_token }}"}'
+        hx-target="closest div"
+        hx-swap="outerHTML"
+        class="text-xs text-pink-600 hover:underline shrink-0 mt-0.5">
+        Lida
+      </button>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

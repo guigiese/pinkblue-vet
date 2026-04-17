@@ -2,7 +2,7 @@ import unittest
 
 from fastapi.testclient import TestClient
 
-from pb_platform.settings import settings
+from pb_platform.storage import store
 from web.app import app
 
 
@@ -10,14 +10,24 @@ class PlatformAuthTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         app.state.disable_auth = False
-        cls.client = TestClient(app)
+        if not store.get_user_by_email("test.admin@pinkbluevet.local"):
+            store.create_user(
+                email="test.admin@pinkbluevet.local",
+                password="SenhaTemporaria123",
+                role="admin",
+                nome="Admin Teste",
+                status="ativo",
+            )
+
+    def setUp(self):
+        self.client = TestClient(app)
 
     def test_login_page_renders_platform_copy(self):
-        response = self.client.get("/login")
+        response = self.client.get("/login", follow_redirects=False)
 
         self.assertEqual(response.status_code, 200)
-        self.assertIn("Autenticação da plataforma", response.text)
-        self.assertIn("Use seu e-mail e senha para entrar", response.text)
+        self.assertIn("Pink Blue Vet", response.text)
+        self.assertIn("Use seu e-mail e senha para acessar a plataforma.", response.text)
 
     def test_unauthenticated_module_access_redirects_to_login(self):
         response = self.client.get("/labmonitor/exames", follow_redirects=False)
@@ -25,12 +35,12 @@ class PlatformAuthTests(unittest.TestCase):
         self.assertEqual(response.status_code, 303)
         self.assertIn("/login?next=/labmonitor/exames", response.headers["location"])
 
-    def test_master_login_unlocks_home_and_admin(self):
+    def test_admin_login_unlocks_home_and_management_areas(self):
         login_response = self.client.post(
             "/login",
             data={
-                "email": settings.master_email,
-                "password": settings.master_password,
+                "email": "test.admin@pinkbluevet.local",
+                "password": "SenhaTemporaria123",
                 "next": "/",
             },
             follow_redirects=False,
@@ -42,12 +52,16 @@ class PlatformAuthTests(unittest.TestCase):
         home = self.client.get("/")
         self.assertEqual(home.status_code, 200)
         self.assertIn("Biblioteca de módulos", home.text)
-        self.assertIn("Lab Monitor", home.text)
+        self.assertIn("Plant", home.text)
 
         admin = self.client.get("/admin/usuarios")
         self.assertEqual(admin.status_code, 200)
         self.assertIn("Usuários da plataforma", admin.text)
         self.assertIn("Permissões por perfil", admin.text)
+
+        plantao = self.client.get("/plantao/admin/")
+        self.assertEqual(plantao.status_code, 200)
+        self.assertIn("Módulo Plantão", plantao.text)
 
         self.client.get("/logout")
 

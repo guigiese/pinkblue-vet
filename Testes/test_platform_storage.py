@@ -1,3 +1,4 @@
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -10,21 +11,23 @@ class PlatformStoreTests(unittest.TestCase):
     def test_store_supports_users_sessions_thresholds_and_runtime_config(self):
         with tempfile.TemporaryDirectory() as tmp_dir:
             temp_path = Path(tmp_dir)
-            temp_db = "pbv-test.sqlite3"
+            temp_db_url = f"sqlite:///{temp_path / 'pbv-test.sqlite3'}"
             missing_json = temp_path / "missing.json"
 
-            with patch.object(storage_module.settings, "data_dir", temp_path), patch.object(
-                storage_module.settings,
-                "db_filename",
-                temp_db,
-            ), patch.object(storage_module, "CONFIG_FILE", missing_json), patch.object(
-                storage_module,
-                "TELEGRAM_USERS_FILE",
-                missing_json,
+            with patch.dict(os.environ, {"DATABASE_URL": temp_db_url}, clear=False), patch.object(
+                storage_module.settings, "master_email", "admin@test.local"
+            ), patch.object(
+                storage_module.settings, "master_password", "SenhaTemporaria123"
+            ), patch.object(
+                storage_module.settings, "master_force_change", False
+            ), patch.object(
+                storage_module, "CONFIG_FILE", missing_json
+            ), patch.object(
+                storage_module, "TELEGRAM_USERS_FILE", missing_json
             ):
                 store = storage_module.PlatformStore()
 
-                master = store.get_user_by_email(storage_module.settings.master_email)
+                master = store.get_user_by_email("admin@test.local")
                 self.assertIsNotNone(master)
 
                 created = store.create_user(
@@ -34,7 +37,8 @@ class PlatformStoreTests(unittest.TestCase):
                 )
                 self.assertEqual(created["role"], "operator")
 
-                auth_user = store.authenticate_user("tester@pinkbluevet.local", "SenhaTemporaria123")
+                auth_user, code = store.authenticate_user("tester@pinkbluevet.local", "SenhaTemporaria123")
+                self.assertEqual(code, "ok")
                 self.assertIsNotNone(auth_user)
 
                 token = store.create_session(auth_user["id"])
@@ -50,12 +54,12 @@ class PlatformStoreTests(unittest.TestCase):
                 self.assertEqual(defaults["critical_multiplier"], 1.3)
 
                 store.upsert_exam_threshold(
-                    "Hemograma Veterinário",
+                    "Hemograma Veterinario",
                     warning_multiplier=1.1,
                     critical_multiplier=1.35,
                     updated_by="tester@pinkbluevet.local",
                 )
-                threshold = store.get_exam_threshold("Hemograma Veterinário")
+                threshold = store.get_exam_threshold("Hemograma Veterinario")
                 self.assertEqual(threshold["warning_multiplier"], 1.1)
                 self.assertEqual(threshold["critical_multiplier"], 1.35)
 
@@ -69,6 +73,8 @@ class PlatformStoreTests(unittest.TestCase):
                         "manage_labmonitor": False,
                         "ops_tools": True,
                         "manage_users": False,
+                        "plantao_access": False,
+                        "manage_plantao": False,
                     },
                 )
                 perms = store.get_role_permissions()

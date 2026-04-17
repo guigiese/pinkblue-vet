@@ -1,0 +1,44 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: pinkblue-postgres-dev
+    restart: unless-stopped
+    ports:
+      - "${PB_POSTGRES_PORT:-5432}:5432"
+    environment:
+      POSTGRES_DB: ${PB_POSTGRES_DB:-pinkblue_dev}
+      POSTGRES_USER: ${PB_POSTGRES_USER:-pinkblue}
+      POSTGRES_PASSWORD: ${PB_POSTGRES_PASSWORD:-change-me-dev}
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U ${PB_POSTGRES_USER:-pinkblue} -d ${PB_POSTGRES_DB:-pinkblue_dev}
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - pb_postgres_data:/var/lib/postgresql/data
+
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:latest
+    container_name: pinkblue-n8n-dev
+    restart: unless-stopped
+    ports:
+      - "${N8N_PORT:-5678}:5678"
+    environment:
+      GENERIC_TIMEZONE: ${PB_TIMEZONE:-America/Sao_Paulo}
+      N8N_HOST: ${N8N_HOST:-localhost}
+      N8N_PORT: ${N8N_PORT:-5678}
+      N8N_PROTOCOL: http
+      N8N_BASIC_AUTH_ACTIVE: "true"
+      N8N_BASIC_AUTH_USER: ${N8N_BASIC_AUTH_USER:-admin}
+      N8N_BASIC_AUTH_PASSWORD: ${N8N_BASIC_AUTH_PASSWORD:-change-me-now}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - pb_n8n_data:/home/node/.n8n
+
+volumes:
+  pb_postgres_data:
+  pb_n8n_data:

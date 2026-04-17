@@ -1,0 +1,30 @@
+{#
+  Date input nativo estilizado.
+  Parâmetros:
+    name     — nome do campo (obrigatório)
+    value    — valor atual em YYYY-MM-DD
+    label    — string — label opcional
+    required — bool
+    min      — string YYYY-MM-DD — data mínima
+    max      — string YYYY-MM-DD — data máxima
+    id       — id do elemento (padrão: name)
+
+  Uso:
+    {% include "components/date_input.html" with name="data_inicio" value=filtro_inicio label="De" %}
+#}
+{% set _id = id if id is defined and id else name %}
+<div class="flex flex-col gap-1">
+  {% if label is defined and label %}
+  <label for="{{ _id }}" class="text-xs font-medium text-gray-600">{{ label }}</label>
+  {% endif %}
+  <input type="date"
+         id="{{ _id }}"
+         name="{{ name }}"
+         {% if value is defined and value %}value="{{ value }}"{% endif %}
+         {% if required is defined and required %}required{% endif %}
+         {% if min is defined and min %}min="{{ min }}"{% endif %}
+         {% if max is defined and max %}max="{{ max }}"{% endif %}
+         class="rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-800
+                focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-400
+                [color-scheme:light]">
+</div>

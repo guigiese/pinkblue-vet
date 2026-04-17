@@ -1,0 +1,9 @@
+{% extends "plantao_base.html" %}
+
+{# Ponte mínima: os 14 templates admin definem {% block page_title %} e este
+   arquivo repassa para os blocos do platform_base (title + header). #}
+
+{% block page_title %}Admin Plantão{% endblock %}
+{% block title %}{{ self.page_title() }} · {{ platform_name }}{% endblock %}
+{% block header %}{{ self.page_title() }}{% endblock %}
+{% block subheader %}{% endblock %}

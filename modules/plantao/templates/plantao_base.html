@@ -1,0 +1,143 @@
+{% extends "platform_base.html" %}
+
+{# ── Header overrides ─────────────────────────────────────────────────────── #}
+{% block shell_caption %}Módulo Plantão{% endblock %}
+
+{# ── Sidebar unificada ───────────────────────────────────────────────────── #}
+{% block sidebar %}
+<nav class="flex flex-col gap-0.5 text-sm p-1">
+  {% set cur = request.url.path %}
+
+  {# Início — adaptativo por role #}
+  <a href="/plantao/" onclick="closeSidebar()"
+     class="flex items-center gap-2.5 rounded-xl px-3 py-2 font-semibold transition-colors
+            {% if cur == '/plantao/' or cur == '/plantao' %}bg-brand-light text-brand-pink
+            {% else %}text-gray-600 hover:bg-gray-100 hover:text-gray-900{% endif %}">
+    <svg class="h-4 w-4 shrink-0 {% if cur == '/plantao/' or cur == '/plantao' %}text-brand-pink{% else %}text-gray-400{% endif %}"
+         fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
+    </svg>
+    Início
+  </a>
+
+  {# ── PLANTONISTA ─────────────────────────────────────────────────────────── #}
+  {% if platform_permissions.plantao_access %}
+  {% set agenda_active = cur.startswith('/plantao/escalas') or cur.startswith('/plantao/meus-turnos') or cur.startswith('/plantao/trocas') or cur.startswith('/plantao/disponibilidade') %}
+  <a href="/plantao/escalas" onclick="closeSidebar()"
+     class="flex items-center gap-2.5 rounded-xl px-3 py-2 font-medium transition-colors
+            {% if agenda_active %}bg-brand-light text-brand-pink{% else %}text-gray-600 hover:bg-gray-100 hover:text-gray-900{% endif %}">
+    <svg class="h-4 w-4 shrink-0 {% if agenda_active %}text-brand-pink{% else %}text-gray-400{% endif %}"
+         fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+    </svg>
+    Escalas
+  </a>
+  {% endif %}
+
+  {# ── GESTÃO ─────────────────────────────────────────────────────────────── #}
+  {% if platform_permissions.manage_plantao or platform_permissions.plantao_gerir_escalas or platform_permissions.plantao_aprovar_candidaturas or platform_permissions.plantao_aprovar_cadastros %}
+
+  <div class="mt-4 mb-1 px-2 text-[10px] font-semibold uppercase tracking-widest text-gray-400">Gestão</div>
+
+  {% if platform_permissions.plantao_aprovar_candidaturas %}
+  {% set cand_active = cur.startswith('/plantao/admin/candidaturas') or cur.startswith('/plantao/admin/aprovacoes') %}
+  <a href="/plantao/admin/aprovacoes" onclick="closeSidebar()"
+     class="flex items-center justify-between gap-2.5 rounded-xl px-3 py-2 font-medium transition-colors
+            {% if cand_active %}bg-brand-light text-brand-pink{% else %}text-gray-600 hover:bg-gray-100 hover:text-gray-900{% endif %}">
+    <span class="flex items-center gap-2.5">
+      <svg class="h-4 w-4 shrink-0 {% if cand_active %}text-brand-pink{% else %}text-gray-400{% endif %}"
+           fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
+      </svg>
+      Candidaturas
+    </span>
+    <span hx-get="/plantao/partials/badge-pendentes"
+          hx-trigger="load, every 60s"
+          hx-swap="innerHTML"></span>
+  </a>
+
+  {% set disp_active = cur.startswith('/plantao/admin/disponibilidade') or cur.startswith('/plantao/admin/sobreaviso') %}
+  <a href="/plantao/admin/disponibilidade" onclick="closeSidebar()"
+     class="flex items-center gap-2.5 rounded-xl px-3 py-2 font-medium transition-colors
+            {% if disp_active %}bg-brand-light text-brand-pink{% else %}text-gray-600 hover:bg-gray-100 hover:text-gray-900{% endif %}">
+    <svg class="h-4 w-4 shrink-0 {% if disp_active %}text-brand-pink{% else %}text-gray-400{% endif %}"
+         fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+    </svg>
+    Disponibilidade
+  </a>
+  {% endif %}
+
+  {% if platform_permissions.plantao_aprovar_cadastros %}
+  {% set cad_active = cur.startswith('/plantao/admin/cadastros') %}
+  <a href="/plantao/admin/cadastros" onclick="closeSidebar()"
+     class="flex items-center gap-2.5 rounded-xl px-3 py-2 font-medium transition-colors
+            {% if cad_active %}bg-brand-light text-brand-pink{% else %}text-gray-600 hover:bg-gray-100 hover:text-gray-900{% endif %}">
+    <svg class="h-4 w-4 shrink-0 {% if cad_active %}text-brand-pink{% else %}text-gray-400{% endif %}"
+         fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+    </svg>
+    Cadastros
+  </a>
+  {% endif %}
+  {% endif %}
+
+  {# ── CONFIGURAÇÃO ───────────────────────────────────────────────────────── #}
+  {% if platform_permissions.manage_plantao %}
+  <div class="mt-4 mb-1 px-2 text-[10px] font-semibold uppercase tracking-widest text-gray-400">Config</div>
+
+  {% for href, label in [
+    ('/plantao/admin/locais', 'Locais'),
+    ('/plantao/admin/tarifas', 'Tarifas'),
+    ('/plantao/admin/feriados', 'Feriados'),
+    ('/plantao/admin/configuracoes', 'Configurações'),
+  ] %}
+  {% set is_active = cur.startswith(href) %}
+  <a href="{{ href }}" onclick="closeSidebar()"
+     class="flex items-center gap-2.5 rounded-xl px-3 py-2 font-medium transition-colors
+            {% if is_active %}bg-brand-light text-brand-pink{% else %}text-gray-600 hover:bg-gray-100 hover:text-gray-900{% endif %}">
+    {{ label }}
+  </a>
+  {% endfor %}
+  {% endif %}
+
+  {# ── ANÁLISE ────────────────────────────────────────────────────────────── #}
+  {% if platform_permissions.manage_plantao or platform_permissions.plantao_ver_relatorios %}
+  <div class="mt-4 mb-1 px-2 text-[10px] font-semibold uppercase tracking-widest text-gray-400">Análise</div>
+
+  {% set rel_active = cur.startswith('/plantao/admin/relatorios') or cur.startswith('/plantao/admin/audit-log') %}
+  <a href="/plantao/admin/relatorios" onclick="closeSidebar()"
+     class="flex items-center gap-2.5 rounded-xl px-3 py-2 font-medium transition-colors
+            {% if rel_active %}bg-brand-light text-brand-pink{% else %}text-gray-600 hover:bg-gray-100 hover:text-gray-900{% endif %}">
+    <svg class="h-4 w-4 shrink-0 {% if rel_active %}text-brand-pink{% else %}text-gray-400{% endif %}"
+         fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+    </svg>
+    Relatórios
+  </a>
+  {% endif %}
+
+  {# ── Notificações ────────────────────────────────────────────────────────── #}
+  <div class="mt-2 border-t border-gray-100 pt-2">
+    {% set notif_active = cur.startswith('/plantao/notificacoes') %}
+    <a href="/plantao/notificacoes" onclick="closeSidebar()"
+       class="flex items-center gap-2.5 rounded-xl px-3 py-2 font-medium transition-colors
+              {% if notif_active %}bg-brand-light text-brand-pink{% else %}text-gray-600 hover:bg-gray-100 hover:text-gray-900{% endif %}">
+      <svg class="h-4 w-4 shrink-0 {% if notif_active %}text-brand-pink{% else %}text-gray-400{% endif %}"
+           fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+      </svg>
+      Notificações
+    </a>
+  </div>
+</nav>
+{% endblock %}
+
+{% block content %}{% endblock %}

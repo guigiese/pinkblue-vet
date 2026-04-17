@@ -1,0 +1,37 @@
+{#
+  Toggle switch reutilizável.
+  Parâmetros:
+    name     — nome do campo (input hidden POST)
+    checked  — bool — estado atual
+    label    — string — label opcional ao lado
+    disabled — bool — desabilitar interação
+    color    — 'green' (padrão) | 'indigo' | 'rose'
+
+  Uso:
+    {% set _checked = user.is_active %}
+    {% include "components/toggle.html" with name="ativo" checked=_checked label="Ativo" %}
+
+  IMPORTANTE: este componente submete um form por si só via JS quando clicado.
+  Para uso inline em um form existente, use o <input type="checkbox"> diretamente.
+#}
+{% set _color = color if color is defined else 'green' %}
+{% set _color_on = {
+  'green':  'bg-green-500',
+  'indigo': 'bg-indigo-600',
+  'rose':   'bg-rose-600',
+}.get(_color, 'bg-green-500') %}
+
+<label class="inline-flex cursor-pointer items-center gap-2 select-none {% if disabled is defined and disabled %}opacity-50 pointer-events-none{% endif %}">
+  <div class="relative">
+    <input type="checkbox"
+           name="{{ name }}"
+           {% if checked %}checked{% endif %}
+           {% if disabled is defined and disabled %}disabled{% endif %}
+           class="sr-only peer">
+    <div class="h-5 w-9 rounded-full bg-gray-200 transition-colors peer-checked:{{ _color_on }}"></div>
+    <div class="absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform peer-checked:translate-x-4"></div>
+  </div>
+  {% if label is defined and label %}
+  <span class="text-sm text-gray-700">{{ label }}</span>
+  {% endif %}
+</label>

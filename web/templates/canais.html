@@ -40,8 +40,8 @@
         <!-- Send test -->
         <button hx-post="/labmonitor/canais/{{ n.id }}/test"
                 hx-target="#test-result-{{ n.id }}"
-                class="text-sm px-3 py-1.5 rounded-lg border border-indigo-200 text-indigo-600
-                       hover:bg-indigo-50 transition-colors flex items-center gap-1.5">
+                class="text-sm px-3 py-1.5 rounded-lg border border-brand-pink/20 text-brand-pink
+                       hover:bg-brand-light transition-colors flex items-center gap-1.5">
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                   d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
@@ -65,8 +65,8 @@
               hx-swap="outerHTML"></span>
       </div>
       {% include "partials/telegram_users.html" %}
-      <div class="mt-4 p-3 bg-indigo-50 rounded-lg text-sm text-indigo-700 flex items-start gap-2">
-        <svg class="w-4 h-4 shrink-0 mt-0.5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <div class="mt-4 p-3 bg-brand-light rounded-lg text-sm text-brand-pink flex items-start gap-2">
+        <svg class="w-4 h-4 shrink-0 mt-0.5 text-brand-pink/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M12 3a9 9 0 100 18A9 9 0 0012 3z"/>
         </svg>
         <span>Para se inscrever, envie <code class="bg-indigo-100 px-1 rounded font-mono">/assinar</code> para o bot no Telegram. Novos usuários aparecem aqui automaticamente.</span>

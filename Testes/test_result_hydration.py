@@ -9,6 +9,19 @@ from web import app as web_app
 from web.state import state
 
 
+def _fake_bitlab_pdf_payload(*lines: tuple[float, float, str]) -> bytes:
+    chunks = [b"%PDF-1.2\n"]
+    for x_pos, y_pos, text in lines:
+        safe_text = (
+            text.replace("\\", "\\\\")
+            .replace("(", "\\(")
+            .replace(")", "\\)")
+        )
+        chunks.append(f"{x_pos} {y_pos} Td ({safe_text}) Tj\n".encode("latin-1"))
+    chunks.append(b"%%EOF")
+    return b"".join(chunks)
+
+
 class SnapshotHydrationTests(unittest.TestCase):
     def test_first_cycle_hydrates_ready_items(self):
         atual = {
@@ -528,6 +541,56 @@ class BitlabReferenceSelectionTests(unittest.TestCase):
         item = atual["REQ-1"]["itens"]["I1"]
         self.assertEqual(item["resultado"][0]["referencia"], "Felino: 5 a 35 U/L")
         self.assertEqual(item["alerta"], "red")
+
+    def test_bitlab_parse_resultado_text_reads_pdf_operator_payload(self):
+        raw_pdf = _fake_bitlab_pdf_payload(
+            (16.5, 615.75, "CREATININA VETERINARIA.......:"),
+            (237.0, 615.75, "2,3"),
+            (262.5, 615.75, "mg/dL"),
+            (327.0, 584.25, "Felino:   0,8 a 1,8 mg/dL"),
+            (375.0, 170.25, "Data da liberação:"),
+            (459.75, 170.25, "15/04/26 17:15"),
+        )
+
+        report_text = BitlabConnector.parse_resultado_text(raw_pdf)
+
+        self.assertIn("CREATININA VETERINARIA.......: 2,3 mg/dL", report_text)
+        self.assertIn("Felino: 0,8 a 1,8 mg/dL", report_text)
+        self.assertIn("Data da liberação: 15/04/26 17:15", report_text)
+
+    def test_bitlab_enrich_resultados_falls_back_to_pdf_text_when_html_is_empty(self):
+        raw_pdf = _fake_bitlab_pdf_payload(
+            (16.5, 615.75, "CREATININA VETERINARIA.......:"),
+            (237.0, 615.75, "2,3"),
+            (262.5, 615.75, "mg/dL"),
+            (327.0, 584.25, "Felino:   0,8 a 1,8 mg/dL"),
+        )
+
+        connector = BitlabConnector()
+        connector._login = lambda: "token"
+        connector.buscar_resultado_html = lambda token, item_id: b"\x00"
+        connector.buscar_resultado_pdf = lambda token, item_id: raw_pdf
+
+        atual = {
+            "REQ-1": {
+                "label": "Layla - Tutor",
+                "data": "2026-04-15",
+                "species_raw": "Felina",
+                "sex_raw": "F",
+                "species_sex": "gata",
+                "itens": {
+                    "I1": {"nome": "Creatinina", "status": "Pronto", "lab_status": "Pronto", "item_id": "item-1"},
+                },
+            }
+        }
+
+        connector.enrich_resultados({}, atual)
+        core._apply_operational_status_rules(atual)
+
+        item = atual["REQ-1"]["itens"]["I1"]
+        self.assertEqual(item["resultado"], [])
+        self.assertIn("CREATININA VETERINARIA.......: 2,3 mg/dL", item["report_text"])
+        self.assertEqual(item["status"], "Pronto")
 
     def test_bitlab_hemograma_prefers_species_specific_range_from_combined_cell(self):
         html = """

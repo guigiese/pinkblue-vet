@@ -1,0 +1,931 @@
+{% extends "plantao_base.html" %}
+
+{% block title %}Escalas · Plantão · {{ platform_name }}{% endblock %}
+
+{% block content %}
+<div class="space-y-5" x-data="escalas()" x-init="init()">
+
+  {# ── Feedback ── #}
+  {% if erro %}
+  <div class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{{ erro }}</div>
+  {% endif %}
+  {% if ok %}
+  <div class="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+    {% if '_criadas' in ok %}{{ ok.replace('_criadas','') }} escala(s) criada(s) com sucesso.
+    {% else %}Operação realizada com sucesso.{% endif %}
+  </div>
+  {% endif %}
+
+  {# ── Cabeçalho: navegação + filtros + ações ── #}
+  <div class="flex flex-wrap items-center justify-between gap-3">
+
+    {# Navegação mensal #}
+    <div class="flex items-center gap-2">
+      <a :href="'/plantao/escalas?ano={{ calendario.prev.year }}&mes={{ calendario.prev.month }}&local_id={{ local_id }}&view=' + viewMode"
+         class="rounded-xl border border-gray-200 bg-white p-2 text-gray-500 hover:bg-gray-50">
+        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+        </svg>
+      </a>
+      <h2 class="text-base font-semibold text-gray-800 min-w-[150px] text-center">
+        {{ calendario.month_name }} {{ calendario.year }}
+      </h2>
+      <a :href="'/plantao/escalas?ano={{ calendario.next.year }}&mes={{ calendario.next.month }}&local_id={{ local_id }}&view=' + viewMode"
+         class="rounded-xl border border-gray-200 bg-white p-2 text-gray-500 hover:bg-gray-50">
+        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+        </svg>
+      </a>
+      <a :href="'/plantao/escalas?ano={{ hoje[:4] }}&mes={{ hoje[5:7] }}&local_id={{ local_id }}&view=' + viewMode"
+         class="rounded-xl border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50">
+        Hoje
+      </a>
+    </div>
+
+    {# Direita: local + toggle + nova escala #}
+    <div class="flex flex-wrap items-center gap-2">
+
+      {# Seletor de local #}
+      {% if locais | length > 1 %}
+      <form method="get" action="/plantao/escalas" class="flex items-center gap-2">
+        <input type="hidden" name="ano" value="{{ ano }}">
+        <input type="hidden" name="mes" value="{{ mes }}">
+        <input type="hidden" name="view" :value="viewMode">
+        <select name="local_id" onchange="this.form.submit()"
+                class="rounded-xl border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-700 focus:border-brand-pink focus:outline-none">
+          <option value="0" {% if not local_id %}selected{% endif %}>Todos os locais</option>
+          {% for l in locais %}
+          <option value="{{ l.id }}" {% if local_id == l.id %}selected{% endif %}>{{ l.nome }}</option>
+          {% endfor %}
+        </select>
+      </form>
+      {% elif locais | length == 1 %}
+      <span class="rounded-xl border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs text-gray-500">
+        {{ locais[0].nome }}
+      </span>
+      {% endif %}
+
+      {# Toggle Calendário / Lista #}
+      <div class="flex rounded-xl border border-gray-200 bg-white overflow-hidden text-xs font-medium">
+        <button @click="viewMode='calendario'"
+                :class="viewMode==='calendario' ? 'bg-brand-pink text-white' : 'text-gray-600 hover:bg-gray-50'"
+                class="px-3 py-1.5 transition">
+          Calendário
+        </button>
+        <button @click="viewMode='lista'"
+                :class="viewMode==='lista' ? 'bg-brand-pink text-white' : 'text-gray-600 hover:bg-gray-50'"
+                class="px-3 py-1.5 transition">
+          Lista
+        </button>
+      </div>
+
+      {# Botão Nova Escala — apenas gestores #}
+      {% if is_gestor %}
+      <button onclick="abrirPainelEscala()"
+              class="rounded-2xl bg-brand-pink hover:bg-brand-dark text-white text-sm font-semibold px-4 py-2 flex items-center gap-2">
+        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+        </svg>
+        Nova Escala
+      </button>
+      {% endif %}
+    </div>
+  </div>
+
+  {# ── Filtros/Legenda unificados (modelo de exclusão: tudo ativo por padrão, clicar oculta) ── #}
+  <div class="flex flex-wrap items-center gap-1.5">
+    <span class="text-[11px] font-medium text-gray-400 mr-0.5">Tipo:</span>
+    <button @click="toggleFiltro('tipo','plantao_vet')"
+            :class="filtros.tipo.includes('plantao_vet') ? 'opacity-40 bg-white text-gray-400 border-gray-200' : 'bg-brand-light text-brand-pink border-pink-200'"
+            class="rounded-full border px-2.5 py-1 text-[11px] font-medium transition flex items-center gap-1.5">
+      <span class="h-2 w-2 rounded-full bg-brand-pink shrink-0"></span> Plantão Vet
+    </button>
+    <button @click="toggleFiltro('tipo','plantao_aux')"
+            :class="filtros.tipo.includes('plantao_aux') ? 'opacity-40 bg-white text-gray-400 border-gray-200' : 'bg-brand-light text-brand-pink border-pink-200'"
+            class="rounded-full border px-2.5 py-1 text-[11px] font-medium transition flex items-center gap-1.5">
+      <span class="h-2 w-2 rounded-full bg-brand-pink shrink-0"></span> Plantão Aux
+    </button>
+    <button @click="toggleFiltro('tipo','disponibilidade')"
+            :class="filtros.tipo.includes('disponibilidade') ? 'opacity-40 bg-white text-gray-400 border-gray-200' : 'bg-indigo-50 text-indigo-700 border-indigo-200'"
+            class="rounded-full border px-2.5 py-1 text-[11px] font-medium transition flex items-center gap-1.5">
+      <span class="h-2 w-2 rounded-full bg-indigo-400 shrink-0"></span> Disponibilidade
+    </button>
+
+    <span class="text-[11px] font-medium text-gray-400 ml-1 mr-0.5">Status:</span>
+    <button @click="toggleFiltro('status','livre')"
+            :class="filtros.status.includes('livre') ? 'opacity-40 bg-white text-gray-400 border-gray-200' : 'bg-amber-50 text-amber-700 border-amber-200'"
+            class="rounded-full border px-2.5 py-1 text-[11px] font-medium transition flex items-center gap-1.5">
+      <span class="h-2 w-2 rounded-full bg-amber-400 shrink-0"></span> Livre
+    </button>
+    <button @click="toggleFiltro('status','meu_turno')"
+            :class="filtros.status.includes('meu_turno') ? 'opacity-40 bg-white text-gray-400 border-gray-200' : 'bg-green-50 text-green-700 border-green-200'"
+            class="rounded-full border px-2.5 py-1 text-[11px] font-medium transition flex items-center gap-1.5">
+      <span class="h-2 w-2 rounded-full bg-green-500 shrink-0"></span> Meu turno
+    </button>
+    <button @click="toggleFiltro('status','cedido')"
+            :class="filtros.status.includes('cedido') ? 'opacity-40 bg-white text-gray-400 border-gray-200' : 'bg-purple-50 text-purple-700 border-purple-200'"
+            class="rounded-full border px-2.5 py-1 text-[11px] font-medium transition flex items-center gap-1.5">
+      <span class="h-2 w-2 rounded-full bg-purple-500 shrink-0"></span> Cedido
+    </button>
+    <button @click="toggleFiltro('status','preenchido')"
+            :class="filtros.status.includes('preenchido') ? 'opacity-40 bg-white text-gray-400 border-gray-200' : 'bg-gray-100 text-gray-600 border-gray-200'"
+            class="rounded-full border px-2.5 py-1 text-[11px] font-medium transition flex items-center gap-1.5">
+      <span class="h-2 w-2 rounded-full bg-gray-400 shrink-0"></span> Preenchido
+    </button>
+    {% if is_gestor %}
+    <button @click="toggleFiltro('status','rascunho')"
+            :class="filtros.status.includes('rascunho') ? 'opacity-40 bg-white text-gray-400 border-gray-200' : 'bg-amber-50 text-amber-700 border-amber-200'"
+            class="rounded-full border px-2.5 py-1 text-[11px] font-medium transition flex items-center gap-1.5">
+      <span class="h-2 w-2 rounded border border-dashed border-amber-400 bg-amber-100 shrink-0"></span> Rascunho
+    </button>
+    {% endif %}
+    <button x-show="filtros.tipo.length > 0 || filtros.status.length > 0"
+            @click="filtros={tipo:[],status:[]}"
+            class="rounded-full border border-gray-200 bg-white px-2.5 py-1 text-[11px] text-gray-400 hover:bg-gray-50 transition">
+      Mostrar tudo
+    </button>
+  </div>
+
+  {# ══════════════════════════════════════════════════════ #}
+  {# VIEW: CALENDÁRIO (hidden em mobile, default lista)      #}
+  {# ══════════════════════════════════════════════════════ #}
+  <div x-show="viewMode==='calendario'">
+
+    {# Grade do calendário — todos os dias clicáveis #}
+    <div class="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+
+      {# Dias da semana #}
+      <div class="grid grid-cols-7 border-b border-gray-100 bg-gray-50">
+        {% for wd in calendario.weekday_labels %}
+        <div class="py-2 text-center text-[11px] font-semibold uppercase tracking-wide
+                    {% if loop.last %}text-orange-400{% else %}text-gray-400{% endif %}">{{ wd }}</div>
+        {% endfor %}
+      </div>
+
+      {# Semanas #}
+      {% for week in calendario.weeks %}
+      <div class="grid grid-cols-7 divide-x divide-gray-100 {% if not loop.last %}border-b border-gray-100{% endif %}">
+        {% for cell in week %}
+        {% if cell.out_of_month %}
+        <div class="min-h-[90px] bg-gray-50/40"></div>
+        {% else %}
+        <div class="min-h-[90px] p-2 relative cursor-pointer transition
+                    {% if cell.is_today %}ring-2 ring-inset ring-pink-400{% endif %}
+                    {% if cell.is_holiday %}bg-red-50/60
+                    {% elif cell.is_sunday %}bg-orange-50/40{% endif %}
+                    hover:bg-brand-light/40 active:bg-rose-100/60"
+             onclick="abrirDia('{{ cell.date }}')">
+
+          {# Número do dia #}
+          <div class="flex items-start justify-between gap-1">
+            <span class="text-sm font-semibold
+                         {% if cell.is_today %}text-brand-pink
+                         {% elif cell.is_past %}text-gray-300
+                         {% elif cell.is_sunday %}text-orange-500
+                         {% else %}text-gray-700{% endif %}">
+              {{ cell.day }}
+            </span>
+            {% if cell.is_holiday %}
+            <span class="shrink-0 h-1.5 w-1.5 rounded-full bg-red-400 mt-1.5" title="{{ cell.holiday_name }}"></span>
+            {% elif cell.is_sunday %}
+            <span class="shrink-0 text-[9px] text-orange-400 font-semibold mt-1">Dom</span>
+            {% endif %}
+          </div>
+
+          {% if cell.is_holiday and cell.holiday_name %}
+          <div class="truncate text-[9px] text-red-500 font-medium -mt-0.5 mb-0.5">{{ cell.holiday_name }}</div>
+          {% endif %}
+
+          {# Chips de eventos (até 3) — clicáveis individualmente #}
+          <div class="space-y-0.5 mt-0.5">
+            {% for ev in cell.eventos[:3] %}
+            <div onclick="event.stopPropagation(); abrirDiaEvento('{{ cell.date }}', {{ ev.escala_id or ev.data_id or 0 }})"
+                 x-show="visivel('{{ ev.tipo }}', '{{ ev.status }}')"
+                 data-tipo="{{ ev.tipo }}"
+                 data-status="{{ ev.status }}"
+                 class="truncate rounded px-1 py-0.5 text-[10px] font-medium cursor-pointer hover:opacity-80 transition-opacity
+                        {% if ev.status == 'meu_turno' %}bg-green-100 text-green-700
+                        {% elif ev.status == 'livre' %}bg-amber-100 text-amber-700
+                        {% elif ev.status == 'cedido' %}bg-purple-100 text-purple-700
+                        {% elif ev.tipo == 'disponibilidade' %}bg-indigo-100 text-indigo-700
+                        {% elif ev.status == 'rascunho' %}border border-dashed border-amber-400 bg-amber-50 text-amber-700
+                        {% else %}bg-gray-100 text-gray-400{% endif %}">
+              {{ ev.hora_inicio }}–{{ ev.hora_fim }}
+            </div>
+            {% endfor %}
+            {% if cell.eventos | length > 3 %}
+            <div class="text-[9px] text-gray-400">+{{ cell.eventos | length - 3 }} mais</div>
+            {% endif %}
+          </div>
+        </div>
+        {% endif %}
+        {% endfor %}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  {# ══════════════════════════════════════════════════════ #}
+  {# VIEW: LISTA (default em mobile)                         #}
+  {# ══════════════════════════════════════════════════════ #}
+  <div x-show="viewMode==='lista'" class="space-y-2">
+
+    {% for data in datas_ordenadas %}
+    {% set evs = eventos_por_data.get(data, []) %}
+    {% if evs %}
+    <div class="rounded-xl border border-gray-200 bg-white overflow-hidden"
+         x-show="eventosDoDia('{{ data }}').length > 0">
+      <div class="flex items-center justify-between bg-gray-50/80 px-4 py-2 border-b border-gray-100 cursor-pointer"
+           onclick="abrirDia('{{ data }}')">
+        <span class="text-xs font-semibold text-gray-700">{{ data }}</span>
+        <span class="text-xs text-gray-400">{{ evs | length }} item(s)</span>
+      </div>
+      <div class="divide-y divide-gray-100">
+        {% for ev in evs %}
+        <div class="flex items-center justify-between gap-3 px-4 py-3"
+             x-show="visivel('{{ ev.tipo }}', '{{ ev.status }}')"
+             data-tipo="{{ ev.tipo }}" data-status="{{ ev.status }}">
+          <div class="min-w-0">
+            <div class="flex items-center gap-2 flex-wrap">
+              <span class="text-sm font-medium text-gray-800">{{ ev.hora_inicio }}–{{ ev.hora_fim }}</span>
+              <span class="rounded-full px-2 py-0.5 text-[10px] font-semibold
+                           {% if ev.status == 'meu_turno' %}bg-green-100 text-green-700
+                           {% elif ev.status == 'livre' %}bg-amber-100 text-amber-700
+                           {% elif ev.status == 'cedido' %}bg-purple-100 text-purple-700
+                           {% elif ev.tipo == 'disponibilidade' %}bg-indigo-100 text-indigo-700
+                           {% elif ev.status == 'rascunho' %}bg-amber-100 text-amber-700
+                           {% else %}bg-gray-100 text-gray-500{% endif %}">
+                {% if ev.status == 'meu_turno' %}Meu turno
+                {% elif ev.status == 'livre' %}Livre
+                {% elif ev.status == 'cedido' %}Cedido
+                {% elif ev.tipo == 'disponibilidade' and ev.status == 'minha_disponibilidade' %}Minha lista
+                {% elif ev.tipo == 'disponibilidade' %}Disponibilidade aberta
+                {% elif ev.status == 'rascunho' %}Rascunho
+                {% else %}Preenchido{% endif %}
+              </span>
+              {% if is_gestor and ev.vagas_total %}
+              <span class="text-[10px] text-gray-400">{{ ev.confirmados_total }}/{{ ev.vagas_total }} vagas</span>
+              {% endif %}
+            </div>
+            <div class="text-xs text-gray-500 mt-0.5">
+              {{ ev.local_nome or '—' }}
+              {% if ev.tipo == 'plantao_vet' %} · Vet
+              {% elif ev.tipo == 'plantao_aux' %} · Aux
+              {% elif ev.tipo == 'disponibilidade' %} · Lista de Disponibilidade{% endif %}
+            </div>
+          </div>
+          <div class="shrink-0 flex flex-col gap-1">
+            {# Ações plantonista #}
+            {% if ev.status == 'livre' and ev.posicao_id %}
+            <form method="post" action="/plantao/escalas/{{ ev.posicao_id }}/candidatar">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <button class="rounded-xl bg-brand-pink hover:bg-brand-dark text-white text-xs font-semibold px-3 py-2">
+                Candidatar
+              </button>
+            </form>
+            {% elif ev.status == 'meu_turno' and ev.candidatura_id %}
+            <button onclick="abrirDesistir({{ ev.candidatura_id }}, '{{ ev.hora_inicio }}–{{ ev.hora_fim }}')"
+                    class="rounded-xl border border-red-200 text-red-600 hover:bg-red-50 text-xs font-semibold px-3 py-2">
+              Desistir
+            </button>
+            {% elif ev.status == 'cedido' and ev.substituicao_id %}
+            <form method="post" action="/plantao/trocas/{{ ev.substituicao_id }}/aceitar">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <button class="rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold px-3 py-2">
+                Assumir
+              </button>
+            </form>
+            {% elif ev.tipo == 'disponibilidade' and ev.status == 'disponibilidade_aberta' and ev.data_id %}
+            <form method="post" action="/plantao/sobreaviso/{{ ev.data_id }}/aderir">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <button class="rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold px-3 py-2">
+                Entrar na lista
+              </button>
+            </form>
+            {% elif ev.tipo == 'disponibilidade' and ev.status == 'minha_disponibilidade' and ev.adesao_id %}
+            <form method="post" action="/plantao/sobreaviso/{{ ev.adesao_id }}/cancelar">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <button class="rounded-xl border border-red-200 text-red-600 hover:bg-red-50 text-xs font-semibold px-3 py-2">
+                Sair da lista
+              </button>
+            </form>
+            {% endif %}
+            {# Ações gestor #}
+            {% if is_gestor and ev.status == 'rascunho' and ev.escala_id %}
+            <form method="post" action="/plantao/admin/escalas/{{ ev.escala_id }}/publicar">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <button class="rounded-xl bg-green-600 hover:bg-green-700 text-white text-xs font-semibold px-3 py-2">
+                Publicar
+              </button>
+            </form>
+            {% endif %}
+            {% if is_gestor and ev.status in ['publicado', 'livre', 'meu_turno', 'preenchido'] and ev.confirmados_total == 0 and ev.escala_id %}
+            <form method="post" action="/plantao/admin/escalas/{{ ev.escala_id }}/cancelar"
+                  onsubmit="return confirm('Cancelar esta escala?')">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <button class="rounded-xl border border-red-200 text-red-600 hover:bg-red-50 text-xs font-semibold px-3 py-2">
+                Cancelar
+              </button>
+            </form>
+            {% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+    {% endfor %}
+
+    {% if not datas_ordenadas %}
+    <div class="rounded-xl border border-gray-200 bg-white p-8 text-center">
+      <p class="text-sm text-gray-400">Nenhuma escala neste período.</p>
+      {% if is_gestor %}
+      <button onclick="abrirPainelEscala()"
+              class="mt-4 rounded-xl bg-brand-pink hover:bg-brand-dark text-white text-sm font-semibold px-4 py-2">
+        Criar escala
+      </button>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+
+</div>{# fim x-data #}
+
+{# ── Painel lateral de detalhes do dia ── #}
+<div id="painel-dia" style="display:none" class="fixed inset-y-0 right-0 z-50 w-full max-w-md bg-white shadow-2xl border-l border-gray-200 flex flex-col">
+  <div class="flex items-center justify-between border-b border-gray-100 px-5 py-4 shrink-0">
+    <h3 class="text-sm font-semibold text-gray-800" id="painel-titulo">Escalas do dia</h3>
+    <button onclick="fecharDia()" class="text-gray-400 hover:text-gray-600">
+      <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+      </svg>
+    </button>
+  </div>
+  <div id="painel-conteudo" class="flex-1 overflow-y-auto p-5 space-y-3">
+    <p class="text-sm text-gray-400">Carregando...</p>
+  </div>
+</div>
+
+{% if is_gestor %}
+{# ── Painel de criação de escala (gestores) ── #}
+<div id="painel-escala" style="display:none" class="fixed inset-y-0 right-0 z-50 w-full max-w-lg bg-white shadow-2xl border-l border-gray-200 flex flex-col overflow-y-auto">
+
+  <div class="flex items-center justify-between border-b border-gray-100 px-6 py-4 shrink-0">
+    <h3 class="text-sm font-semibold text-gray-800">Nova Escala</h3>
+    <button onclick="fecharPainelEscala()" class="text-gray-400 hover:text-gray-600">
+      <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+      </svg>
+    </button>
+  </div>
+
+  {# Toggle Única / Lote #}
+  <div class="px-6 pt-4 shrink-0">
+    <div class="flex rounded-xl border border-gray-200 bg-gray-50 overflow-hidden text-sm font-medium w-full">
+      <button id="tab-unica" onclick="setModo('unica')"
+              class="flex-1 px-4 py-2 transition">Única</button>
+      <button id="tab-lote" onclick="setModo('lote')"
+              class="flex-1 px-4 py-2 transition">Em Lote</button>
+    </div>
+  </div>
+
+  {# Campos comuns #}
+  <div class="px-6 pt-4 space-y-3 shrink-0">
+    <div>
+      <label class="block text-xs font-medium text-gray-600 mb-1">Local</label>
+      <select id="campo-local" name="local_id" required
+              class="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:border-brand-pink focus:outline-none">
+        {% for l in locais %}<option value="{{ l.id }}">{{ l.nome }}</option>{% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="block text-xs font-medium text-gray-600 mb-1">Tipo</label>
+      <select id="campo-tipo" name="tipo"
+              class="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:border-brand-pink focus:outline-none">
+        <option value="presencial">Presencial</option>
+        <option value="sobreaviso">Disponibilidade</option>
+      </select>
+    </div>
+    <div class="grid grid-cols-2 gap-3">
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1">Hora início</label>
+        <input id="campo-hora-inicio" type="time" value="08:00"
+               class="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:border-brand-pink focus:outline-none">
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1">Hora fim</label>
+        <input id="campo-hora-fim" type="time" value="20:00"
+               class="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:border-brand-pink focus:outline-none">
+      </div>
+    </div>
+    <div class="grid grid-cols-2 gap-3">
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1">Vagas Vet</label>
+        <input id="campo-vagas-vet" type="number" min="0" value="1"
+               class="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:border-brand-pink focus:outline-none">
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1">Vagas Aux</label>
+        <input id="campo-vagas-aux" type="number" min="0" value="1"
+               class="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:border-brand-pink focus:outline-none">
+      </div>
+    </div>
+    <div>
+      <label class="flex items-center gap-2 cursor-pointer">
+        <input id="campo-auto-approve" type="checkbox"
+               class="rounded border-gray-300 text-brand-pink focus:ring-brand-pink">
+        <span class="text-xs font-medium text-gray-600">Auto-aprovar candidaturas nesta escala</span>
+      </label>
+    </div>
+    <div>
+      <label class="block text-xs font-medium text-gray-600 mb-1">Observações</label>
+      <input id="campo-obs" type="text" placeholder="Opcional"
+             class="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:border-brand-pink focus:outline-none">
+    </div>
+  </div>
+
+  {# Campos modo ÚNICA #}
+  <div id="campos-unica" class="px-6 pt-3 space-y-3 shrink-0">
+    <div>
+      <label class="block text-xs font-medium text-gray-600 mb-1">Data</label>
+      <input id="campo-data" type="date"
+             class="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:border-brand-pink focus:outline-none">
+      <div id="aviso-data" class="hidden mt-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700"></div>
+    </div>
+  </div>
+
+  {# Campos modo LOTE #}
+  <div id="campos-lote" class="px-6 pt-3 space-y-3 shrink-0 hidden">
+    <div class="grid grid-cols-2 gap-3">
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1">Data início</label>
+        <input id="campo-data-inicio" type="date" oninput="gerarPreview()"
+               class="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:border-brand-pink focus:outline-none">
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1">Data fim</label>
+        <input id="campo-data-fim" type="date" oninput="gerarPreview()"
+               class="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:border-brand-pink focus:outline-none">
+      </div>
+    </div>
+    <div>
+      <label class="block text-xs font-medium text-gray-600 mb-2">Dias da semana</label>
+      <div class="flex flex-wrap gap-2">
+        {% for i, nome in [(0,'Seg'),(1,'Ter'),(2,'Qua'),(3,'Qui'),(4,'Sex'),(5,'Sáb'),(6,'Dom')] %}
+        <label class="flex items-center gap-1.5 cursor-pointer">
+          <input type="checkbox" name="dias_semana_chk" value="{{ i }}"
+                 onchange="gerarPreview()"
+                 class="rounded border-gray-300 text-brand-pink focus:ring-brand-pink">
+          <span class="text-xs font-medium {% if i == 6 %}text-orange-500{% else %}text-gray-600{% endif %}">{{ nome }}</span>
+        </label>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div id="preview-lote" class="hidden rounded-xl border border-gray-200 bg-gray-50 p-3">
+      <div class="flex items-center justify-between mb-2">
+        <span class="text-xs font-semibold text-gray-600">Preview</span>
+        <span id="preview-count" class="text-xs font-bold text-brand-pink"></span>
+      </div>
+      <div id="preview-lista" class="space-y-1 max-h-40 overflow-y-auto text-xs"></div>
+    </div>
+  </div>
+
+  <div class="px-6 py-4 mt-auto border-t border-gray-100 shrink-0">
+    <button id="btn-criar-escala" onclick="salvarEscala()"
+            class="w-full rounded-2xl bg-brand-pink hover:bg-brand-dark text-white text-sm font-semibold px-4 py-3">
+      Criar Escala
+    </button>
+  </div>
+</div>
+
+{# Formulários ocultos para submit (gestor) #}
+<form id="form-unica" method="post" action="/plantao/admin/escalas/criar" class="hidden">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <input type="hidden" name="local_id" id="f-local">
+  <input type="hidden" name="tipo" id="f-tipo">
+  <input type="hidden" name="data" id="f-data">
+  <input type="hidden" name="hora_inicio" id="f-hora-inicio">
+  <input type="hidden" name="hora_fim" id="f-hora-fim">
+  <input type="hidden" name="vagas_veterinario" id="f-vagas-vet">
+  <input type="hidden" name="vagas_auxiliar" id="f-vagas-aux">
+  <input type="hidden" name="auto_approve" id="f-auto-approve">
+  <input type="hidden" name="observacoes" id="f-obs">
+</form>
+<form id="form-lote" method="post" action="/plantao/admin/escalas/criar-lote" class="hidden">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <input type="hidden" name="local_id" id="fl-local">
+  <input type="hidden" name="tipo" id="fl-tipo">
+  <input type="hidden" name="data_inicio" id="fl-data-inicio">
+  <input type="hidden" name="data_fim" id="fl-data-fim">
+  <input type="hidden" name="hora_inicio" id="fl-hora-inicio">
+  <input type="hidden" name="hora_fim" id="fl-hora-fim">
+  <input type="hidden" name="vagas_veterinario" id="fl-vagas-vet">
+  <input type="hidden" name="vagas_auxiliar" id="fl-vagas-aux">
+  <input type="hidden" name="auto_approve" id="fl-auto-approve">
+  <input type="hidden" name="observacoes" id="fl-obs">
+</form>
+{% endif %}
+
+{# ── Modal de confirmação de desistência ── #}
+<div id="modal-desistir" style="display:none" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+  <div class="absolute inset-0 bg-black/30" onclick="fecharDesistir()"></div>
+  <div class="relative bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm">
+    <h3 class="text-base font-semibold text-gray-900 mb-2">Desistir do plantão</h3>
+    <p class="text-sm text-gray-500 mb-1">
+      Você está desistindo do turno <span id="desistir-turno" class="font-semibold text-gray-700"></span>.
+    </p>
+    <p class="text-sm text-gray-500 mb-5">
+      Se estiver dentro da janela de antecedência mínima, o plantão será marcado como <strong>cedido</strong> e outros veterinários poderão assumir.
+    </p>
+    <form id="form-desistir" method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <div class="flex gap-3">
+        <button type="button" onclick="fecharDesistir()"
+                class="flex-1 rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50">
+          Cancelar
+        </button>
+        <button type="submit"
+                class="flex-1 rounded-xl bg-red-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-red-700">
+          Confirmar desistência
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{# Overlay compartilhado #}
+<div id="painel-overlay" style="display:none" class="fixed inset-0 z-40 bg-black/20" onclick="fecharTudo()"></div>
+
+{# JSON data para JS #}
+<script type="application/json" id="eventos-por-data-json">{{ eventos_por_data | tojson | safe }}</script>
+{% if is_gestor %}
+<script type="application/json" id="feriados-dict-json">{{ feriados_dict | tojson | safe }}</script>
+{% endif %}
+
+<script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+<script>
+const eventosPorData = JSON.parse(document.getElementById('eventos-por-data-json').textContent);
+const csrfToken = "{{ csrf_token }}";
+const isGestor = {{ 'true' if is_gestor else 'false' }};
+{% if is_gestor %}
+const feriadosDict = JSON.parse(document.getElementById('feriados-dict-json').textContent);
+{% endif %}
+
+// ── Alpine.js component ───────────────────────────────────────────────────────
+function escalas() {
+  return {
+    viewMode: 'calendario',
+    filtros: { tipo: [], status: [] },
+    init() {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('view')) {
+        this.viewMode = params.get('view');
+      } else if (window.innerWidth < 768) {
+        // Mobile: default para lista quando não há preferência na URL
+        this.viewMode = 'lista';
+      }
+    },
+    toggleFiltro(grupo, valor) {
+      const arr = this.filtros[grupo];
+      const i = arr.indexOf(valor);
+      if (i === -1) arr.push(valor);
+      else arr.splice(i, 1);
+    },
+    eventosDoDia(data) {
+      const evs = eventosPorData[data] || [];
+      return evs.filter(ev => this.visivel(ev.tipo, ev.status));
+    },
+    visivel(tipo, status) {
+      // modelo de exclusão: filtros contém o que está OCULTO
+      const tipoOk = !this.filtros.tipo.includes(tipo);
+      const stOk = !this.filtros.status.includes(status);
+      return tipoOk && stOk;
+    }
+  };
+}
+
+// ── Painel de detalhes do dia ─────────────────────────────────────────────────
+function abrirDia(data) {
+  const painel = document.getElementById('painel-dia');
+  const overlay = document.getElementById('painel-overlay');
+  const titulo = document.getElementById('painel-titulo');
+  const conteudo = document.getElementById('painel-conteudo');
+
+  const [ano, mes, dia] = data.split('-');
+  const meses = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  titulo.textContent = `${parseInt(dia)} de ${meses[parseInt(mes)-1]} de ${ano}`;
+
+  const evs = eventosPorData[data] || [];
+  let html = '';
+
+  // Botão criar escala (gestor)
+  if (isGestor) {
+    html += `<button onclick="fecharDia();abrirPainelEscalaDia('${data}')"
+      class="w-full rounded-xl bg-brand-pink hover:bg-brand-dark text-white text-sm font-semibold px-4 py-2.5 flex items-center justify-center gap-2">
+      <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+      </svg>
+      Criar escala neste dia
+    </button>`;
+
+    // Rascunhos
+    const rascunhos = evs.filter(ev => ev.admin_only && ev.status === 'rascunho');
+    if (rascunhos.length > 0) {
+      html += `<div class="mt-3">
+        <h4 class="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-2">Rascunhos (${rascunhos.length})</h4>
+        <div class="space-y-2">`;
+      rascunhos.forEach(ev => {
+        html += `<div class="rounded-xl border border-amber-200 bg-amber-50 p-3">
+          <div class="flex items-start justify-between gap-2">
+            <div>
+              <p class="text-sm font-semibold text-gray-800">${ev.hora_inicio}–${ev.hora_fim}</p>
+              <p class="text-xs text-gray-500 mt-0.5">${ev.local_nome || '—'}</p>
+              ${ev.vagas_total ? `<p class="text-xs text-gray-400 mt-0.5">${ev.confirmados_total || 0}/${ev.vagas_total} vagas</p>` : ''}
+            </div>
+            <span class="rounded-full bg-amber-100 text-amber-700 px-2 py-0.5 text-[10px] font-semibold shrink-0">Rascunho</span>
+          </div>
+          <form method="post" action="/plantao/admin/escalas/${ev.escala_id}/publicar" class="mt-2">
+            <input type="hidden" name="csrf_token" value="${csrfToken}">
+            <button class="w-full rounded-lg bg-green-600 hover:bg-green-700 text-white text-xs font-semibold px-3 py-1.5">
+              Publicar
+            </button>
+          </form>
+        </div>`;
+      });
+      html += '</div></div>';
+    }
+  }
+
+  // Escalas publicadas / eventos plantonista
+  const pubEvs = isGestor ? evs.filter(ev => !ev.admin_only) : evs;
+  if (pubEvs.length > 0) {
+    if (isGestor) {
+      html += `<div class="mt-3">
+        <h4 class="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-2">Escalas Publicadas (${pubEvs.length})</h4>`;
+    }
+    html += pubEvs.map(ev => {
+      const badgeClass = {
+        'meu_turno': 'bg-green-100 text-green-700',
+        'livre': 'bg-amber-100 text-amber-700',
+        'cedido': 'bg-purple-100 text-purple-700',
+        'minha_disponibilidade': 'bg-indigo-100 text-indigo-700',
+        'disponibilidade_aberta': 'bg-indigo-50 text-indigo-600',
+      }[ev.status] || 'bg-gray-100 text-gray-500';
+
+      const statusLabel = {
+        'meu_turno': 'Meu turno',
+        'livre': 'Livre',
+        'cedido': 'Cedido',
+        'minha_disponibilidade': 'Minha lista',
+        'disponibilidade_aberta': 'Disponibilidade aberta',
+        'preenchido': 'Preenchido',
+      }[ev.status] || ev.status;
+
+      const tipoLabel = {
+        'plantao_vet': 'Plantão Vet',
+        'plantao_aux': 'Plantão Aux',
+        'disponibilidade': 'Lista de Disponibilidade',
+      }[ev.tipo] || ev.tipo;
+
+      let acaoHtml = '';
+      if (ev.status === 'livre' && ev.posicao_id) {
+        acaoHtml = `<form method="post" action="/plantao/escalas/${ev.posicao_id}/candidatar">
+          <input type="hidden" name="csrf_token" value="${csrfToken}">
+          <button class="w-full rounded-xl bg-brand-pink hover:bg-brand-dark text-white text-xs font-semibold px-3 py-2 mt-3">
+            Candidatar-se
+          </button></form>`;
+      } else if (ev.status === 'meu_turno' && ev.candidatura_id) {
+        acaoHtml = `<button onclick="fecharDia();abrirDesistir(${ev.candidatura_id},'${ev.hora_inicio}–${ev.hora_fim}')"
+          class="w-full rounded-xl border border-red-200 text-red-600 hover:bg-red-50 text-xs font-semibold px-3 py-2 mt-3">
+          Desistir do turno
+        </button>`;
+      } else if (ev.status === 'cedido' && ev.substituicao_id) {
+        acaoHtml = `<form method="post" action="/plantao/trocas/${ev.substituicao_id}/aceitar">
+          <input type="hidden" name="csrf_token" value="${csrfToken}">
+          <button class="w-full rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold px-3 py-2 mt-3">
+            Assumir este turno
+          </button></form>`;
+      } else if (ev.tipo === 'disponibilidade' && ev.status === 'disponibilidade_aberta' && ev.data_id) {
+        acaoHtml = `<form method="post" action="/plantao/sobreaviso/${ev.data_id}/aderir">
+          <input type="hidden" name="csrf_token" value="${csrfToken}">
+          <button class="w-full rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold px-3 py-2 mt-3">
+            Entrar na lista
+          </button></form>`;
+      } else if (ev.tipo === 'disponibilidade' && ev.status === 'minha_disponibilidade' && ev.adesao_id) {
+        acaoHtml = `<form method="post" action="/plantao/sobreaviso/${ev.adesao_id}/cancelar">
+          <input type="hidden" name="csrf_token" value="${csrfToken}">
+          <button class="w-full rounded-xl border border-red-200 text-red-600 hover:bg-red-50 text-xs font-semibold px-3 py-2 mt-3">
+            Sair da lista
+          </button></form>`;
+      }
+
+      // Gestor: ação de cancelar se sem confirmados
+      let adminAcaoHtml = '';
+      if (isGestor && !ev.admin_only && ev.confirmados_total === 0 && ev.escala_id) {
+        adminAcaoHtml = `<form method="post" action="/plantao/admin/escalas/${ev.escala_id}/cancelar"
+          onsubmit="return confirm('Cancelar esta escala?')" class="mt-2">
+          <input type="hidden" name="csrf_token" value="${csrfToken}">
+          <button class="w-full rounded-xl border border-red-200 text-red-600 hover:bg-red-50 text-xs font-semibold px-3 py-1.5">
+            Cancelar escala
+          </button></form>`;
+      }
+
+      return `<div class="rounded-xl border border-gray-200 bg-gray-50 p-4 transition-all" data-event-id="${ev.escala_id || ev.data_id || ''}">
+        <div class="flex items-start justify-between gap-2">
+          <div>
+            <p class="text-sm font-semibold text-gray-800">${ev.hora_inicio}–${ev.hora_fim}</p>
+            <p class="text-xs text-gray-500 mt-0.5">${ev.local_nome || '—'} · ${tipoLabel}</p>
+            ${isGestor && ev.vagas_total ? `<p class="text-xs text-gray-400 mt-0.5">${ev.confirmados_total || 0}/${ev.vagas_total} vagas</p>` : ''}
+          </div>
+          <span class="rounded-full px-2 py-0.5 text-[10px] font-semibold ${badgeClass} shrink-0">${statusLabel}</span>
+        </div>
+        ${acaoHtml}${adminAcaoHtml}
+      </div>`;
+    }).join('');
+    if (isGestor) html += '</div>';
+  }
+
+  // Empty state
+  if (evs.length === 0) {
+    if (isGestor) {
+      html += '<p class="text-sm text-gray-400 text-center py-4">Nenhuma escala neste dia.</p>';
+    } else {
+      html += '<p class="text-sm text-gray-400">Nenhum evento neste dia.</p>';
+    }
+  }
+
+  conteudo.innerHTML = html;
+  painel.style.display = 'flex';
+  overlay.style.display = 'block';
+}
+
+function abrirDiaEvento(data, dataId) {
+  abrirDia(data);
+  if (!dataId) return;
+  setTimeout(() => {
+    const card = document.querySelector(`[data-event-id="${dataId}"]`);
+    if (card) {
+      card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      card.classList.add('ring-2', 'ring-brand-pink');
+      setTimeout(() => card.classList.remove('ring-2', 'ring-brand-pink'), 2000);
+    }
+  }, 60);
+}
+
+function fecharDia() {
+  document.getElementById('painel-dia').style.display = 'none';
+  document.getElementById('painel-overlay').style.display = 'none';
+}
+
+function fecharTudo() {
+  document.getElementById('painel-dia').style.display = 'none';
+  {% if is_gestor %}
+  document.getElementById('painel-escala').style.display = 'none';
+  {% endif %}
+  document.getElementById('painel-overlay').style.display = 'none';
+}
+
+// ── Modal desistir ────────────────────────────────────────────────────────────
+function abrirDesistir(candidaturaId, turno) {
+  document.getElementById('desistir-turno').textContent = turno;
+  document.getElementById('form-desistir').action = `/plantao/candidaturas/${candidaturaId}/cancelar`;
+  document.getElementById('modal-desistir').style.display = 'flex';
+}
+function fecharDesistir() {
+  document.getElementById('modal-desistir').style.display = 'none';
+}
+
+{% if is_gestor %}
+// ── Painel de criação de escala (gestores) ────────────────────────────────────
+let modoAtual = 'unica';
+
+function setModo(modo) {
+  modoAtual = modo;
+  document.getElementById('campos-unica').classList.toggle('hidden', modo !== 'unica');
+  document.getElementById('campos-lote').classList.toggle('hidden', modo !== 'lote');
+  document.getElementById('tab-unica').className = `flex-1 px-4 py-2 transition text-sm font-medium ${modo === 'unica' ? 'bg-brand-pink text-white' : 'text-gray-600 hover:bg-gray-100'}`;
+  document.getElementById('tab-lote').className = `flex-1 px-4 py-2 transition text-sm font-medium ${modo === 'lote' ? 'bg-brand-pink text-white' : 'text-gray-600 hover:bg-gray-100'}`;
+  document.getElementById('btn-criar-escala').textContent = modo === 'unica' ? 'Criar Escala' : 'Criar ' + (contarDatasLote() || '') + ' Escalas';
+}
+
+function abrirPainelEscala() {
+  document.getElementById('painel-escala').style.display = 'flex';
+  document.getElementById('painel-overlay').style.display = 'block';
+  setModo('unica');
+}
+
+function abrirPainelEscalaDia(data) {
+  abrirPainelEscala();
+  document.getElementById('campo-data').value = data;
+  verificarDataUnica(data);
+}
+
+function fecharPainelEscala() {
+  document.getElementById('painel-escala').style.display = 'none';
+  document.getElementById('painel-overlay').style.display = 'none';
+}
+
+document.getElementById('campo-data').addEventListener('input', function() {
+  verificarDataUnica(this.value);
+});
+
+function verificarDataUnica(iso) {
+  const aviso = document.getElementById('aviso-data');
+  if (!iso) { aviso.classList.add('hidden'); return; }
+  const d = new Date(iso + 'T12:00:00');
+  const warnings = [];
+  if (feriadosDict[iso]) warnings.push('⚠️ Feriado: ' + feriadosDict[iso]);
+  if (d.getDay() === 0) warnings.push('⚠️ Este dia é domingo.');
+  if (warnings.length) {
+    aviso.textContent = warnings.join('  ·  ');
+    aviso.classList.remove('hidden');
+  } else {
+    aviso.classList.add('hidden');
+  }
+}
+
+function contarDatasLote() {
+  const inicio = document.getElementById('campo-data-inicio').value;
+  const fim = document.getElementById('campo-data-fim').value;
+  const diasChk = [...document.querySelectorAll('[name="dias_semana_chk"]:checked')].map(c => parseInt(c.value));
+  if (!inicio || !fim || !diasChk.length) return 0;
+  let d = new Date(inicio + 'T12:00:00');
+  const fimD = new Date(fim + 'T12:00:00');
+  let count = 0;
+  while (d <= fimD) {
+    const pyDay = (d.getDay() + 6) % 7;
+    if (diasChk.includes(pyDay)) count++;
+    d.setDate(d.getDate() + 1);
+  }
+  return count;
+}
+
+function gerarPreview() {
+  const inicio = document.getElementById('campo-data-inicio').value;
+  const fim = document.getElementById('campo-data-fim').value;
+  const diasChk = [...document.querySelectorAll('[name="dias_semana_chk"]:checked')].map(c => parseInt(c.value));
+  const preview = document.getElementById('preview-lote');
+  const lista = document.getElementById('preview-lista');
+  const count = document.getElementById('preview-count');
+  if (!inicio || !fim || !diasChk.length) { preview.classList.add('hidden'); return; }
+  const dias = [];
+  let d = new Date(inicio + 'T12:00:00');
+  const fimD = new Date(fim + 'T12:00:00');
+  while (d <= fimD && dias.length < 60) {
+    const pyDay = (d.getDay() + 6) % 7;
+    if (diasChk.includes(pyDay)) {
+      const iso = d.toISOString().slice(0, 10);
+      dias.push({ iso, isFeriado: feriadosDict[iso], isDom: d.getDay() === 0 });
+    }
+    d.setDate(d.getDate() + 1);
+  }
+  count.textContent = dias.length + (dias.length === 60 ? '+' : '') + ' datas';
+  lista.innerHTML = dias.map(({ iso, isFeriado, isDom }) => {
+    const badge = isFeriado ? `<span class="text-red-500 ml-1">Feriado: ${isFeriado}</span>` :
+                  isDom ? '<span class="text-orange-500 ml-1">Domingo</span>' : '';
+    return `<div class="flex items-center gap-1 text-gray-600">${iso}${badge}</div>`;
+  }).join('');
+  preview.classList.remove('hidden');
+}
+
+function salvarEscala() {
+  if (modoAtual === 'unica') {
+    document.getElementById('f-local').value = document.getElementById('campo-local').value;
+    document.getElementById('f-tipo').value = document.getElementById('campo-tipo').value;
+    document.getElementById('f-data').value = document.getElementById('campo-data').value;
+    document.getElementById('f-hora-inicio').value = document.getElementById('campo-hora-inicio').value;
+    document.getElementById('f-hora-fim').value = document.getElementById('campo-hora-fim').value;
+    document.getElementById('f-vagas-vet').value = document.getElementById('campo-vagas-vet').value;
+    document.getElementById('f-vagas-aux').value = document.getElementById('campo-vagas-aux').value;
+    document.getElementById('f-auto-approve').value = document.getElementById('campo-auto-approve').checked ? '1' : '0';
+    document.getElementById('f-obs').value = document.getElementById('campo-obs').value;
+    document.getElementById('form-unica').submit();
+  } else {
+    const form = document.getElementById('form-lote');
+    document.getElementById('fl-local').value = document.getElementById('campo-local').value;
+    document.getElementById('fl-tipo').value = document.getElementById('campo-tipo').value;
+    document.getElementById('fl-data-inicio').value = document.getElementById('campo-data-inicio').value;
+    document.getElementById('fl-data-fim').value = document.getElementById('campo-data-fim').value;
+    document.getElementById('fl-hora-inicio').value = document.getElementById('campo-hora-inicio').value;
+    document.getElementById('fl-hora-fim').value = document.getElementById('campo-hora-fim').value;
+    document.getElementById('fl-vagas-vet').value = document.getElementById('campo-vagas-vet').value;
+    document.getElementById('fl-vagas-aux').value = document.getElementById('campo-vagas-aux').value;
+    document.getElementById('fl-auto-approve').value = document.getElementById('campo-auto-approve').checked ? '1' : '0';
+    document.getElementById('fl-obs').value = document.getElementById('campo-obs').value;
+    form.querySelectorAll('[name="dias_semana"]').forEach(el => el.remove());
+    document.querySelectorAll('[name="dias_semana_chk"]:checked').forEach(chk => {
+      const inp = document.createElement('input');
+      inp.type = 'hidden'; inp.name = 'dias_semana'; inp.value = chk.value;
+      form.appendChild(inp);
+    });
+    form.submit();
+  }
+}
+
+setModo('unica');
+{% endif %}
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') fecharTudo(); });
+</script>
+{% endblock %}

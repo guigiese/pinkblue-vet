@@ -1,0 +1,43 @@
+{% extends "plantao_admin_base.html" %}
+
+{% block page_title %}Feriados{% endblock %}
+{% block title %}Feriados{% endblock %}
+
+{% block content %}
+<div class="space-y-4">
+  {% if erro %}<div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{{ erro }}</div>{% endif %}
+  {% if ok %}<div class="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">Operacao concluida.</div>{% endif %}
+
+  <section class="bg-white border border-gray-200 rounded-xl p-4 space-y-3">
+    <h3 class="text-sm font-semibold text-gray-700">Novo feriado</h3>
+    <form method="post" action="/plantao/admin/feriados/criar" class="grid grid-cols-1 sm:grid-cols-4 gap-2">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="date" name="data" required class="rounded-lg border border-gray-300 px-3 py-2 text-sm">
+      <input type="text" name="nome" required placeholder="Nome" class="rounded-lg border border-gray-300 px-3 py-2 text-sm">
+      <select name="tipo" class="rounded-lg border border-gray-300 px-3 py-2 text-sm">
+        <option value="nacional">nacional</option>
+        <option value="estadual">estadual</option>
+        <option value="municipal">municipal</option>
+      </select>
+      <input type="text" name="local_id" placeholder="Local ID (opcional)" class="rounded-lg border border-gray-300 px-3 py-2 text-sm">
+      <button class="sm:col-span-4 rounded-lg bg-pink-700 text-white font-semibold text-sm px-3 py-2">Cadastrar</button>
+    </form>
+  </section>
+
+  <section class="bg-white border border-gray-200 rounded-xl overflow-auto">
+    <table class="min-w-full text-sm">
+      <thead class="bg-gray-50"><tr><th class="px-3 py-2 text-left">Data</th><th class="px-3 py-2 text-left">Nome</th><th class="px-3 py-2 text-left">Tipo</th><th class="px-3 py-2 text-left">Local</th></tr></thead>
+      <tbody>
+        {% for f in feriados %}
+        <tr class="border-t border-gray-100">
+          <td class="px-3 py-2">{{ f.data }}</td>
+          <td class="px-3 py-2">{{ f.nome }}</td>
+          <td class="px-3 py-2">{{ f.tipo }}</td>
+          <td class="px-3 py-2">{{ f.local_id or 'todos' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+</div>
+{% endblock %}

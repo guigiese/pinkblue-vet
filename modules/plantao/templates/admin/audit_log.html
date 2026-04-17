@@ -1,0 +1,40 @@
+{% extends "plantao_admin_base.html" %}
+
+{% block page_title %}Audit Log{% endblock %}
+{% block title %}Audit Log{% endblock %}
+
+{% block content %}
+<div class="space-y-4">
+  <form method="get" class="bg-white border border-gray-200 rounded-xl p-4 grid grid-cols-1 sm:grid-cols-5 gap-2">
+    <input type="number" name="perfil_id" value="{{ filtros.perfil_id }}" placeholder="Perfil ID" class="rounded-lg border border-gray-300 px-3 py-2 text-sm">
+    <input type="text" name="entidade" value="{{ filtros.entidade }}" placeholder="Entidade" class="rounded-lg border border-gray-300 px-3 py-2 text-sm">
+    <input type="date" name="data_inicio" value="{{ filtros.data_inicio }}" class="rounded-lg border border-gray-300 px-3 py-2 text-sm">
+    <input type="date" name="data_fim" value="{{ filtros.data_fim }}" class="rounded-lg border border-gray-300 px-3 py-2 text-sm">
+    <button class="rounded-lg bg-pink-700 text-white text-sm font-semibold px-3 py-2">Filtrar</button>
+  </form>
+
+  <div class="bg-white border border-gray-200 rounded-xl overflow-auto">
+    <table class="min-w-full text-sm">
+      <thead class="bg-gray-50"><tr><th class="px-3 py-2 text-left">Quando</th><th class="px-3 py-2 text-left">Acao</th><th class="px-3 py-2 text-left">Entidade</th><th class="px-3 py-2 text-left">Ator</th><th class="px-3 py-2 text-left">Dados</th></tr></thead>
+      <tbody>
+        {% for l in logs %}
+        <tr class="border-t border-gray-100">
+          <td class="px-3 py-2">{{ l.criado_em }}</td>
+          <td class="px-3 py-2">{{ l.acao }}</td>
+          <td class="px-3 py-2">{{ l.entidade }} #{{ l.entidade_id or '-' }}</td>
+          <td class="px-3 py-2">{{ l.ator_tipo }} {{ l.ator_id or '' }}</td>
+          <td class="px-3 py-2">{{ l.dados or '' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="flex gap-2">
+    {% if page > 1 %}
+    <a href="?page={{ page - 1 }}&perfil_id={{ filtros.perfil_id }}&entidade={{ filtros.entidade }}&data_inicio={{ filtros.data_inicio }}&data_fim={{ filtros.data_fim }}" class="rounded-lg border border-gray-300 px-3 py-2 text-xs">Anterior</a>
+    {% endif %}
+    <a href="?page={{ page + 1 }}&perfil_id={{ filtros.perfil_id }}&entidade={{ filtros.entidade }}&data_inicio={{ filtros.data_inicio }}&data_fim={{ filtros.data_fim }}" class="rounded-lg border border-gray-300 px-3 py-2 text-xs">Proxima</a>
+  </div>
+</div>
+{% endblock %}

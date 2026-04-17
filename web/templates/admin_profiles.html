@@ -1,0 +1,344 @@
+{% extends "platform_base.html" %}
+
+{% block title %}Perfis · Acessos · {{ platform_name }}{% endblock %}
+{% block shell_caption %}Administração da plataforma{% endblock %}
+{% block header %}Perfis de acesso{% endblock %}
+{% block subheader %}
+  Perfis customizados com conjuntos de permissões específicos. Perfis de sistema não podem ser editados.
+{% endblock %}
+
+{% block sidebar %}
+<nav class="flex flex-col gap-1 text-sm">
+  {% set cur = request.url.path %}
+  <a href="/admin/usuarios"
+     class="rounded-2xl px-3 py-2 font-medium {% if cur.startswith('/admin/usuarios') %}bg-violet-50 text-violet-700{% else %}text-gray-600 hover:bg-gray-50{% endif %}">
+    Usuários
+  </a>
+  <a href="/admin/perfis"
+     class="rounded-2xl px-3 py-2 font-medium {% if cur.startswith('/admin/perfis') %}bg-violet-50 text-violet-700{% else %}text-gray-600 hover:bg-gray-50{% endif %}">
+    Perfis de acesso
+  </a>
+</nav>
+{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+  {# ── Feedback ── #}
+  {% if save_state == 'criado' %}
+  <div class="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">Perfil criado com sucesso.</div>
+  {% elif save_state == 'atualizado' %}
+  <div class="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">Perfil atualizado.</div>
+  {% elif save_state == 'excluido' %}
+  <div class="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">Perfil removido.</div>
+  {% elif erro %}
+  <div class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{{ erro }}</div>
+  {% endif %}
+
+  {# ── Lista de perfis ── #}
+  <section class="rounded-2xl border border-gray-200 bg-white shadow-sm">
+    <div class="flex items-center justify-between gap-3 px-5 py-4 border-b border-gray-100">
+      <div>
+        <h2 class="text-base font-semibold text-gray-800">Perfis cadastrados</h2>
+        <p class="text-xs text-gray-400 mt-0.5">{{ profiles|length }} perfil(s)</p>
+      </div>
+      <button onclick="abrirPainelNovoPerfil()"
+              class="rounded-xl bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700">
+        + Novo perfil
+      </button>
+    </div>
+
+    <div class="divide-y divide-gray-100">
+      {% for p in profiles %}
+      <div class="flex items-start gap-4 px-5 py-4">
+        {# Info do perfil #}
+        <div class="min-w-0 flex-1">
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="text-sm font-semibold text-gray-800">{{ p.nome }}</span>
+            {% if p.is_system %}
+            <span class="rounded-full bg-gray-200 px-2 py-0.5 text-[10px] font-semibold uppercase text-gray-500">Sistema</span>
+            {% else %}
+            <span class="rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-violet-600">Custom</span>
+            {% endif %}
+          </div>
+          <p class="mt-0.5 text-xs text-gray-500">
+            Base: {{ role_labels.get(p.base_role, p.base_role) }}{% if p.descricao %} · {{ p.descricao }}{% endif %}
+          </p>
+          <div class="mt-2 flex flex-wrap gap-1">
+            {% for key, val in p.permissions.items() %}{% if val %}
+            <span class="rounded-full border border-gray-200 bg-white px-2 py-0.5 text-[10px] text-gray-600">
+              {{ all_permissions.get(key, key) }}
+            </span>
+            {% endif %}{% endfor %}
+          </div>
+        </div>
+
+        {# Toggle + Editar (apenas perfis não-sistema) #}
+        <div class="flex shrink-0 items-center gap-3 mt-0.5">
+          {% if not p.is_system %}
+          <button onclick="abrirPainelEditarPerfil({{ p.id }}, '{{ p.nome | e }}', '{{ p.descricao | e }}', {{ p.permissions | tojson | e }})"
+                  class="rounded-xl border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50">
+            Editar
+          </button>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+
+      {% if not profiles %}
+      <div class="px-5 py-8 text-center text-sm text-gray-400">Nenhum perfil cadastrado.</div>
+      {% endif %}
+    </div>
+  </section>
+</div>
+
+{# ══════════════════════════════════════════════════════════════════════════ #}
+{# PAINEL FLUTUANTE — Novo perfil (2 etapas)                                  #}
+{# ══════════════════════════════════════════════════════════════════════════ #}
+<div id="painel-novo-perfil" class="hidden fixed inset-y-0 right-0 z-50 w-full max-w-lg bg-white shadow-2xl border-l border-gray-200 flex flex-col">
+  <div class="flex items-center justify-between border-b border-gray-100 px-6 py-4">
+    <div>
+      <h3 class="text-sm font-semibold text-gray-900">Novo perfil de acesso</h3>
+      <p id="novo-step-label" class="text-xs text-gray-400 mt-0.5">Passo 1 de 2</p>
+    </div>
+    <button onclick="fecharPainelPerfis()" class="text-gray-400 hover:text-gray-600">
+      <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+      </svg>
+    </button>
+  </div>
+  <div class="flex-1 overflow-y-auto">
+
+    {# Passo 1: escolher base #}
+    <div id="step-1" class="p-6 space-y-4">
+      <p class="text-sm text-gray-600">Deseja basear este perfil em um existente? Isso vai pré-preencher as permissões.</p>
+      <div>
+        <label class="mb-1 block text-xs font-medium text-gray-600">Basear em</label>
+        <select id="novo-base-select"
+                class="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm focus:border-violet-400 focus:outline-none">
+          <option value="">— Em branco (sem base) —</option>
+          {% for p in profiles %}
+          <option value="{{ p.id }}" data-perms="{{ p.permissions | tojson | e }}">{{ p.nome }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <button onclick="avancarStep2()"
+              class="w-full rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-violet-700">
+        Próximo →
+      </button>
+    </div>
+
+    {# Passo 2: preencher dados + permissões #}
+    <div id="step-2" class="hidden p-6">
+      <button onclick="voltarStep1()" class="mb-4 text-xs text-violet-600 hover:underline">← Voltar</button>
+      <form method="post" action="/admin/perfis" class="space-y-4">
+        <div class="grid gap-3 sm:grid-cols-2">
+          <div>
+            <label class="mb-1 block text-xs font-medium text-gray-600">Nome do perfil *</label>
+            <input type="text" name="nome" required placeholder="ex: Veterinário Emergência"
+                   class="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:border-violet-400 focus:outline-none focus:ring-1 focus:ring-violet-400">
+          </div>
+          <div>
+            <label class="mb-1 block text-xs font-medium text-gray-600">Papel base *</label>
+            <select name="base_role"
+                    class="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:border-violet-400 focus:outline-none">
+              {% for role, label in role_labels.items() %}
+              <option value="{{ role }}">{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+        <div>
+          <label class="mb-1 block text-xs font-medium text-gray-600">Descrição</label>
+          <input type="text" name="descricao" placeholder="Propósito deste perfil"
+                 class="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:border-violet-400 focus:outline-none">
+        </div>
+        <div>
+          <label class="mb-2 block text-xs font-medium text-gray-600">Permissões</label>
+          <div class="grid gap-2 sm:grid-cols-2" id="novo-perms-grid">
+            {% for key, label in all_permissions.items() %}
+            <label class="flex cursor-pointer items-center gap-2 rounded-xl border border-gray-200 px-3 py-2 hover:bg-gray-50">
+              <input type="checkbox" name="perm_{{ key }}" value="on" id="novo-perm-{{ key }}"
+                     class="h-4 w-4 rounded border-gray-300 text-violet-600">
+              <span class="text-sm text-gray-700">{{ label }}</span>
+            </label>
+            {% endfor %}
+          </div>
+        </div>
+        <button type="submit"
+                class="w-full rounded-xl bg-violet-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-violet-700">
+          Criar perfil
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+
+{# ══════════════════════════════════════════════════════════════════════════ #}
+{# PAINEL FLUTUANTE — Editar perfil                                            #}
+{# ══════════════════════════════════════════════════════════════════════════ #}
+<div id="painel-editar-perfil" class="hidden fixed inset-y-0 right-0 z-50 w-full max-w-lg bg-white shadow-2xl border-l border-gray-200 flex flex-col">
+  <div class="flex items-center justify-between border-b border-gray-100 px-6 py-4">
+    <h3 class="text-sm font-semibold text-gray-900" id="edit-perfil-titulo">Editar perfil</h3>
+    <button onclick="fecharPainelEditarPerfil()" class="text-gray-400 hover:text-gray-600">
+      <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+      </svg>
+    </button>
+  </div>
+  <div class="flex-1 overflow-y-auto p-6">
+    <form id="form-editar-perfil" method="post" class="space-y-4">
+      <div class="grid gap-3 sm:grid-cols-2">
+        <div>
+          <label class="mb-1 block text-xs font-medium text-gray-600">Nome do perfil *</label>
+          <input type="text" name="nome" id="edit-perfil-nome" required
+                 class="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:border-violet-400 focus:outline-none focus:ring-1 focus:ring-violet-400">
+        </div>
+        <div>
+          <label class="mb-1 block text-xs font-medium text-gray-600">Descrição</label>
+          <input type="text" name="descricao" id="edit-perfil-descricao"
+                 class="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:border-violet-400 focus:outline-none">
+        </div>
+      </div>
+      <div>
+        <label class="mb-2 block text-xs font-medium text-gray-600">Permissões</label>
+        <div class="grid gap-2 sm:grid-cols-2">
+          {% for key, label in all_permissions.items() %}
+          <label class="flex cursor-pointer items-center gap-2 rounded-xl border border-gray-200 px-3 py-2 bg-white hover:bg-gray-50">
+            <input type="checkbox" name="perm_{{ key }}" value="on" id="edit-perm-{{ key }}"
+                   class="h-4 w-4 rounded border-gray-300 text-violet-600">
+            <span class="text-sm text-gray-700">{{ label }}</span>
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+      <button type="submit"
+              class="w-full rounded-xl bg-violet-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-violet-700">
+        Salvar alterações
+      </button>
+    </form>
+
+    <div class="mt-6 border-t border-gray-100 pt-5">
+      <form id="form-excluir-perfil" method="post">
+        <button type="button"
+                onclick="confirmarExclusaoPerfil()"
+                class="w-full rounded-xl border border-red-200 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50">
+          Excluir este perfil
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+
+{# Overlay compartilhado #}
+<div id="overlay-perfis" class="hidden fixed inset-0 z-40 bg-black/20"
+     onclick="fecharPainelPerfis(); fecharPainelEditarPerfil();"></div>
+
+{# Modal de confirmação de exclusão #}
+<div id="modal-excluir-perfil" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
+  <div class="absolute inset-0 bg-black/30" onclick="fecharModalExclusao()"></div>
+  <div class="relative bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm">
+    <h3 class="text-base font-semibold text-gray-900 mb-2">Excluir perfil</h3>
+    <p class="text-sm text-gray-500 mb-5">
+      Usuários vinculados a este perfil voltarão ao perfil base do seu papel. Esta ação não pode ser desfeita.
+    </p>
+    <form id="form-excluir-perfil-confirm" method="post">
+      <div class="flex gap-3">
+        <button type="button" onclick="fecharModalExclusao()"
+                class="flex-1 rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50">
+          Cancelar
+        </button>
+        <button type="submit"
+                class="flex-1 rounded-xl bg-red-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-red-700">
+          Excluir
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+// ── Novo perfil — passo 1 e 2 ─────────────────────────────────────────────
+function abrirPainelNovoPerfil() {
+  document.getElementById('step-1').classList.remove('hidden');
+  document.getElementById('step-2').classList.add('hidden');
+  document.getElementById('novo-step-label').textContent = 'Passo 1 de 2';
+  document.getElementById('painel-novo-perfil').classList.remove('hidden');
+  document.getElementById('overlay-perfis').classList.remove('hidden');
+}
+
+function avancarStep2() {
+  const sel = document.getElementById('novo-base-select');
+  const option = sel.options[sel.selectedIndex];
+
+  // Se escolheu um perfil base, pré-preencher as permissões
+  if (option.value) {
+    try {
+      const perms = JSON.parse(option.getAttribute('data-perms') || '{}');
+      Object.keys(perms).forEach(key => {
+        const cb = document.getElementById('novo-perm-' + key);
+        if (cb) cb.checked = !!perms[key];
+      });
+    } catch(e) { console.warn('perms parse:', e); }
+  } else {
+    // Limpar todos os checkboxes
+    document.querySelectorAll('#novo-perms-grid input[type=checkbox]').forEach(cb => cb.checked = false);
+  }
+
+  document.getElementById('step-1').classList.add('hidden');
+  document.getElementById('step-2').classList.remove('hidden');
+  document.getElementById('novo-step-label').textContent = 'Passo 2 de 2';
+}
+
+function voltarStep1() {
+  document.getElementById('step-2').classList.add('hidden');
+  document.getElementById('step-1').classList.remove('hidden');
+  document.getElementById('novo-step-label').textContent = 'Passo 1 de 2';
+}
+
+function fecharPainelPerfis() {
+  document.getElementById('painel-novo-perfil').classList.add('hidden');
+  document.getElementById('overlay-perfis').classList.add('hidden');
+}
+
+// ── Editar perfil ─────────────────────────────────────────────────────────
+function abrirPainelEditarPerfil(perfilId, nome, descricao, permsJson) {
+  document.getElementById('edit-perfil-titulo').textContent = 'Editar: ' + nome;
+  document.getElementById('edit-perfil-nome').value = nome;
+  document.getElementById('edit-perfil-descricao').value = descricao || '';
+  document.getElementById('form-editar-perfil').action = `/admin/perfis/${perfilId}`;
+  document.getElementById('form-excluir-perfil-confirm').action = `/admin/perfis/${perfilId}/delete`;
+
+  // Pré-preencher permissões
+  const perms = typeof permsJson === 'string' ? JSON.parse(permsJson) : permsJson;
+  document.querySelectorAll('[id^="edit-perm-"]').forEach(cb => {
+    const key = cb.id.replace('edit-perm-', '');
+    cb.checked = !!perms[key];
+  });
+
+  document.getElementById('painel-editar-perfil').classList.remove('hidden');
+  document.getElementById('overlay-perfis').classList.remove('hidden');
+}
+
+function fecharPainelEditarPerfil() {
+  document.getElementById('painel-editar-perfil').classList.add('hidden');
+  document.getElementById('overlay-perfis').classList.add('hidden');
+}
+
+// ── Exclusão ──────────────────────────────────────────────────────────────
+function confirmarExclusaoPerfil() {
+  document.getElementById('modal-excluir-perfil').classList.remove('hidden');
+}
+function fecharModalExclusao() {
+  document.getElementById('modal-excluir-perfil').classList.add('hidden');
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    fecharPainelPerfis();
+    fecharPainelEditarPerfil();
+    fecharModalExclusao();
+  }
+});
+</script>
+{% endblock %}

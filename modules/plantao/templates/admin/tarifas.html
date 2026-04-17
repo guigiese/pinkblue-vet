@@ -1,0 +1,402 @@
+{% extends "plantao_admin_base.html" %}
+
+{% block page_title %}Tarifas{% endblock %}
+{% block title %}Tarifas{% endblock %}
+
+{% block content %}
+{% set DIAS = ["Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado", "Domingo"] %}
+{% set DIAS_CURTO = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"] %}
+
+<div x-data="tarifasPage()" class="space-y-5">
+
+  {# ── Alertas ──────────────────────────────────────────────────────────────── #}
+  {% if erro %}
+  <div class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{{ erro }}</div>
+  {% endif %}
+  {% if ok %}
+  <div class="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">Salvo com sucesso.</div>
+  {% endif %}
+
+  {# ── Formulário de criação ─────────────────────────────────────────────────── #}
+  <section class="bg-white border border-gray-200 rounded-2xl p-5 space-y-4">
+    <h3 class="text-sm font-semibold text-gray-800">Nova tarifa</h3>
+
+    <form method="post" action="/plantao/admin/tarifas/criar" @submit="prepararSubmit">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      {# dias_semana: vai conter JSON array ou string vazia ("") = qualquer dia #}
+      <input type="hidden" name="_dias_json" :value="JSON.stringify(diasSelecionados)">
+      {# feriado: "" | "0" | "1" #}
+      <input type="hidden" name="feriado" :value="feriadoFlag">
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+
+        {# Perfil #}
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1">Perfil</label>
+          <select name="tipo_perfil" required
+                  class="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-pink">
+            <option value="veterinario">Veterinário</option>
+            <option value="auxiliar">Auxiliar</option>
+          </select>
+        </div>
+
+        {# Valor/hora #}
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1">Valor / hora</label>
+          <div class="flex items-center rounded-xl border border-gray-300 focus-within:ring-2 focus-within:ring-brand-pink overflow-hidden">
+            <span class="px-3 py-2 text-sm text-gray-500 bg-gray-50 border-r border-gray-200 select-none">R$</span>
+            <input type="number" step="0.01" min="0.01" name="valor_hora" required placeholder="0,00"
+                   class="flex-1 px-3 py-2 text-sm focus:outline-none bg-white">
+          </div>
+        </div>
+
+        {# Dias da semana #}
+        <div class="sm:col-span-2">
+          <label class="block text-xs font-medium text-gray-600 mb-2">Dias da semana <span class="text-gray-400 font-normal">(nenhum selecionado = qualquer dia)</span></label>
+          <div class="flex flex-wrap gap-2">
+            {% for i in range(7) %}
+            <button type="button"
+                    @click="toggleDia({{ i }})"
+                    :class="diasSelecionados.includes({{ i }})
+                      ? 'bg-brand-pink text-white border-brand-pink'
+                      : 'bg-white text-gray-600 border-gray-300 hover:border-brand-pink hover:text-brand-pink'"
+                    class="rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors">
+              {{ DIAS_CURTO[i] }}
+            </button>
+            {% endfor %}
+          </div>
+        </div>
+
+        {# Flag feriado #}
+        <div class="sm:col-span-2">
+          <label class="block text-xs font-medium text-gray-600 mb-2">Feriado</label>
+          <div class="flex flex-wrap gap-2">
+            <button type="button"
+                    @click="feriadoFlag = (feriadoFlag === '' ? '' : '')"
+                    :class="feriadoFlag === '' ? 'bg-brand-light text-brand-pink border-pink-200' : 'bg-white text-gray-500 border-gray-300 hover:border-gray-400'"
+                    class="rounded-full border px-3 py-1.5 text-xs font-medium transition-colors"
+                    @click.stop="feriadoFlag = ''">
+              Feriado e não-feriado
+            </button>
+            <button type="button"
+                    :class="feriadoFlag === '1' ? 'bg-brand-light text-brand-pink border-pink-200' : 'bg-white text-gray-500 border-gray-300 hover:border-gray-400'"
+                    class="rounded-full border px-3 py-1.5 text-xs font-medium transition-colors"
+                    @click="feriadoFlag = feriadoFlag === '1' ? '' : '1'">
+              Apenas feriados
+            </button>
+            <button type="button"
+                    :class="feriadoFlag === '0' ? 'bg-brand-light text-brand-pink border-pink-200' : 'bg-white text-gray-500 border-gray-300 hover:border-gray-400'"
+                    class="rounded-full border px-3 py-1.5 text-xs font-medium transition-colors"
+                    @click="feriadoFlag = feriadoFlag === '0' ? '' : '0'">
+              Apenas não-feriados
+            </button>
+          </div>
+        </div>
+
+        {# Vigência #}
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1">Vigência a partir de</label>
+          <input type="date" name="vigente_de" value="2000-01-01"
+                 class="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-pink">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1">Até <span class="text-gray-400 font-normal">(opcional)</span></label>
+          <input type="date" name="vigente_ate"
+                 class="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-pink">
+        </div>
+
+      </div>
+
+      <div class="pt-3">
+        <button type="submit"
+                class="rounded-xl bg-brand-pink px-5 py-2 text-sm font-semibold text-white hover:bg-brand-dark transition-colors">
+          Salvar tarifa
+        </button>
+        <p x-show="diasSelecionados.length > 1" class="mt-1.5 text-xs text-gray-400"
+           x-text="'Serão criadas ' + diasSelecionados.length + ' tarifas (uma por dia selecionado).'"></p>
+      </div>
+    </form>
+  </section>
+
+  {# ── Tabela de tarifas existentes ─────────────────────────────────────────── #}
+  <section class="bg-white border border-gray-200 rounded-2xl overflow-hidden">
+    {% if not tarifas %}
+    <div class="px-5 py-10 text-center text-sm text-gray-400">Nenhuma tarifa cadastrada.</div>
+    {% else %}
+    <div class="overflow-x-auto">
+      <table class="min-w-full text-sm">
+        <thead class="bg-gray-50 border-b border-gray-200">
+          <tr>
+            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Perfil</th>
+            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Dia</th>
+            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Feriado</th>
+            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Valor / h</th>
+            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Vigência</th>
+            <th class="px-4 py-3"></th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100">
+          {% for t in tarifas %}
+          {% set dia_label =
+            "Segunda-feira" if t.dia_semana == 0 else
+            "Terça-feira"   if t.dia_semana == 1 else
+            "Quarta-feira"  if t.dia_semana == 2 else
+            "Quinta-feira"  if t.dia_semana == 3 else
+            "Sexta-feira"   if t.dia_semana == 4 else
+            "Sábado"        if t.dia_semana == 5 else
+            "Domingo"       if t.dia_semana == 6 else
+            "Qualquer dia"
+          %}
+          {% set feriado_label =
+            "Apenas feriados"      if t.feriado == 1 else
+            "Apenas não-feriados"  if t.feriado == 0 else
+            "Feriado e não-feriado"
+          %}
+          {% set perfil_label = "Veterinário" if t.tipo_perfil == "veterinario" else "Auxiliar" %}
+          <tr class="hover:bg-gray-50 transition-colors">
+            <td class="px-4 py-3 font-medium text-gray-800">{{ perfil_label }}</td>
+            <td class="px-4 py-3 text-gray-600">{{ dia_label }}</td>
+            <td class="px-4 py-3 text-gray-600">{{ feriado_label }}</td>
+            <td class="px-4 py-3 font-semibold text-gray-800">
+              R$ {{ "%.2f"|format(t.valor_hora) | replace(".", ",") }}
+            </td>
+            <td class="px-4 py-3 text-gray-500 text-xs">
+              {% set vde = t.vigente_de.split('-') if t.vigente_de else [] %}
+              {% set vate = t.vigente_ate.split('-') if t.vigente_ate else [] %}
+              {{ (vde[2] + '/' + vde[1] + '/' + vde[0]) if vde | length == 3 else t.vigente_de }}
+              →
+              {% if vate | length == 3 %}{{ vate[2] + '/' + vate[1] + '/' + vate[0] }}{% else %}Aberto{% endif %}
+            </td>
+            <td class="px-4 py-3 text-right">
+              <div class="flex items-center justify-end gap-2">
+                <button
+                  @click="abrirEditor({{ {
+                    'id': t.id,
+                    'tipo_perfil': t.tipo_perfil,
+                    'dia_semana': t.dia_semana,
+                    'feriado': t.feriado,
+                    'valor_hora': t.valor_hora,
+                    'vigente_de': t.vigente_de,
+                    'vigente_ate': t.vigente_ate
+                  } | tojson }})"
+                  class="rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100 transition-colors">
+                  Editar
+                </button>
+                <button
+                  @click="confirmarExclusao({{ t.id }})"
+                  class="rounded-lg border border-red-100 px-2.5 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 transition-colors">
+                  Excluir
+                </button>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+  </section>
+
+  {# ── Painel flutuante de edição ────────────────────────────────────────────── #}
+  <div x-show="editando" style="display:none"
+       class="fixed inset-0 bg-black/30 z-40"
+       @click.self="editando = false"></div>
+
+  <aside x-show="editando" style="display:none"
+         x-transition:enter="transition ease-out duration-200"
+         x-transition:enter-start="translate-x-full"
+         x-transition:enter-end="translate-x-0"
+         x-transition:leave="transition ease-in duration-150"
+         x-transition:leave-start="translate-x-0"
+         x-transition:leave-end="translate-x-full"
+         class="fixed inset-y-0 right-0 z-50 w-full max-w-sm bg-white shadow-xl flex flex-col">
+
+    <div class="flex items-center justify-between border-b border-gray-200 px-5 py-4">
+      <h2 class="text-sm font-semibold text-gray-800">Editar tarifa</h2>
+      <button @click="editando = false" class="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500">
+        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
+
+    <form :action="'/plantao/admin/tarifas/' + editForm.id + '/editar'"
+          method="post" class="flex-1 overflow-y-auto px-5 py-4 space-y-4"
+          @submit="prepararEditSubmit">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="feriado" :value="editForm.feriadoFlag">
+
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1">Perfil</label>
+        <select name="tipo_perfil" x-model="editForm.tipo_perfil"
+                class="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-pink">
+          <option value="veterinario">Veterinário</option>
+          <option value="auxiliar">Auxiliar</option>
+        </select>
+      </div>
+
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1">Valor / hora</label>
+        <div class="flex items-center rounded-xl border border-gray-300 focus-within:ring-2 focus-within:ring-brand-pink overflow-hidden">
+          <span class="px-3 py-2 text-sm text-gray-500 bg-gray-50 border-r border-gray-200 select-none">R$</span>
+          <input type="number" step="0.01" min="0.01" name="valor_hora" required x-model="editForm.valor_hora"
+                 class="flex-1 px-3 py-2 text-sm focus:outline-none bg-white">
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-2">Dia da semana</label>
+        <div class="flex flex-wrap gap-2">
+          <button type="button"
+                  @click="editForm.dia_semana = null"
+                  :class="editForm.dia_semana === null ? 'bg-brand-pink text-white border-brand-pink' : 'bg-white text-gray-600 border-gray-300 hover:border-brand-pink'"
+                  class="rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors">
+            Qualquer
+          </button>
+          {% for i in range(7) %}
+          <button type="button"
+                  @click="editForm.dia_semana = {{ i }}"
+                  :class="editForm.dia_semana === {{ i }} ? 'bg-brand-pink text-white border-brand-pink' : 'bg-white text-gray-600 border-gray-300 hover:border-brand-pink'"
+                  class="rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors">
+            {{ DIAS_CURTO[i] }}
+          </button>
+          {% endfor %}
+        </div>
+        <input type="hidden" name="dia_semana" :value="editForm.dia_semana ?? ''">
+      </div>
+
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-2">Feriado</label>
+        <div class="flex flex-wrap gap-2">
+          <button type="button"
+                  @click="editForm.feriadoFlag = ''"
+                  :class="editForm.feriadoFlag === '' ? 'bg-brand-light text-brand-pink border-pink-200' : 'bg-white text-gray-500 border-gray-300'"
+                  class="rounded-full border px-3 py-1.5 text-xs font-medium transition-colors">
+            Todos
+          </button>
+          <button type="button"
+                  @click="editForm.feriadoFlag = '1'"
+                  :class="editForm.feriadoFlag === '1' ? 'bg-brand-light text-brand-pink border-pink-200' : 'bg-white text-gray-500 border-gray-300'"
+                  class="rounded-full border px-3 py-1.5 text-xs font-medium transition-colors">
+            Apenas feriados
+          </button>
+          <button type="button"
+                  @click="editForm.feriadoFlag = '0'"
+                  :class="editForm.feriadoFlag === '0' ? 'bg-brand-light text-brand-pink border-pink-200' : 'bg-white text-gray-500 border-gray-300'"
+                  class="rounded-full border px-3 py-1.5 text-xs font-medium transition-colors">
+            Apenas não-feriados
+          </button>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1">Vigente de</label>
+          <input type="date" name="vigente_de" x-model="editForm.vigente_de"
+                 class="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-pink">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1">Até</label>
+          <input type="date" name="vigente_ate" x-model="editForm.vigente_ate"
+                 class="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-pink">
+        </div>
+      </div>
+
+      <div class="pt-2">
+        <button type="submit"
+                class="w-full rounded-xl bg-brand-pink py-2.5 text-sm font-semibold text-white hover:bg-brand-dark transition-colors">
+          Salvar alterações
+        </button>
+      </div>
+    </form>
+  </aside>
+
+  {# ── Modal de confirmação de exclusão ─────────────────────────────────────── #}
+  <div x-show="excluindoId !== null" style="display:none"
+       class="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-xl p-5 max-w-xs w-full space-y-4">
+      <p class="text-sm font-semibold text-gray-800">Excluir tarifa?</p>
+      <p class="text-xs text-gray-500">Esta ação não pode ser desfeita.</p>
+      <div class="flex gap-2">
+        <button @click="excluindoId = null"
+                class="flex-1 rounded-xl border border-gray-200 py-2 text-sm text-gray-600 hover:bg-gray-50 transition-colors">
+          Cancelar
+        </button>
+        <form :action="'/plantao/admin/tarifas/' + excluindoId + '/excluir'" method="post" class="flex-1">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button type="submit"
+                  class="w-full rounded-xl bg-red-600 py-2 text-sm font-semibold text-white hover:bg-red-700 transition-colors">
+            Excluir
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+function tarifasPage() {
+  return {
+    // Form de criação
+    diasSelecionados: [],
+    feriadoFlag: '',
+
+    toggleDia(d) {
+      const idx = this.diasSelecionados.indexOf(d);
+      if (idx >= 0) this.diasSelecionados.splice(idx, 1);
+      else this.diasSelecionados.push(d);
+    },
+
+    prepararSubmit(e) {
+      // Se múltiplos dias selecionados, submeter um por vez via fetch e redirecionar
+      if (this.diasSelecionados.length <= 1) return; // deixar o form normal
+
+      e.preventDefault();
+      const form = e.target;
+      const base = new FormData(form);
+      const dias = this.diasSelecionados.slice();
+      const action = form.action;
+
+      const promises = dias.map(d => {
+        const fd = new FormData();
+        for (const [k, v] of base.entries()) {
+          if (k !== '_dias_json') fd.append(k, v);
+        }
+        fd.set('dia_semana', d);
+        return fetch(action, { method: 'POST', body: fd, redirect: 'manual' });
+      });
+
+      Promise.all(promises).then(() => {
+        window.location.href = '/plantao/admin/tarifas?ok=1';
+      });
+    },
+
+    // Edição
+    editando: false,
+    editForm: {},
+
+    abrirEditor(tarifa) {
+      this.editForm = {
+        id: tarifa.id,
+        tipo_perfil: tarifa.tipo_perfil,
+        dia_semana: tarifa.dia_semana,
+        feriadoFlag: tarifa.feriado !== null && tarifa.feriado !== undefined ? String(tarifa.feriado) : '',
+        valor_hora: tarifa.valor_hora,
+        vigente_de: tarifa.vigente_de || '2000-01-01',
+        vigente_ate: tarifa.vigente_ate || '',
+      };
+      this.editando = true;
+    },
+
+    prepararEditSubmit() {
+      // Garantir que dia_semana vazio vira NULL no servidor (campo hidden já cuida)
+    },
+
+    // Exclusão
+    excluindoId: null,
+    confirmarExclusao(id) { this.excluindoId = id; },
+  };
+}
+</script>
+{% endblock %}

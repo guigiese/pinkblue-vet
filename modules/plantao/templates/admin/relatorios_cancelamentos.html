@@ -1,0 +1,31 @@
+{% extends "plantao_admin_base.html" %}
+
+{% block page_title %}Relatorio de Cancelamentos e Trocas{% endblock %}
+{% block title %}Relatorio de Cancelamentos e Trocas{% endblock %}
+
+{% block content %}
+<div class="space-y-4">
+  <form method="get" class="bg-white border border-gray-200 rounded-xl p-4 grid grid-cols-1 sm:grid-cols-3 gap-2">
+    <input type="date" name="data_inicio" value="{{ data_inicio }}" class="rounded-lg border border-gray-300 px-3 py-2 text-sm">
+    <input type="date" name="data_fim" value="{{ data_fim }}" class="rounded-lg border border-gray-300 px-3 py-2 text-sm">
+    <button class="rounded-lg bg-pink-700 text-white text-sm font-semibold px-3 py-2">Filtrar</button>
+  </form>
+
+  <div class="bg-white border border-gray-200 rounded-xl overflow-auto">
+    <table class="min-w-full text-sm">
+      <thead class="bg-gray-50"><tr><th class="px-3 py-2 text-left">Quando</th><th class="px-3 py-2 text-left">Tipo</th><th class="px-3 py-2 text-left">Plantonista</th><th class="px-3 py-2 text-left">Data turno</th><th class="px-3 py-2 text-left">Status</th></tr></thead>
+      <tbody>
+        {% for r in dados %}
+        <tr class="border-t border-gray-100">
+          <td class="px-3 py-2">{{ r.evento_em }}</td>
+          <td class="px-3 py-2">{{ r.evento_tipo }}</td>
+          <td class="px-3 py-2">{{ r.perfil_nome }}</td>
+          <td class="px-3 py-2">{{ r.data }} {{ r.hora_inicio }}-{{ r.hora_fim }}</td>
+          <td class="px-3 py-2">{{ r.status_evento }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

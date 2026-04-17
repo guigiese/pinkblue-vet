@@ -1,0 +1,98 @@
+metadata:
+  source_card: PBCORE-56
+  status: discovery-seed
+  intent: >
+    Baseline topology for multiple AIs, repeated instances of the same AI,
+    and one request/response AI available "por chamada".
+
+platform:
+  primary_runtime:
+    kind: railway-service
+    purpose: lab-monitor-web-and-loop
+  primary_database:
+    kind: railway-postgres
+    purpose: platform-state-and-ai-audit
+  sidecar_runtime:
+    preferred: oracle-free-tier
+    fallback: hetzner-cx22
+    activation_rule: >
+      enable only when long-running workers or n8n move beyond local-dev and
+      PR-environment experiments
+
+environments:
+  dev:
+    app_runtime: local-python
+    infra_runtime: docker-compose
+    ai_mode: mocked-or-low-cost-real-calls
+  review:
+    app_runtime: railway-pr-environment
+    infra_runtime: local-or-mocked
+    ai_mode: feature-flagged
+  prod:
+    app_runtime: railway-production
+    infra_runtime: sidecar-if-needed
+    ai_mode: audited-and-persisted
+
+providers:
+  gemini:
+    best_for:
+      - prototyping
+      - low-cost-on-demand-calls
+  groq:
+    best_for:
+      - fast-structured-checks
+      - low-cost-evaluation
+  anthropic:
+    best_for:
+      - higher-trust-clinical-reasoning
+      - richer-agent-planning
+  openai:
+    best_for:
+      - codex-execution
+      - secondary-structured-tasks
+
+workers:
+  on_demand_ai:
+    kind: request-response
+    trigger: http
+    priority: first
+    purpose: process user or webhook requests on demand
+    persistence:
+      requests_table: ai_requests
+      results_table: ai_results
+    model_policy:
+      primary_provider: gemini
+      primary_model: gemini-2.5-flash
+      fallback_provider: anthropic
+      fallback_model: claude-sonnet-4.6
+
+  monitor_worker:
+    kind: scheduled
+    trigger: cron
+    priority: second
+    purpose: watch production signals and create follow-up jobs or cards
+    scheduler: n8n-or-simple-cron
+    persistence:
+      jobs_table: worker_jobs
+      runs_table: worker_runs
+
+  downstream_worker:
+    kind: queued
+    trigger: job-queue
+    priority: later
+    purpose: implement bounded coding tasks from prepared cards
+    executor_hint: codex-cli
+    guardrails:
+      - only-ready-cards
+      - only-scoped-files
+      - human-review-before-merge
+
+  qa_worker:
+    kind: queued
+    trigger: post-implementation
+    priority: later
+    purpose: validate outputs before merge or release
+    checks:
+      - tests
+      - smoke
+      - prompt-output-schema

@@ -1,0 +1,43 @@
+{% extends "plantao_admin_base.html" %}
+
+{% block page_title %}Relatorio de Pre-fechamento{% endblock %}
+{% block title %}Relatorio de Pre-fechamento{% endblock %}
+
+{% block content %}
+<div class="space-y-4">
+  <form method="get" class="bg-white border border-gray-200 rounded-xl p-4 grid grid-cols-1 sm:grid-cols-4 gap-2">
+    <input type="date" name="data_inicio" value="{{ data_inicio }}" class="rounded-lg border border-gray-300 px-3 py-2 text-sm">
+    <input type="date" name="data_fim" value="{{ data_fim }}" class="rounded-lg border border-gray-300 px-3 py-2 text-sm">
+    <input type="number" name="local_id" value="{{ local_id }}" placeholder="Local ID" class="rounded-lg border border-gray-300 px-3 py-2 text-sm">
+    <button class="rounded-lg bg-pink-700 text-white text-sm font-semibold px-3 py-2">Filtrar</button>
+  </form>
+
+  <section class="bg-white border border-gray-200 rounded-xl overflow-auto">
+    <table class="min-w-full text-sm">
+      <thead class="bg-gray-50"><tr><th class="px-3 py-2 text-left">Plantonista</th><th class="px-3 py-2 text-left">Data</th><th class="px-3 py-2 text-left">Tipo</th><th class="px-3 py-2 text-left">Horas</th><th class="px-3 py-2 text-left">Valor hora</th><th class="px-3 py-2 text-left">Valor base</th></tr></thead>
+      <tbody>
+        {% for r in dados %}
+        <tr class="border-t border-gray-100">
+          <td class="px-3 py-2">{{ r.perfil_nome }} ({{ r.perfil_email }})</td>
+          <td class="px-3 py-2">{{ r.data }} {{ r.hora_inicio }}-{{ r.hora_fim }}</td>
+          <td class="px-3 py-2">{{ r.tipo_perfil }}</td>
+          <td class="px-3 py-2">{{ r.horas_turno }}</td>
+          <td class="px-3 py-2">{{ r.valor_hora_snapshot }}</td>
+          <td class="px-3 py-2">{{ r.valor_base_calculado }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+
+  <section class="bg-white border border-gray-200 rounded-xl p-4">
+    <h3 class="text-sm font-semibold text-gray-700 mb-2">Disponibilidade (informativo, fora do cálculo)</h3>
+    <div class="space-y-1 text-sm text-gray-600">
+      {% for s in sobreavisos %}
+      <div>{{ s.data }} · {{ s.hora_inicio }}-{{ s.hora_fim }} · {{ s.local_nome }}</div>
+      {% endfor %}
+      {% if not sobreavisos %}<div class="text-gray-500">Sem registros no periodo.</div>{% endif %}
+    </div>
+  </section>
+</div>
+{% endblock %}

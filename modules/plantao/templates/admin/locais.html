@@ -1,0 +1,34 @@
+{% extends "plantao_admin_base.html" %}
+
+{% block page_title %}Locais{% endblock %}
+{% block title %}Locais{% endblock %}
+
+{% block content %}
+<div class="space-y-4">
+  {% if erro %}<div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{{ erro }}</div>{% endif %}
+  {% if ok %}<div class="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">Operacao concluida.</div>{% endif %}
+
+  <section class="bg-white border border-gray-200 rounded-xl p-4 space-y-3">
+    <h3 class="text-sm font-semibold text-gray-700">Novo local</h3>
+    <form method="post" action="/plantao/admin/locais/criar" class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="text" name="nome" required placeholder="Nome" class="rounded-lg border border-gray-300 px-3 py-2 text-sm">
+      <input type="text" name="telefone" placeholder="Telefone" class="rounded-lg border border-gray-300 px-3 py-2 text-sm">
+      <input type="text" name="cidade" placeholder="Cidade" class="rounded-lg border border-gray-300 px-3 py-2 text-sm">
+      <input type="text" name="uf" placeholder="UF" class="rounded-lg border border-gray-300 px-3 py-2 text-sm">
+      <input type="text" name="endereco" placeholder="Endereco" class="rounded-lg border border-gray-300 px-3 py-2 text-sm sm:col-span-2">
+      <button class="sm:col-span-2 rounded-lg bg-pink-700 text-white font-semibold text-sm px-3 py-2">Cadastrar</button>
+    </form>
+  </section>
+
+  <section class="bg-white border border-gray-200 rounded-xl p-4">
+    <h3 class="text-sm font-semibold text-gray-700 mb-2">Locais cadastrados</h3>
+    <div class="space-y-2 text-sm">
+      {% for l in locais %}
+      <div class="border border-gray-100 rounded-lg px-3 py-2">{{ l.nome }} · {{ l.cidade }}/{{ l.uf }} · {{ 'ativo' if l.ativo else 'inativo' }}</div>
+      {% endfor %}
+      {% if not locais %}<div class="text-gray-500">Nenhum local cadastrado.</div>{% endif %}
+    </div>
+  </section>
+</div>
+{% endblock %}
