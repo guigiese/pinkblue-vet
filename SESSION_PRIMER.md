@@ -37,6 +37,8 @@ Estado atual:
 - módulos futuros incubados: CRM, automação de atendimento
 
 Stack: Python 3.13 / FastAPI 0.115 / Jinja2 3.1 / HTMX 1.9 / TailwindCSS CDN / Railway.
+Persistência oficial do runtime: PostgreSQL.
+SQLite só deve aparecer quando explicitamente configurado para testes/CI efêmeros ou artefatos legados de bootstrap/import.
 Produção: https://pinkblue-vet-production.up.railway.app
 Repositório: github.com/guigiese/pinkblue-vet
 

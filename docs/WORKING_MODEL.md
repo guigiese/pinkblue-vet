@@ -420,7 +420,7 @@ These commands are the minimum check for:
 ### Shared Artifact Rules
 
 - `docs/CONTEXT.md` and `docs/DEVLOG.md` are shared — add, do not overwrite existing entries.
-- `config.json` is deploy-sensitive — only change it when the Jira card explicitly requires it.
+- `config.json` is deploy-sensitive legacy bootstrap — it is no longer the runtime source of truth; only change it when the Jira card explicitly requires it.
 - `scripts/` is shared but non-destructive — sessions may add scripts; do not delete another session's scripts without a Jira card.
 - `.secrets` may be read whenever operationally necessary.
 - New entries may be added with caution.
