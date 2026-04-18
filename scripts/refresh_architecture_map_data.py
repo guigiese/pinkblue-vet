@@ -4,6 +4,7 @@ import configparser
 import json
 import re
 import statistics
+import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -14,6 +15,9 @@ from bs4 import BeautifulSoup
 
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
 DATA_DIR = ROOT / "poc" / "architecture-map" / "data"
 SEED_PATH = DATA_DIR / "pinkblue-map.v1.json"
 RUNTIME_PATH = DATA_DIR / "pinkblue-map.runtime.json"
@@ -80,6 +84,22 @@ def get_session() -> requests.Session:
         }
     )
     return session
+
+
+def load_runtime_config() -> dict[str, Any]:
+    try:
+        from pb_platform.storage import store
+
+        persisted = store.load_runtime_config()
+    except Exception:
+        persisted = None
+
+    if isinstance(persisted, dict) and {
+        "interval_minutes", "labs", "notifiers"
+    }.issubset(persisted.keys()):
+        return persisted
+
+    return json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
 
 
 def http_probe(session: requests.Session, url: str, timeout: int = 15) -> dict[str, Any]:
@@ -312,7 +332,7 @@ def apply_live_snapshot(map_data: dict[str, Any]) -> dict[str, Any]:
     generated_at = now_utc()
     generated_iso = generated_at.isoformat()
 
-    config = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+    config = load_runtime_config()
     root_probe = http_probe(session, f"{PROD_BASE_URL}/")
     dashboard_probe = http_probe(session, f"{PROD_BASE_URL}/labmonitor")
     counts_probe = http_probe(session, f"{PROD_BASE_URL}/labmonitor/partials/lab_counts")
@@ -506,7 +526,7 @@ def apply_live_snapshot(map_data: dict[str, Any]) -> dict[str, Any]:
                 [
                     f"GET /labmonitor retornou {dashboard_probe['status'] or 'erro'} em {fmt_ms(dashboard_probe['elapsedMs'])}.",
                     f"GET /labmonitor/partials/lab_counts retornou {counts_probe['status'] or 'erro'}.",
-                    f"{labs_enabled} laboratórios e {notifiers_enabled} canal(is) ativos na config versionada.",
+                    f"{labs_enabled} laboratorios e {notifiers_enabled} canal(is) ativos na configuracao runtime.",
                 ]
             ),
             "metrics": [

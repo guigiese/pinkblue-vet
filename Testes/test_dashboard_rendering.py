@@ -221,7 +221,7 @@ class DashboardRenderingTests(unittest.TestCase):
             }
         ]
 
-        with patch("web.app.get_users", return_value=fake_users):
+        with patch("web.routers.labmonitor.get_users", return_value=fake_users):
             response = self.client.get("/labmonitor/partials/telegram-users")
 
         self.assertEqual(response.status_code, 200)
@@ -243,7 +243,7 @@ class DashboardRenderingTests(unittest.TestCase):
                 "labs": [{"id": "bitlab", "name": "Bioanálises", "connector": "bitlab", "enabled": True}],
                 "notifiers": [],
             }
-            with patch.dict("web.app.CONNECTORS", {"bitlab": FakeConnector}, clear=False):
+            with patch.dict("web.routers.labmonitor.CONNECTORS", {"bitlab": FakeConnector}, clear=False):
                 response = self.client.post("/labmonitor/labs/bitlab/test")
         finally:
             state._config = original_config
@@ -265,7 +265,7 @@ class DashboardRenderingTests(unittest.TestCase):
                 "labs": [],
                 "notifiers": [{"id": "telegram", "type": "telegram", "enabled": True}],
             }
-            with patch.dict("web.app.NOTIFIERS", {"telegram": FakeNotifier}, clear=False):
+            with patch.dict("web.routers.labmonitor.NOTIFIERS", {"telegram": FakeNotifier}, clear=False):
                 response = self.client.post("/labmonitor/canais/telegram/test")
         finally:
             state._config = original_config

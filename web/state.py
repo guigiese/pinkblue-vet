@@ -2,7 +2,6 @@ import json
 import re
 import unicodedata
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from pb_platform.storage import store
@@ -13,8 +12,6 @@ from modules.lab_monitor.settings import (
     build_notification_preview_context,
     render_notification_template,
 )
-
-CONFIG_FILE = Path(__file__).parent.parent / "config.json"
 
 _TZ_BR = ZoneInfo("America/Sao_Paulo")
 
@@ -264,6 +261,20 @@ _GROUP_STATUS_PRIORITY: list[str] = [
 _DISCOVERY_WINDOW_DAYS = 3
 
 
+def load_runtime_config_snapshot() -> dict:
+    config = store.load_runtime_config()
+    if not isinstance(config, dict) or not {
+        "interval_minutes", "labs", "notifiers"
+    }.issubset(config.keys()):
+        raise RuntimeError(
+            "Configuracao runtime do Lab Monitor ausente. "
+            "Persista `lab_monitor.runtime_config` no banco antes de iniciar a plataforma."
+        )
+    hydrated = json.loads(json.dumps(config, ensure_ascii=False))
+    apply_notification_settings(hydrated)
+    return hydrated
+
+
 class AppState:
     def __init__(self):
         snapshots, last_check, last_error = store.load_lab_runtime()
@@ -277,11 +288,7 @@ class AppState:
     @property
     def config(self) -> dict:
         if self._config is None:
-            self._config = json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
-            persisted = store.load_runtime_config() or {}
-            if persisted:
-                self._config = _deep_merge(self._config, persisted)
-            apply_notification_settings(self._config)
+            self._config = load_runtime_config_snapshot()
         return self._config
 
     def save_config(self):

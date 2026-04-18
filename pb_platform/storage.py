@@ -367,6 +367,16 @@ class PlatformStore:
             return default
         return _json_loads(row["value"], default)
 
+    def load_text_setting(self, key: str, default: str = "") -> str:
+        with self._engine.connect() as conn:
+            row = conn.execute(
+                text("SELECT value FROM app_kv WHERE key = :key"),
+                {"key": key},
+            ).mappings().first()
+        if not row:
+            return default
+        return row["value"] or default
+
     def save_json_setting(self, key: str, value: Any) -> None:
         payload = _json_dumps(value)
         now = _utcnow()
@@ -377,6 +387,17 @@ class PlatformStore:
                     "ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at"
                 ),
                 {"key": key, "value": payload, "updated_at": now},
+            )
+
+    def save_text_setting(self, key: str, value: str) -> None:
+        now = _utcnow()
+        with self._lock, self._engine.begin() as conn:
+            conn.execute(
+                text(
+                    "INSERT INTO app_kv(key, value, updated_at) VALUES (:key, :value, :updated_at) "
+                    "ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at"
+                ),
+                {"key": key, "value": value, "updated_at": now},
             )
 
     def load_runtime_config(self) -> dict | None:

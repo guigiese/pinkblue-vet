@@ -57,17 +57,41 @@ def _run(*args: str, env: dict[str, str] | None = None) -> str:
 
 def export_production_snapshot() -> dict[str, list[dict]]:
     remote_code = """
-import base64, json, sqlite3
-conn = sqlite3.connect('/data/pinkbluevet.sqlite3')
-conn.row_factory = sqlite3.Row
+import base64, json, os, sqlite3
+from sqlalchemy import create_engine, text
+
 tables = %s
 payload = {}
-for table in tables:
-    try:
-        rows = [dict(row) for row in conn.execute(f'SELECT * FROM {table}').fetchall()]
-    except Exception:
-        rows = []
-    payload[table] = rows
+
+db_url = (
+    os.environ.get('DATABASE_URL')
+    or os.environ.get('PB_DATABASE_URL')
+    or os.environ.get('PB_DEV_DATABASE_URL')
+    or ''
+).strip()
+
+if db_url and db_url.startswith(('postgres://', 'postgresql://', 'postgresql+psycopg2://')):
+    if db_url.startswith('postgres://'):
+        db_url = 'postgresql+psycopg2://' + db_url[len('postgres://'):]
+    elif db_url.startswith('postgresql://'):
+        db_url = 'postgresql+psycopg2://' + db_url[len('postgresql://'):]
+    engine = create_engine(db_url, pool_pre_ping=True)
+    with engine.connect() as conn:
+        for table in tables:
+            try:
+                rows = conn.execute(text(f'SELECT * FROM {table}')).mappings().all()
+            except Exception:
+                rows = []
+            payload[table] = [dict(row) for row in rows]
+else:
+    conn = sqlite3.connect('/data/pinkbluevet.sqlite3')
+    conn.row_factory = sqlite3.Row
+    for table in tables:
+        try:
+            rows = [dict(row) for row in conn.execute(f'SELECT * FROM {table}').fetchall()]
+        except Exception:
+            rows = []
+        payload[table] = rows
 print(base64.b64encode(json.dumps(payload, ensure_ascii=False).encode('utf-8')).decode('ascii'))
 """ % json.dumps(EXPORT_TABLES)
     command = (

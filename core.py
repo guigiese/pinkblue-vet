@@ -13,7 +13,7 @@ from pb_platform.storage import store
 from modules.lab_monitor.labs import CONNECTORS
 from modules.lab_monitor.notifiers import NOTIFIERS
 from modules.lab_monitor.settings import ensure_notification_settings, render_notification_template
-from web.state import normalize_status
+from web.state import load_runtime_config_snapshot, normalize_status
 
 _EXTERNAL_EVENT_CACHE: dict[str, float] = {}
 _EXTERNAL_EVENT_TTL_SECONDS = 60 * 60 * 72
@@ -501,7 +501,7 @@ def run_monitor_loop(state=None):
     print(f"[{datetime.now():%H:%M:%S}] Monitor iniciado")
 
     while True:
-        config = state.config if state else _load_config_file()
+        config = state.config if state else load_runtime_config_snapshot()
         interval = config.get("interval_minutes", 5) * 60
         notification_settings = ensure_notification_settings(config)
 
@@ -586,8 +586,3 @@ def run_monitor_loop(state=None):
 
         time.sleep(interval)
 
-
-def _load_config_file() -> dict:
-    from pathlib import Path
-    import json
-    return json.loads((Path(__file__).parent / "config.json").read_text(encoding="utf-8"))

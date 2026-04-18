@@ -43,7 +43,7 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Syntax check
-        run: python -m py_compile labs/bitlab.py labs/nexio.py web/app.py web/state.py core.py
+        run: python -m py_compile modules/lab_monitor/labs/bitlab.py modules/lab_monitor/labs/nexio.py web/app.py web/state.py core.py
 
       - name: Merge immediately (single session)
         run: gh pr merge ${{ github.event.pull_request.number }} --squash --delete-branch
@@ -66,6 +66,20 @@ jobs:
     needs: route
     if: needs.route.outputs.mode == 'full'
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: pinkblue_ci
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d pinkblue_ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v4
 
@@ -77,14 +91,19 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Syntax check
-        run: python -m py_compile labs/bitlab.py labs/nexio.py web/app.py web/state.py core.py
+        run: python -m py_compile modules/lab_monitor/labs/bitlab.py modules/lab_monitor/labs/nexio.py web/app.py web/state.py core.py
+
+      - name: Run migrations
+        env:
+          DATABASE_URL: "postgresql+psycopg2://postgres:postgres@127.0.0.1:5432/pinkblue_ci"
+          APP_ENV: "production"
+        run: python -m alembic upgrade head
 
       - name: Import check
         env:
-          DATABASE_URL: "sqlite:///:memory:"
-          PB_ALLOW_LEGACY_SQLITE_RUNTIME: "true"
+          DATABASE_URL: "postgresql+psycopg2://postgres:postgres@127.0.0.1:5432/pinkblue_ci"
           APP_ENV: "production"
-        run: python -c "from labs import CONNECTORS; from web.app import app; print('Import OK')"
+        run: python -c "from modules.lab_monitor.labs import CONNECTORS; from web.app import app; print('Import OK', sorted(CONNECTORS))"
 
   full-merge:
     needs: full-validate
