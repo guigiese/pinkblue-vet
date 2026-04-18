@@ -30,7 +30,7 @@ from .queries import (
     get_set_feriados,
     get_troca,
     listar_candidaturas_por_data,
-    listar_sobreaviso_por_data,
+    listar_disponibilidade_por_data,
     listar_tarifas_vigentes,
 )
 
@@ -606,7 +606,7 @@ def criar_data_plantao(
     ip: str = "",
     auto_approve: bool = False,
 ) -> int:
-    if tipo not in ("presencial", "sobreaviso"):
+    if tipo not in ("presencial", "disponibilidade"):
         raise ValueError("Tipo de plantao invalido.")
     if tipo == "presencial" and not posicoes:
         raise ValueError("Plantoes presenciais exigem ao menos uma posicao.")
@@ -826,8 +826,8 @@ def gerar_escala_mensal(
     gestor_id: int,
     hora_inicio: str = "08:00",
     hora_fim: str = "20:00",
-    hora_inicio_sobreaviso: str = "20:00",
-    hora_fim_sobreaviso: str = "08:00",
+    hora_inicio_disponibilidade: str = "20:00",
+    hora_fim_disponibilidade: str = "08:00",
 ) -> list[int]:
     primeiro = date(ano, mes, 1)
     prox = date(ano + 1, 1, 1) if mes == 12 else date(ano, mes + 1, 1)
@@ -882,31 +882,31 @@ def gerar_escala_mensal(
                 )
                 criados.append(data_id)
 
-            existe_sobreaviso = conn.execute(
+            existe_disponibilidade = conn.execute(
                 text(
                     "SELECT id FROM plantao_datas "
-                    "WHERE local_id=:local_id AND data=:data AND tipo='sobreaviso' AND status IN ('rascunho','publicado')"
+                    "WHERE local_id=:local_id AND data=:data AND tipo='disponibilidade' AND status IN ('rascunho','publicado')"
                 ),
                 {"local_id": local_id, "data": data_str},
             ).mappings().first()
-            if not existe_sobreaviso:
+            if not existe_disponibilidade:
                 data_id_s = _insert_and_get_id(
                     conn,
                     """
                     INSERT INTO plantao_datas
                         (local_id, tipo, data, hora_inicio, hora_fim, observacoes, status, criado_em, alterado_em, criado_por)
                     VALUES
-                        (:local_id, 'sobreaviso', :data, :hora_inicio, :hora_fim, '', 'rascunho', :agora, :agora, :gestor_id)
+                        (:local_id, 'disponibilidade', :data, :hora_inicio, :hora_fim, '', 'rascunho', :agora, :agora, :gestor_id)
                     """,
                     {
                         "local_id": local_id,
                         "data": data_str,
-                        "hora_inicio": hora_inicio_sobreaviso,
-                        "hora_fim": hora_fim_sobreaviso,
+                        "hora_inicio": hora_inicio_disponibilidade,
+                        "hora_fim": hora_fim_disponibilidade,
                         "agora": _utcnow(),
                         "gestor_id": gestor_id,
                     },
-                    "SELECT id FROM plantao_datas WHERE local_id=:local_id AND data=:data AND tipo='sobreaviso' ORDER BY id DESC LIMIT 1",
+                    "SELECT id FROM plantao_datas WHERE local_id=:local_id AND data=:data AND tipo='disponibilidade' ORDER BY id DESC LIMIT 1",
                     {"local_id": local_id, "data": data_str},
                 )
                 criados.append(data_id_s)
@@ -1588,7 +1588,7 @@ def recusar_troca(
     )
 
 
-def aderir_sobreaviso(
+def aderir_disponibilidade(
     engine: Any,
     data_id: int,
     perfil_id: int,
@@ -1596,29 +1596,29 @@ def aderir_sobreaviso(
 ) -> int:
     data_row = get_data_plantao(engine, data_id)
     if not data_row:
-        raise ValueError("Data de sobreaviso nao encontrada.")
-    if data_row["tipo"] != "sobreaviso" or data_row["status"] != "publicado":
-        raise ValueError("A adesao e permitida apenas para sobreaviso publicado.")
+        raise ValueError("Data de disponibilidade nao encontrada.")
+    if data_row["tipo"] != "disponibilidade" or data_row["status"] != "publicado":
+        raise ValueError("A adesao e permitida apenas para disponibilidade publicada.")
 
     perfil = get_perfil_por_id(engine, perfil_id)
     if not perfil or perfil["status"] != "ativo" or perfil["tipo"] != "veterinario":
-        raise ValueError("Somente veterinarios ativos podem aderir ao sobreaviso.")
+        raise ValueError("Somente veterinarios ativos podem aderir a disponibilidade.")
 
     with engine.begin() as conn:
         existe = conn.execute(
             text(
-                "SELECT id FROM plantao_sobreaviso "
+                "SELECT id FROM plantao_disponibilidade "
                 "WHERE data_id=:data_id AND perfil_id=:perfil_id AND status='ativo'"
             ),
             {"data_id": data_id, "perfil_id": perfil_id},
         ).mappings().first()
         if existe:
-            raise ValueError("Voce ja aderiu ao sobreaviso desta data.")
+            raise ValueError("Voce ja aderiu a disponibilidade desta data.")
 
         row = conn.execute(
             text(
                 "SELECT COALESCE(MAX(prioridade), 0) AS max_prio "
-                "FROM plantao_sobreaviso WHERE data_id=:data_id AND status='ativo'"
+                "FROM plantao_disponibilidade WHERE data_id=:data_id AND status='ativo'"
             ),
             {"data_id": data_id},
         ).mappings().first()
@@ -1626,26 +1626,26 @@ def aderir_sobreaviso(
         adesao_id = _insert_and_get_id(
             conn,
             """
-            INSERT INTO plantao_sobreaviso (data_id, perfil_id, prioridade, status, criado_em)
+            INSERT INTO plantao_disponibilidade (data_id, perfil_id, prioridade, status, criado_em)
             VALUES (:data_id, :perfil_id, :prioridade, 'ativo', :agora)
             """,
             {"data_id": data_id, "perfil_id": perfil_id, "prioridade": prioridade, "agora": _utcnow()},
-            "SELECT id FROM plantao_sobreaviso WHERE data_id=:data_id AND perfil_id=:perfil_id AND status='ativo' ORDER BY id DESC LIMIT 1",
+            "SELECT id FROM plantao_disponibilidade WHERE data_id=:data_id AND perfil_id=:perfil_id AND status='ativo' ORDER BY id DESC LIMIT 1",
             {"data_id": data_id, "perfil_id": perfil_id},
         )
 
     audit(
         engine,
-        "sobreaviso.adesao",
+        "disponibilidade.adesao",
         perfil_id=perfil_id,
-        entidade="plantao_sobreaviso",
+        entidade="plantao_disponibilidade",
         entidade_id=adesao_id,
         ip=ip,
     )
     return adesao_id
 
 
-def cancelar_sobreaviso(
+def cancelar_disponibilidade(
     engine: Any,
     adesao_id: int,
     perfil_id: int,
@@ -1653,7 +1653,7 @@ def cancelar_sobreaviso(
 ) -> None:
     with engine.begin() as conn:
         adesao = conn.execute(
-            text("SELECT * FROM plantao_sobreaviso WHERE id=:id"),
+            text("SELECT * FROM plantao_disponibilidade WHERE id=:id"),
             {"id": adesao_id},
         ).mappings().first()
         if not adesao or adesao["status"] != "ativo":
@@ -1664,14 +1664,14 @@ def cancelar_sobreaviso(
         data_id = int(adesao["data_id"])
         conn.execute(
             text(
-                "UPDATE plantao_sobreaviso SET status='cancelado', cancelado_em=:agora WHERE id=:id"
+                "UPDATE plantao_disponibilidade SET status='cancelado', cancelado_em=:agora WHERE id=:id"
             ),
             {"agora": _utcnow(), "id": adesao_id},
         )
 
         ativos = conn.execute(
             text(
-                "SELECT id FROM plantao_sobreaviso "
+                "SELECT id FROM plantao_disponibilidade "
                 "WHERE data_id=:data_id AND status='ativo' "
                 "ORDER BY prioridade ASC, id ASC"
             ),
@@ -1679,21 +1679,21 @@ def cancelar_sobreaviso(
         ).mappings().all()
         for ordem, row in enumerate(ativos, start=1):
             conn.execute(
-                text("UPDATE plantao_sobreaviso SET prioridade=:ordem WHERE id=:id"),
+                text("UPDATE plantao_disponibilidade SET prioridade=:ordem WHERE id=:id"),
                 {"ordem": ordem, "id": int(row["id"])},
             )
 
     audit(
         engine,
-        "sobreaviso.cancelado",
+        "disponibilidade.cancelado",
         perfil_id=perfil_id,
-        entidade="plantao_sobreaviso",
+        entidade="plantao_disponibilidade",
         entidade_id=adesao_id,
         ip=ip,
     )
 
 
-def reordenar_sobreaviso(
+def reordenar_disponibilidade(
     engine: Any,
     data_id: int,
     nova_ordem: list[int],
@@ -1705,26 +1705,26 @@ def reordenar_sobreaviso(
     with engine.begin() as conn:
         ativos = conn.execute(
             text(
-                "SELECT id FROM plantao_sobreaviso "
+                "SELECT id FROM plantao_disponibilidade "
                 "WHERE data_id=:data_id AND status='ativo' ORDER BY prioridade ASC, id ASC"
             ),
             {"data_id": data_id},
         ).mappings().all()
         ativos_ids = [int(r["id"]) for r in ativos]
         if sorted(ativos_ids) != sorted([int(x) for x in nova_ordem]):
-            raise ValueError("Nova ordem invalida para o sobreaviso.")
+            raise ValueError("Nova ordem invalida para a disponibilidade.")
 
         for ordem, adesao_id in enumerate(nova_ordem, start=1):
             conn.execute(
-                text("UPDATE plantao_sobreaviso SET prioridade=:ordem WHERE id=:id"),
+                text("UPDATE plantao_disponibilidade SET prioridade=:ordem WHERE id=:id"),
                 {"ordem": ordem, "id": int(adesao_id)},
             )
 
     audit(
         engine,
-        "sobreaviso.reordenado",
+        "disponibilidade.reordenado",
         gestor_id=gestor_id,
-        entidade="plantao_sobreaviso",
+        entidade="plantao_disponibilidade",
         entidade_id=data_id,
         detalhes=json.dumps({"nova_ordem": [int(x) for x in nova_ordem]}, ensure_ascii=False),
         ip=ip,
@@ -1740,7 +1740,7 @@ def salvar_configuracao(
     validas = {
         "plantao_prazo_cancelamento_horas_uteis",
         "plantao_max_candidaturas_provisorias_por_vaga",
-        "plantao_notif_sobreaviso_dias_antecedencia",
+        "plantao_notif_disponibilidade_dias_antecedencia",
         "plantao_permitir_troca_sem_aprovacao_gestor",
         "plantao_api_key",
     }

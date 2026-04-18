@@ -23,9 +23,10 @@ Modulos futuros em discovery:
 - FastAPI + Jinja2 + HTMX
 - Railway
 
-Persistencia/auth fase 1 ja em andamento:
+Persistencia/auth oficiais da plataforma:
 - `pb_platform/` como camada compartilhada;
-- `SQLite (sqlite3)` em `runtime-data/` / Railway Volume;
+- `PostgreSQL` como banco oficial do runtime;
+- `SQLite` apenas para testes/CI efemeros quando configurado de forma explicita;
 - auth por sessao/cookie para a plataforma.
 
 ## Regras de entrada

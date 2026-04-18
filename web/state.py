@@ -1,19 +1,31 @@
 import json
 import re
 import unicodedata
-from datetime import datetime, timedelta
-from pathlib import Path
+from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 from pb_platform.storage import store
 
-from notification_settings import (
+from modules.lab_monitor.settings import (
     DEFAULT_NOTIFICATION_SETTINGS,
     apply_notification_settings,
     build_notification_preview_context,
     render_notification_template,
 )
 
-CONFIG_FILE = Path(__file__).parent.parent / "config.json"
+_TZ_BR = ZoneInfo("America/Sao_Paulo")
+
+
+def _to_brasilia(raw: str | None) -> datetime | None:
+    if not raw:
+        return None
+    try:
+        dt = datetime.fromisoformat(raw.strip().replace("Z", "+00:00"))
+    except Exception:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(_TZ_BR)
 
 STATUS_SHORT_LABELS: dict[str, str] = {
     "Pronto": "PRONTO",
@@ -125,22 +137,22 @@ def _split_patient_label(label: str) -> tuple[str, str]:
 def _format_date(raw: str | None) -> str:
     if not raw:
         return ""
+    dt = _to_brasilia(raw)
+    if dt:
+        return dt.strftime("%d/%m/%Y")
     try:
-        return datetime.fromisoformat(raw).strftime("%d/%m/%Y")
+        return datetime.strptime(raw, "%Y-%m-%d").strftime("%d/%m/%Y")
     except Exception:
-        try:
-            return datetime.strptime(raw, "%Y-%m-%d").strftime("%d/%m/%Y")
-        except Exception:
-            return raw
+        return raw
 
 
 def _format_time(raw: str | None) -> str:
     if not raw:
         return ""
-    try:
-        return datetime.fromisoformat(raw).strftime("%H:%M")
-    except Exception:
-        return ""
+    dt = _to_brasilia(raw)
+    if dt:
+        return dt.strftime("%H:%M")
+    return ""
 
 
 def _format_release_display(raw: str | None) -> str | None:
@@ -220,6 +232,9 @@ def _item_has_usable_result(item: dict) -> bool:
 
 def _item_group_status(item: dict) -> str:
     status = normalize_status(item.get("status", ""))
+    pub = item.get("publication_status", "")
+    if pub == "processing":
+        return "Em Andamento"
     if status == "Inconsistente":
         return "Em Andamento"
     return status
@@ -246,6 +261,20 @@ _GROUP_STATUS_PRIORITY: list[str] = [
 _DISCOVERY_WINDOW_DAYS = 3
 
 
+def load_runtime_config_snapshot() -> dict:
+    config = store.load_runtime_config()
+    if not isinstance(config, dict) or not {
+        "interval_minutes", "labs", "notifiers"
+    }.issubset(config.keys()):
+        raise RuntimeError(
+            "Configuracao runtime do Lab Monitor ausente. "
+            "Persista `lab_monitor.runtime_config` no banco antes de iniciar a plataforma."
+        )
+    hydrated = json.loads(json.dumps(config, ensure_ascii=False))
+    apply_notification_settings(hydrated)
+    return hydrated
+
+
 class AppState:
     def __init__(self):
         snapshots, last_check, last_error = store.load_lab_runtime()
@@ -259,11 +288,7 @@ class AppState:
     @property
     def config(self) -> dict:
         if self._config is None:
-            self._config = json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
-            persisted = store.load_runtime_config() or {}
-            if persisted:
-                self._config = _deep_merge(self._config, persisted)
-            apply_notification_settings(self._config)
+            self._config = load_runtime_config_snapshot()
         return self._config
 
     def save_config(self):

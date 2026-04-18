@@ -166,10 +166,10 @@ def listar_datas_por_mes(
                ), 0) AS provisorios_total,
                COALESCE((
                  SELECT COUNT(*)
-                   FROM plantao_sobreaviso s
+                   FROM plantao_disponibilidade s
                   WHERE s.data_id = d.id
                     AND s.status = 'ativo'
-               ), 0) AS sobreaviso_ativos
+               ), 0) AS disponibilidade_ativos
           FROM plantao_datas d
           LEFT JOIN plantao_locais l ON l.id = d.local_id
          WHERE d.data >= :inicio
@@ -204,7 +204,7 @@ def get_data_plantao(engine: Any, data_id: int) -> dict | None:
         return None
     data_row["posicoes"] = listar_posicoes_por_data(engine, data_id)
     data_row["candidaturas"] = listar_candidaturas_por_data(engine, data_id)
-    data_row["sobreaviso"] = listar_sobreaviso_por_data(engine, data_id)
+    data_row["disponibilidade"] = listar_disponibilidade_por_data(engine, data_id)
     return data_row
 
 
@@ -611,7 +611,7 @@ def listar_substituicoes_abertas(
     )
 
 
-def listar_sobreaviso_por_data(engine: Any, data_id: int) -> list[dict]:
+def listar_disponibilidade_por_data(engine: Any, data_id: int) -> list[dict]:
     return _rows(
         engine,
         """
@@ -623,7 +623,7 @@ def listar_sobreaviso_por_data(engine: Any, data_id: int) -> list[dict]:
                d.hora_inicio,
                d.hora_fim,
                d.local_id
-          FROM plantao_sobreaviso s
+          FROM plantao_disponibilidade s
           JOIN plantao_perfis pf ON pf.id = s.perfil_id
           JOIN plantao_datas d ON d.id = s.data_id
          WHERE s.data_id = :data_id
@@ -634,7 +634,7 @@ def listar_sobreaviso_por_data(engine: Any, data_id: int) -> list[dict]:
     )
 
 
-def listar_sobreaviso_por_perfil(engine: Any, perfil_id: int) -> list[dict]:
+def listar_disponibilidade_por_perfil(engine: Any, perfil_id: int) -> list[dict]:
     return _rows(
         engine,
         """
@@ -645,7 +645,7 @@ def listar_sobreaviso_por_perfil(engine: Any, perfil_id: int) -> list[dict]:
                d.status AS data_status,
                d.local_id,
                l.nome AS local_nome
-          FROM plantao_sobreaviso s
+          FROM plantao_disponibilidade s
           JOIN plantao_datas d ON d.id = s.data_id
           LEFT JOIN plantao_locais l ON l.id = d.local_id
          WHERE s.perfil_id = :perfil_id
@@ -656,7 +656,7 @@ def listar_sobreaviso_por_perfil(engine: Any, perfil_id: int) -> list[dict]:
     )
 
 
-def get_sobreaviso_ativo(
+def get_disponibilidade_ativa(
     engine: Any,
     data: str,
     hora: str,
@@ -676,9 +676,9 @@ def get_sobreaviso_ativo(
                pf.telefone,
                pf.email
           FROM plantao_datas d
-          JOIN plantao_sobreaviso s ON s.data_id = d.id AND s.status = 'ativo'
+          JOIN plantao_disponibilidade s ON s.data_id = d.id AND s.status = 'ativo'
           JOIN plantao_perfis pf ON pf.id = s.perfil_id
-         WHERE d.tipo = 'sobreaviso'
+         WHERE d.tipo = 'disponibilidade'
            AND d.status = 'publicado'
            AND d.data IN (:data, :data_prev)
            AND (:local_id IS NULL OR d.local_id = :local_id)
@@ -759,7 +759,7 @@ def get_alertas_dashboard(engine: Any, dias: int = 7) -> dict:
         {"hoje": hoje_iso, "fim": fim},
     )
 
-    sobreaviso_vazio = _rows(
+    disponibilidade_vazia = _rows(
         engine,
         """
         SELECT d.id,
@@ -771,12 +771,12 @@ def get_alertas_dashboard(engine: Any, dias: int = 7) -> dict:
           FROM plantao_datas d
           LEFT JOIN plantao_locais l ON l.id = d.local_id
          WHERE d.status = 'publicado'
-           AND d.tipo = 'sobreaviso'
+           AND d.tipo = 'disponibilidade'
            AND d.data >= :hoje
            AND d.data <= :fim
            AND NOT EXISTS (
                SELECT 1
-                 FROM plantao_sobreaviso s
+                 FROM plantao_disponibilidade s
                 WHERE s.data_id = d.id
                   AND s.status = 'ativo'
            )
@@ -797,7 +797,7 @@ def get_alertas_dashboard(engine: Any, dias: int = 7) -> dict:
 
     return {
         "datas_sem_vagas": datas_sem_vagas,
-        "sobreaviso_vazio": sobreaviso_vazio,
+        "disponibilidade_vazia": disponibilidade_vazia,
         "cadastros_pendentes": cadastros_pendentes,
     }
 

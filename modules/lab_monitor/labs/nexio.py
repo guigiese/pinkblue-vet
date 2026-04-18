@@ -217,8 +217,8 @@ class NexioConnector(LabConnector):
             if not num:
                 continue
             label = f"{exame['paciente']} - {exame['proprietario']}".strip(" -")
-            raw_date = exame["data_liberacao"] or exame["data_prometida"]
-            data_iso = raw_date
+            raw_date = exame["data_liberacao"] or ""
+            data_iso = ""
             for fmt in ("%d/%m/%Y", "%d/%m/%y"):
                 try:
                     data_iso = datetime.strptime(raw_date, fmt).strftime("%Y-%m-%d")
@@ -324,10 +324,15 @@ class NexioConnector(LabConnector):
 
         merged: dict[str, dict] = {}
         seen_ids: set[str] = set()
-        for exames in (
-            self._buscar_exames(session, data_recepcao=range_value),
-            self._buscar_exames(session, data_liberacao=range_value),
+        for busca_kwargs in (
+            {"data_recepcao": range_value},
+            {"data_liberacao": range_value},
         ):
+            try:
+                exames = self._buscar_exames(session, **busca_kwargs)
+            except Exception as e:
+                print(f"  [Nexio backfill] busca {busca_kwargs} falhou: {e}")
+                continue
             for exame in exames:
                 exam_key = exame.get("numero") or exame.get("exame_id")
                 if not exam_key or exam_key in seen_ids:

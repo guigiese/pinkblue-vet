@@ -63,11 +63,7 @@ class PlatformSettings:
     master_email: str = os.environ.get("PB_MASTER_EMAIL", "").strip().lower()
     master_password: str = os.environ.get("PB_MASTER_PASSWORD", "")
     master_force_change: bool = _bool_env("PB_MASTER_FORCE_CHANGE", False)
-    allow_legacy_sqlite_runtime: bool = _bool_env("PB_ALLOW_LEGACY_SQLITE_RUNTIME", False)
-    local_dev_database_url: str = os.environ.get(
-        "PB_DEV_DATABASE_URL",
-        "postgresql+psycopg2://pinkblue:change-me-dev@localhost:5432/pinkblue_dev",
-    )
+    local_dev_database_url: str = os.environ.get("PB_DEV_DATABASE_URL", "")
 
     @property
     def legacy_db_path(self) -> Path:
@@ -78,16 +74,18 @@ class PlatformSettings:
         explicit = _normalize_database_url(
             os.environ.get("DATABASE_URL") or os.environ.get("PB_DATABASE_URL") or ""
         )
-        if explicit:
-            return explicit
-        fallback = _normalize_database_url(self.local_dev_database_url)
-        if fallback:
-            return fallback
-        if self.allow_legacy_sqlite_runtime:
-            self.legacy_db_path.parent.mkdir(parents=True, exist_ok=True)
-            return f"sqlite:///{self.legacy_db_path}"
+        db_url = explicit or _normalize_database_url(self.local_dev_database_url)
+        if db_url:
+            if self.app_env == "production" and db_url.startswith("sqlite"):
+                raise RuntimeError(
+                    "SQLite nao e permitido no runtime oficial de producao. "
+                    "Configure PostgreSQL em DATABASE_URL/PB_DATABASE_URL."
+                )
+            return db_url
         raise RuntimeError(
-            "DATABASE_URL/PB_DATABASE_URL não configurada e o fallback legado para SQLite está desabilitado."
+            "DATABASE_URL/PB_DATABASE_URL ou PB_DEV_DATABASE_URL nao configurados. "
+            "O runtime oficial da plataforma agora exige PostgreSQL; SQLite deve ser usado "
+            "apenas via URL explicita em testes ou CI efemero."
         )
 
     @property

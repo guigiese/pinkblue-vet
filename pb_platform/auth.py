@@ -21,9 +21,18 @@ PUBLIC_PATH_PREFIXES = (
     "/sandboxes/cards-static/",
 )
 
-# ── CSRF ──────────────────────────────────────────────────────────────────────
 
-_CSRF_SECRET = settings.csrf_secret or os.environ.get("PB_CSRF_SECRET") or secrets.token_hex(32)
+def _load_or_create_csrf_secret() -> str:
+    """Lê/gera CSRF secret persistido na store compartilhada da plataforma."""
+    current = store.load_text_setting("platform.csrf_secret", "").strip()
+    if current:
+        return current
+    new_secret = secrets.token_hex(32)
+    store.save_text_setting("platform.csrf_secret", new_secret)
+    return new_secret
+
+
+_CSRF_SECRET = settings.csrf_secret or os.environ.get("PB_CSRF_SECRET") or _load_or_create_csrf_secret()
 CSRF_HEADER = "X-CSRF-Token"
 CSRF_FORM_FIELD = "csrf_token"
 
@@ -36,10 +45,8 @@ def gerar_csrf_token(session_token: str) -> str:
 async def validar_csrf(request: Request, session_token: str) -> bool:
     """Valida o token CSRF do header ou do form. Retorna True se válido."""
     esperado = gerar_csrf_token(session_token)
-    # Tenta header primeiro (HTMX)
     recebido = request.headers.get(CSRF_HEADER, "")
     if not recebido:
-        # Tenta form field
         try:
             form = await request.form()
             recebido = form.get(CSRF_FORM_FIELD, "") or ""
@@ -49,8 +56,6 @@ async def validar_csrf(request: Request, session_token: str) -> bool:
         return False
     return hmac.compare_digest(esperado, str(recebido))
 
-
-# ── Auth helpers ──────────────────────────────────────────────────────────────
 
 def path_requires_auth(path: str) -> bool:
     if not settings.auth_enabled:
@@ -121,7 +126,6 @@ def has_permission(request: Request, permission: str) -> bool:
 
 def required_permission(path: str, method: str) -> str | None:
     method = method.upper()
-    # Módulo Plantão — granularidade por sub-rota
     if path.startswith("/plantao/admin/escalas"):
         return "plantao_gerir_escalas"
     if path.startswith("/plantao/admin/candidaturas") or path.startswith("/plantao/admin/disponibilidade") or path.startswith("/plantao/admin/aprovacoes"):
@@ -134,7 +138,6 @@ def required_permission(path: str, method: str) -> str | None:
         return "manage_plantao"
     if path.startswith("/plantao"):
         return "plantao_access"
-    # Plataforma interna
     if path.startswith("/admin/usuarios") or path.startswith("/admin/permissoes") or path.startswith("/admin/perfis"):
         return "manage_users"
     if path.startswith("/ops-map") or path.startswith("/sandboxes"):

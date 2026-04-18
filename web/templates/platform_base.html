@@ -40,7 +40,7 @@
         </button>
         {% endif %}
         <a href="{% block home_href %}/{% endblock %}" class="flex min-w-0 items-center gap-3">
-          <span class="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-brand-pink text-sm font-bold text-white">
+          <span class="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-rose-600 text-sm font-bold text-white">
             {% block header_icon %}PB{% endblock %}
           </span>
           <span class="min-w-0">
@@ -54,12 +54,15 @@
       <div class="flex items-center gap-2">
         {% if platform_user %}
         <div class="relative" id="account-menu-wrapper">
+          {%- set _nome = platform_user.nome or "" -%}
+          {%- set _partes = _nome.split() -%}
+          {%- set _iniciais = (_partes[0][0] ~ (_partes[-1][0] if _partes | length > 1 else "")) | upper if _partes else platform_user.email[0] | upper -%}
           <button onclick="toggleAccountMenu()"
                   class="flex items-center gap-2 rounded-xl border border-gray-200 px-2.5 py-1.5 text-sm font-medium text-gray-600 transition hover:bg-gray-50">
-            <span class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-pink text-xs font-bold text-white select-none">
-              {{ platform_user.email[0] | upper }}
+            <span class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-rose-600 text-xs font-bold text-white select-none">
+              {{ _iniciais }}
             </span>
-            <span class="hidden max-w-[160px] truncate text-xs text-gray-500 md:block">{{ platform_user.email }}</span>
+            <span class="hidden max-w-[160px] truncate text-xs text-gray-500 md:block">{{ platform_user.nome or platform_user.email }}</span>
             <svg class="h-3.5 w-3.5 shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
             </svg>
@@ -69,8 +72,8 @@
                style="display:none"
                class="absolute right-0 top-full mt-2 w-56 rounded-2xl border border-gray-200 bg-white py-1 shadow-lg z-50">
             <div class="border-b border-gray-100 px-4 py-3">
-              <p class="truncate text-xs font-semibold text-gray-800">{{ platform_user.email }}</p>
-              <p class="mt-0.5 text-[11px] text-gray-400">{{ platform_user.role | title }}</p>
+              <p class="truncate text-xs font-semibold text-gray-800">{{ platform_user.nome or platform_user.email }}</p>
+              <p class="mt-0.5 text-[11px] text-gray-400">{{ platform_user.email }}</p>
             </div>
             {% if platform_permissions.plantao_access %}
             <a href="/plantao/perfil"

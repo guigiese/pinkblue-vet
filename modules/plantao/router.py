@@ -73,7 +73,7 @@ def make_router(engine: Any) -> APIRouter:
         user = attach_user_to_request(request)
         if not user:
             return RedirectResponse(f"/login?next={request.url.path}", status_code=303)
-        if not has_permission(request, "plantao_access"):
+        if not has_permission(request, "plantao_access") and not has_permission(request, "manage_plantao"):
             return RedirectResponse("/login?erro=sem_permissao", status_code=303)
         # Popula state para compatibilidade com templates que usam 'perfil'
         request.state.plantonista = user
@@ -213,7 +213,7 @@ def make_router(engine: Any) -> APIRouter:
 
     @router.get("/disponibilidade", response_class=HTMLResponse)
     async def disponibilidade_page(request: Request):
-        from .queries import listar_sobreaviso_por_perfil, listar_datas_por_mes
+        from .queries import listar_disponibilidade_por_perfil, listar_datas_por_mes
         from datetime import date as dt_date
 
         perfil = _exige_plantonista(request)
@@ -222,17 +222,17 @@ def make_router(engine: Any) -> APIRouter:
 
         hoje = dt_date.today()
         ano, mes = hoje.year, hoje.month
-        sobreavisos_abertos = listar_datas_por_mes(engine, ano, mes, None, tipo="sobreaviso", status="publicado")
-        minhas_adesoes = listar_sobreaviso_por_perfil(engine, perfil["id"])
+        disponibilidades_abertas = listar_datas_por_mes(engine, ano, mes, None, tipo="disponibilidade", status="publicado")
+        minhas_adesoes = listar_disponibilidade_por_perfil(engine, perfil["id"])
         csrf = getattr(request.state, "csrf_token", "")
         return _render(
             request,
-            "plantao_sobreaviso.html",
+            "plantao_disponibilidade.html",
             csrf_token=csrf,
             perfil=perfil,
             erro=request.query_params.get("erro", ""),
             ok=request.query_params.get("ok", ""),
-            sobreavisos_abertos=sobreavisos_abertos,
+            disponibilidades_abertas=disponibilidades_abertas,
             minhas_adesoes=minhas_adesoes,
         )
 
@@ -253,7 +253,7 @@ def make_router(engine: Any) -> APIRouter:
             listar_datas_com_vagas_abertas,
             listar_candidaturas_por_perfil,
             listar_substituicoes_abertas,
-            listar_sobreaviso_por_perfil,
+            listar_disponibilidade_por_perfil,
             listar_feriados_por_periodo,
             listar_locais,
         )
@@ -299,10 +299,10 @@ def make_router(engine: Any) -> APIRouter:
         vagas_abertas = listar_datas_com_vagas_abertas(engine, local_sel)
         minhas_candidaturas = listar_candidaturas_por_perfil(engine, perfil["id"])
         substituicoes = listar_substituicoes_abertas(engine, perfil.get("tipo", ""))
-        sobreavisos_abertos = listar_datas_por_mes(
-            engine, ano, mes, local_sel, tipo="sobreaviso", status="publicado"
+        disponibilidades_abertas = listar_datas_por_mes(
+            engine, ano, mes, local_sel, tipo="disponibilidade", status="publicado"
         )
-        minhas_adesoes = listar_sobreaviso_por_perfil(engine, perfil["id"])
+        minhas_adesoes = listar_disponibilidade_por_perfil(engine, perfil["id"])
         minhas_adesoes_ids = {a["data_id"]: a for a in minhas_adesoes}
 
         # ── Montar eventos_por_data ──────────────────────────────────────────
@@ -387,7 +387,7 @@ def make_router(engine: Any) -> APIRouter:
             })
 
         # Disponibilidades do mês
-        for d in sobreavisos_abertos:
+        for d in disponibilidades_abertas:
             data = d["data"]
             if d["id"] in minhas_adesoes_ids:
                 adesao = minhas_adesoes_ids[d["id"]]
@@ -572,33 +572,33 @@ def make_router(engine: Any) -> APIRouter:
             return _redir_erro("/plantao/trocas", str(exc))
         return RedirectResponse("/plantao/trocas?ok=1", status_code=303)
 
-    @router.post("/sobreaviso/{data_id}/aderir")
-    async def aderir_sobreaviso_action(request: Request, data_id: int):
-        from .actions import aderir_sobreaviso
+    @router.post("/disponibilidade/{data_id}/aderir")
+    async def aderir_disponibilidade_action(request: Request, data_id: int):
+        from .actions import aderir_disponibilidade
 
         perfil = _exige_plantonista(request)
         if isinstance(perfil, RedirectResponse):
             return perfil
         await _validar_csrf_ou_403(request)
         try:
-            aderir_sobreaviso(engine, data_id, perfil["id"], ip=request.client.host if request.client else "")
+            aderir_disponibilidade(engine, data_id, perfil["id"], ip=request.client.host if request.client else "")
         except ValueError as exc:
-            return _redir_erro("/plantao/sobreaviso", str(exc))
-        return RedirectResponse("/plantao/sobreaviso?ok=1", status_code=303)
+            return _redir_erro("/plantao/disponibilidade", str(exc))
+        return RedirectResponse("/plantao/disponibilidade?ok=1", status_code=303)
 
-    @router.post("/sobreaviso/{adesao_id}/cancelar")
-    async def cancelar_sobreaviso_action(request: Request, adesao_id: int):
-        from .actions import cancelar_sobreaviso
+    @router.post("/disponibilidade/{adesao_id}/cancelar")
+    async def cancelar_disponibilidade_action(request: Request, adesao_id: int):
+        from .actions import cancelar_disponibilidade
 
         perfil = _exige_plantonista(request)
         if isinstance(perfil, RedirectResponse):
             return perfil
         await _validar_csrf_ou_403(request)
         try:
-            cancelar_sobreaviso(engine, adesao_id, perfil["id"], ip=request.client.host if request.client else "")
+            cancelar_disponibilidade(engine, adesao_id, perfil["id"], ip=request.client.host if request.client else "")
         except ValueError as exc:
-            return _redir_erro("/plantao/sobreaviso", str(exc))
-        return RedirectResponse("/plantao/sobreaviso?ok=1", status_code=303)
+            return _redir_erro("/plantao/disponibilidade", str(exc))
+        return RedirectResponse("/plantao/disponibilidade?ok=1", status_code=303)
 
     @router.get("/notificacoes", response_class=HTMLResponse)
     async def notificacoes_page(request: Request):
@@ -1070,27 +1070,26 @@ def make_router(engine: Any) -> APIRouter:
             return _redir_erro("/plantao/admin/candidaturas", str(exc))
         return RedirectResponse("/plantao/admin/candidaturas?ok=1", status_code=303)
 
-    @router.get("/admin/disponibilidade", response_class=HTMLResponse)
-    async def admin_disponibilidade_redirect(request: Request):
-        """Alias de compatibilidade: sidebar aponta para /disponibilidade, rota real é /sobreaviso."""
+    @router.get("/admin/sobreaviso", response_class=HTMLResponse)
+    async def admin_sobreaviso_compat_redirect(request: Request):
         qs = str(request.url.query)
-        target = "/plantao/admin/sobreaviso" + (f"?{qs}" if qs else "")
+        target = "/plantao/admin/disponibilidade" + (f"?{qs}" if qs else "")
         return RedirectResponse(target, status_code=302)
 
-    @router.get("/admin/sobreaviso", response_class=HTMLResponse)
-    async def admin_sobreaviso(request: Request, data_id: int = 0):
-        from .queries import listar_datas_por_mes, listar_sobreaviso_por_data
+    @router.get("/admin/disponibilidade", response_class=HTMLResponse)
+    async def admin_disponibilidade(request: Request, data_id: int = 0):
+        from .queries import listar_datas_por_mes, listar_disponibilidade_por_data
 
         gestor = _exige_gestor(request, "plantao_aprovar_candidaturas")
         if isinstance(gestor, RedirectResponse) or isinstance(gestor, HTMLResponse):
             return gestor
         now = datetime.utcnow()
-        datas = listar_datas_por_mes(engine, now.year, now.month, tipo="sobreaviso", status="publicado")
-        adesoes = listar_sobreaviso_por_data(engine, data_id) if data_id else []
+        datas = listar_datas_por_mes(engine, now.year, now.month, tipo="disponibilidade", status="publicado")
+        adesoes = listar_disponibilidade_por_data(engine, data_id) if data_id else []
         csrf = getattr(request.state, "csrf_token", "")
         return _render(
             request,
-            "admin/sobreaviso.html",
+            "admin/disponibilidade.html",
             data_id=data_id,
             datas=datas,
             adesoes=adesoes,
@@ -1099,9 +1098,9 @@ def make_router(engine: Any) -> APIRouter:
             ok=request.query_params.get("ok", ""),
         )
 
-    @router.post("/admin/sobreaviso/{data_id}/reordenar")
-    async def admin_reordenar_sobreaviso(request: Request, data_id: int):
-        from .actions import reordenar_sobreaviso
+    @router.post("/admin/disponibilidade/{data_id}/reordenar")
+    async def admin_reordenar_disponibilidade(request: Request, data_id: int):
+        from .actions import reordenar_disponibilidade
 
         gestor = _exige_gestor(request)
         if isinstance(gestor, RedirectResponse) or isinstance(gestor, HTMLResponse):
@@ -1111,7 +1110,7 @@ def make_router(engine: Any) -> APIRouter:
         nova_ordem_raw = str(form.get("nova_ordem", "")).strip()
         try:
             nova_ordem = [int(x) for x in nova_ordem_raw.split(",") if x.strip()]
-            reordenar_sobreaviso(
+            reordenar_disponibilidade(
                 engine,
                 data_id,
                 nova_ordem,
@@ -1119,8 +1118,8 @@ def make_router(engine: Any) -> APIRouter:
                 ip=request.client.host if request.client else "",
             )
         except Exception as exc:
-            return _redir_erro(f"/plantao/admin/sobreaviso?data_id={data_id}", str(exc))
-        return RedirectResponse(f"/plantao/admin/sobreaviso?data_id={data_id}&ok=1", status_code=303)
+            return _redir_erro(f"/plantao/admin/disponibilidade?data_id={data_id}", str(exc))
+        return RedirectResponse(f"/plantao/admin/disponibilidade?data_id={data_id}&ok=1", status_code=303)
 
     @router.get("/admin/relatorios", response_class=HTMLResponse)
     async def admin_relatorios(request: Request):
@@ -1184,7 +1183,7 @@ def make_router(engine: Any) -> APIRouter:
             data_fim = data_fim or hoje.isoformat()
         dados = relatorio_pre_fechamento(engine, data_inicio, data_fim, local_id or None)
         now = datetime.utcnow()
-        sobreavisos = listar_datas_por_mes(engine, now.year, now.month, local_id or None, tipo="sobreaviso")
+        disponibilidades = listar_datas_por_mes(engine, now.year, now.month, local_id or None, tipo="disponibilidade")
         return _render(
             request,
             "admin/relatorios_pre_fechamento.html",
@@ -1192,7 +1191,7 @@ def make_router(engine: Any) -> APIRouter:
             data_fim=data_fim,
             local_id=local_id,
             dados=dados,
-            sobreavisos=sobreavisos,
+            disponibilidades=disponibilidades,
         )
 
     @router.get("/admin/locais", response_class=HTMLResponse)
@@ -1371,7 +1370,7 @@ def make_router(engine: Any) -> APIRouter:
         chaves = [
             "plantao_prazo_cancelamento_horas_uteis",
             "plantao_max_candidaturas_provisorias_por_vaga",
-            "plantao_notif_sobreaviso_dias_antecedencia",
+            "plantao_notif_disponibilidade_dias_antecedencia",
             "plantao_permitir_troca_sem_aprovacao_gestor",
             "plantao_api_key",
         ]
@@ -1392,7 +1391,7 @@ def make_router(engine: Any) -> APIRouter:
             for chave in (
                 "plantao_prazo_cancelamento_horas_uteis",
                 "plantao_max_candidaturas_provisorias_por_vaga",
-                "plantao_notif_sobreaviso_dias_antecedencia",
+                "plantao_notif_disponibilidade_dias_antecedencia",
                 "plantao_permitir_troca_sem_aprovacao_gestor",
                 "plantao_api_key",
             ):
@@ -1464,21 +1463,28 @@ def make_router(engine: Any) -> APIRouter:
         return JSONResponse({"data_inicio": data_inicio, "data_fim": data_fim, "turnos": dados})
 
     @router.get("/api/sobreaviso-ativo", response_class=JSONResponse)
-    async def api_sobreaviso_ativo(
+    async def api_sobreaviso_ativo_compat(request: Request, data: str = "", hora: str = "", local_id: int = 0):
+        return RedirectResponse(
+            f"/plantao/api/disponibilidade-ativa?data={data}&hora={hora}&local_id={local_id}",
+            status_code=301,
+        )
+
+    @router.get("/api/disponibilidade-ativa", response_class=JSONResponse)
+    async def api_disponibilidade_ativa(
         request: Request,
         data: str,
         hora: str,
         local_id: int = 0,
     ):
         from .actions import get_configuracao
-        from .queries import get_sobreaviso_ativo
+        from .queries import get_disponibilidade_ativa
 
         api_key = request.headers.get("X-Plantao-API-Key", "").strip()
         esperado = get_configuracao(engine, "plantao_api_key", "").strip()
         if not esperado or api_key != esperado:
             return JSONResponse({"erro": "API key invalida."}, status_code=403)
-        lista = get_sobreaviso_ativo(engine, data, hora, local_id or None)
-        return JSONResponse({"data": data, "hora": hora, "sobreaviso": lista})
+        lista = get_disponibilidade_ativa(engine, data, hora, local_id or None)
+        return JSONResponse({"data": data, "hora": hora, "disponibilidade": lista})
 
     return router
 

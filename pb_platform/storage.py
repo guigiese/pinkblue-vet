@@ -21,6 +21,9 @@ ALL_PERMISSIONS = [
     "platform_access",
     "labmonitor_access",
     "manage_labmonitor",
+    # Sub-permissões granulares do Lab Monitor (implicadas por manage_labmonitor)
+    "manage_labmonitor_labs",
+    "manage_labmonitor_settings",
     "ops_tools",
     "manage_users",
     "plantao_access",
@@ -38,6 +41,8 @@ DEFAULT_ROLE_PERMISSIONS: dict[str, dict[str, bool]] = {
         "platform_access": True,
         "labmonitor_access": True,
         "manage_labmonitor": True,
+        "manage_labmonitor_labs": True,
+        "manage_labmonitor_settings": True,
         "ops_tools": True,
         "manage_users": False,
         "plantao_access": True,
@@ -51,6 +56,8 @@ DEFAULT_ROLE_PERMISSIONS: dict[str, dict[str, bool]] = {
         "platform_access": True,
         "labmonitor_access": True,
         "manage_labmonitor": False,
+        "manage_labmonitor_labs": False,
+        "manage_labmonitor_settings": False,
         "ops_tools": False,
         "manage_users": False,
         "plantao_access": False,
@@ -64,6 +71,8 @@ DEFAULT_ROLE_PERMISSIONS: dict[str, dict[str, bool]] = {
         "platform_access": False,
         "labmonitor_access": False,
         "manage_labmonitor": False,
+        "manage_labmonitor_labs": False,
+        "manage_labmonitor_settings": False,
         "ops_tools": False,
         "manage_users": False,
         "plantao_access": True,
@@ -77,6 +86,8 @@ DEFAULT_ROLE_PERMISSIONS: dict[str, dict[str, bool]] = {
         "platform_access": False,
         "labmonitor_access": False,
         "manage_labmonitor": False,
+        "manage_labmonitor_labs": False,
+        "manage_labmonitor_settings": False,
         "ops_tools": False,
         "manage_users": False,
         "plantao_access": True,
@@ -90,6 +101,8 @@ DEFAULT_ROLE_PERMISSIONS: dict[str, dict[str, bool]] = {
         "platform_access": False,
         "labmonitor_access": False,
         "manage_labmonitor": False,
+        "manage_labmonitor_labs": False,
+        "manage_labmonitor_settings": False,
         "ops_tools": False,
         "manage_users": False,
         "plantao_access": False,
@@ -354,6 +367,16 @@ class PlatformStore:
             return default
         return _json_loads(row["value"], default)
 
+    def load_text_setting(self, key: str, default: str = "") -> str:
+        with self._engine.connect() as conn:
+            row = conn.execute(
+                text("SELECT value FROM app_kv WHERE key = :key"),
+                {"key": key},
+            ).mappings().first()
+        if not row:
+            return default
+        return row["value"] or default
+
     def save_json_setting(self, key: str, value: Any) -> None:
         payload = _json_dumps(value)
         now = _utcnow()
@@ -364,6 +387,17 @@ class PlatformStore:
                     "ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at"
                 ),
                 {"key": key, "value": payload, "updated_at": now},
+            )
+
+    def save_text_setting(self, key: str, value: str) -> None:
+        now = _utcnow()
+        with self._lock, self._engine.begin() as conn:
+            conn.execute(
+                text(
+                    "INSERT INTO app_kv(key, value, updated_at) VALUES (:key, :value, :updated_at) "
+                    "ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at"
+                ),
+                {"key": key, "value": value, "updated_at": now},
             )
 
     def load_runtime_config(self) -> dict | None:
@@ -987,6 +1021,15 @@ class PlatformStore:
                 text("DELETE FROM user_sessions WHERE user_id = :user_id"),
                 {"user_id": user_id},
             )
+
+    def cleanup_expired_sessions(self) -> int:
+        now = datetime.utcnow().isoformat()
+        with self._lock, self._engine.begin() as conn:
+            result = conn.execute(
+                text("DELETE FROM user_sessions WHERE expires_at < :now"),
+                {"now": now},
+            )
+            return result.rowcount
 
     def list_telegram_users(self) -> list[dict]:
         with self._engine.connect() as conn:

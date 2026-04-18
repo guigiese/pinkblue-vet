@@ -7,13 +7,13 @@ import hashlib
 import threading
 import time
 from copy import deepcopy
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from pb_platform.storage import store
-from labs import CONNECTORS
-from notifiers import NOTIFIERS
-from notification_settings import ensure_notification_settings, render_notification_template
-from web.state import normalize_status
+from modules.lab_monitor.labs import CONNECTORS
+from modules.lab_monitor.notifiers import NOTIFIERS
+from modules.lab_monitor.settings import ensure_notification_settings, render_notification_template
+from web.state import load_runtime_config_snapshot, normalize_status
 
 _EXTERNAL_EVENT_CACHE: dict[str, float] = {}
 _EXTERNAL_EVENT_TTL_SECONDS = 60 * 60 * 72
@@ -170,7 +170,7 @@ def run_historical_backfill(state, max_windows_per_lab: int = 1) -> dict[str, di
                 try:
                     current = lab.snapshot()
                     if current:
-                        _hydrate_snapshot_metadata(lab, {}, current, datetime.now().isoformat())
+                        _hydrate_snapshot_metadata(lab, {}, current, datetime.now(tz=timezone.utc).isoformat())
                         state.snapshots[lab.lab_id] = current
                         state.save_lab_runtime(lab.lab_id)
                 except Exception as e:
@@ -189,13 +189,14 @@ def run_historical_backfill(state, max_windows_per_lab: int = 1) -> dict[str, di
                 start_dt, end_dt = window
                 previous = deepcopy(current)
                 batch = lab.snapshot_between(start_dt.strftime("%Y-%m-%d"), end_dt.strftime("%Y-%m-%d"))
+                print(f"[backfill:{lab.lab_id}] {len(batch)} registros [{start_dt.date()} a {end_dt.date()}]")
                 before_count = len(current)
                 current = _merge_snapshots(current, batch)
                 if batch:
                     # Historical backfill should preserve list-level metadata without
                     # triggering a mass download of every old result payload at once.
                     # Numeric/textual details remain available on-demand.
-                    _hydrate_snapshot_metadata(lab, previous, current, datetime.now().isoformat())
+                    _hydrate_snapshot_metadata(lab, previous, current, datetime.now(tz=timezone.utc).isoformat())
                 added_records += max(0, len(current) - before_count)
                 _update_history_sync_state(lab.lab_id, start_dt, end_dt, batch)
                 processed += 1
@@ -340,10 +341,12 @@ def _apply_operational_status_rules(atual: dict) -> None:
             normalized = normalize_status(raw_status)
             item["lab_status"] = raw_status
             if normalized == "Pronto" and not _item_has_usable_result(item):
-                item["status"] = "Inconsistente"
+                item["status"] = "Pronto"
+                item["publication_status"] = "processing"
                 item["result_issue"] = "ready-without-result"
             else:
                 item["status"] = normalized
+                item["publication_status"] = "ready" if normalized == "Pronto" else "unavailable"
                 item.pop("result_issue", None)
 
 
@@ -498,7 +501,7 @@ def run_monitor_loop(state=None):
     print(f"[{datetime.now():%H:%M:%S}] Monitor iniciado")
 
     while True:
-        config = state.config if state else _load_config_file()
+        config = state.config if state else load_runtime_config_snapshot()
         interval = config.get("interval_minutes", 5) * 60
         notification_settings = ensure_notification_settings(config)
 
@@ -507,11 +510,17 @@ def run_monitor_loop(state=None):
             for l in config["labs"]
             if l.get("enabled") and l["connector"] in CONNECTORS
         ]
-        notifiers = [
-            NOTIFIERS[n["type"]]()
-            for n in config["notifiers"]
-            if n.get("enabled") and n["type"] in NOTIFIERS
-        ]
+        _seen_notifier_ids: set[str] = set()
+        notifiers = []
+        for _n in config["notifiers"]:
+            if not _n.get("enabled") or _n["type"] not in NOTIFIERS:
+                continue
+            _nid = _n.get("id") or _n["type"]
+            if _nid in _seen_notifier_ids:
+                print(f"[warning] notifier duplicado ignorado: {_nid}")
+                continue
+            _seen_notifier_ids.add(_nid)
+            notifiers.append(NOTIFIERS[_n["type"]]())
 
         for lab in labs:
             with _SYNC_LOCK:
@@ -524,7 +533,7 @@ def run_monitor_loop(state=None):
                     fresh = lab.snapshot()
                     anterior = state.snapshots.get(lab.lab_id, {}) if state else {}
                     atual = _merge_snapshots(anterior, fresh) if state else fresh
-                    ts_now = datetime.now().isoformat()
+                    ts_now = datetime.now(tz=timezone.utc).isoformat()
                     if state:
                         state.snapshots[lab.lab_id] = atual
 
@@ -577,8 +586,3 @@ def run_monitor_loop(state=None):
 
         time.sleep(interval)
 
-
-def _load_config_file() -> dict:
-    from pathlib import Path
-    import json
-    return json.loads((Path(__file__).parent / "config.json").read_text(encoding="utf-8"))

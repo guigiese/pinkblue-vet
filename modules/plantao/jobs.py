@@ -82,27 +82,21 @@ def expirar_trocas(engine: Any) -> int:
         return 0
 
 
-def alertar_sobreaviso_vazio(engine: Any, dias_antecedencia: int = 3) -> list[str]:
-    """Detecta datas de sobreaviso sem participantes nos próximos N dias.
-
-    Retorna lista de datas (YYYY-MM-DD) sem cobertura de sobreaviso.
-    O alerta em si é apenas log — a exibição de alertas no dashboard
-    é responsabilidade de queries.py.
-    """
+def alertar_disponibilidade_vazia(engine: Any, dias_antecedencia: int = 3) -> list[str]:
+    """Detecta datas de disponibilidade sem participantes nos próximos N dias."""
     from datetime import timedelta, date as _date
     hoje = _hoje()
     limite = (_date.today() + timedelta(days=dias_antecedencia)).isoformat()
     try:
         with engine.connect() as conn:
-            # datas de sobreaviso publicadas nos próximos N dias
             rows = conn.execute(
                 text(
                     "SELECT pd.id, pd.data FROM plantao_datas pd"
-                    " WHERE pd.tipo='sobreaviso' AND pd.status='publicado'"
+                    " WHERE pd.tipo='disponibilidade' AND pd.status='publicado'"
                     "   AND pd.data >= :hoje"
                     "   AND pd.data <= :limite"
                     "   AND NOT EXISTS ("
-                    "       SELECT 1 FROM plantao_sobreaviso ps"
+                    "       SELECT 1 FROM plantao_disponibilidade ps"
                     "       WHERE ps.data_id = pd.id AND ps.status = 'ativo'"
                     "   )"
                 ),
@@ -111,12 +105,12 @@ def alertar_sobreaviso_vazio(engine: Any, dias_antecedencia: int = 3) -> list[st
         datas_vazias = [r["data"] for r in rows]
         if datas_vazias:
             log.warning(
-                "[plantao.jobs] Sobreaviso sem participantes em: %s",
+                "[plantao.jobs] Disponibilidade sem participantes em: %s",
                 ", ".join(datas_vazias),
             )
         return datas_vazias
     except Exception:
-        log.exception("[plantao.jobs] Erro em alertar_sobreaviso_vazio")
+        log.exception("[plantao.jobs] Erro em alertar_disponibilidade_vazia")
         return []
 
 
@@ -251,7 +245,7 @@ def run_plantao_jobs(engine: Any, interval_seconds: int = 300) -> None:
         try:
             encerrar_escalas_passadas(engine)
             expirar_trocas(engine)
-            alertar_sobreaviso_vazio(engine)
+            alertar_disponibilidade_vazia(engine)
             enviar_lembretes_turno(engine)
             limpar_sessoes_expiradas(engine)
             limpar_notificacoes_antigas(engine)

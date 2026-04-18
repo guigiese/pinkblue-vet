@@ -77,15 +77,15 @@ Importante:
 | Templates | Jinja2 3.1 + HTMX (CDN) + TailwindCSS (CDN) |
 | HTTP scraping | requests 2.32 + BeautifulSoup4 4.13 |
 | Notificações | Telegram Bot API / Callmebot WhatsApp API |
-| Persistência fase 1 | SQLite (`sqlite3`) em `runtime-data/` / Railway Volume |
+| Persistência oficial | PostgreSQL (`psycopg2` via SQLAlchemy) |
 | Auth fase 1 | Sessão por cookie + store compartilhada |
 | Deploy | Railway (Railpack, sem Docker customizado) |
 | Repositório | GitHub: guigiese/pinkblue-vet |
 
-Hoje a plataforma já possui uma persistência fase 1:
-- `SQLite` via `sqlite3` da stdlib;
+Hoje a plataforma já possui uma persistência compartilhada oficial:
+- `PostgreSQL` como banco canônico do runtime;
 - store compartilhada em `pb_platform/storage.py`;
-- usuários, sessões, snapshots, subscriptions e tolerâncias persistidos.
+- usuários, sessões, snapshots, subscriptions, tolerâncias e configurações persistidos.
 
 O `AppState` continua existindo como cache quente do runtime, mas deixou de ser a única fonte de verdade do módulo.
 
@@ -95,7 +95,7 @@ O `AppState` continua existindo como cache quente do runtime, mas deixou de ser 
 
 ```
 /
-├── config.json              # Configuração runtime (labs ativos, notifiers, intervalo)
+├── config.json              # Bootstrap legado da configuração runtime (não é mais a fonte oficial)
 ├── core.py                  # Loop de monitoramento + detecção de novidades
 ├── monitor.py               # Entrypoint standalone (sem web, para testes locais)
 ├── deploy.py                # Script de deploy canônico — usa serviceInstanceDeploy(commitSha=...)
@@ -112,14 +112,14 @@ O `AppState` continua existindo como cache quente do runtime, mas deixou de ser 
 ├── notifiers/
 │   ├── base.py              # ABC Notifier — método enviar(msg: str)
 │   ├── __init__.py          # Registry: NOTIFIERS = {"telegram": ..., "whatsapp": ...}
-│   ├── telegram.py          # Telegram Bot API — subscriptions persistidas na store + espelho legado
+│   ├── telegram.py          # Telegram Bot API — subscriptions persistidas na store compartilhada
 │   ├── telegram_polling.py  # Thread de polling do bot: /assinar, /sair, /status, /start
 │   └── whatsapp.py          # Callmebot API (desabilitado por padrão)
 │
 ├── pb_platform/
 │   ├── settings.py          # Configuração compartilhada da plataforma
 │   ├── security.py          # Hash de senha e tokens de sessão
-│   ├── storage.py           # Store SQLite fase 1 (usuários, sessões, snapshots, thresholds)
+│   ├── storage.py           # Store compartilhada da plataforma (PostgreSQL oficial; SQLite explícito só para uso efêmero)
 │   └── auth.py              # Regras de proteção de rotas e helpers de sessão
 │
 ├── web/
@@ -172,7 +172,7 @@ O `AppState` continua existindo como cache quente do runtime, mas deixou de ser 
 ```
 
 Leitura importante:
-- `config.json` e `telegram_users.json` ainda existem como legado e bootstrap, mas a persistência fase 1 já vive na store compartilhada;
+- `config.json` e `telegram_users.json` ainda existem apenas como bootstrap legado de primeira carga;
 - `web/app.py` ainda acumula home da plataforma, auth, admin, modulo Lab Monitor, ops-map e sandboxes;
 - `labs/` e `notifiers/` ainda vivem no nível raiz porque a separação completa por módulo/shared capability ainda não foi executada.
 
@@ -293,10 +293,9 @@ Não é thread-safe com locks, mas as operações são atômicas o suficiente pa
 | `last_error` | `dict[lab_id, str]` | Último erro, se houver |
 | `is_checking` | `dict[lab_id, bool]` | Flag de verificação em andamento |
 | `notifications` | `list[dict]` | Últimas 50 notificações: `{time, lab, msg}` |
-| `_config` | `dict` | Base carregada de `config.json` com overlay persistido da store |
+| `_config` | `dict` | Snapshot da configuração runtime persistida na store |
 
-`config` é uma property que continua usando `config.json` como base versionada,
-mas agora aplica por cima a configuração persistida da plataforma.
+`config` é uma property alimentada pela configuração runtime persistida no banco.
 Após qualquer escrita via `save_config()`, o próximo ciclo do loop pega o valor atualizado automaticamente.
 
 ---
@@ -313,8 +312,8 @@ Usuários se inscrevem pelo próprio Telegram — sem necessidade de configurar 
 | `/sair` | Cancela a inscrição |
 | `/status` | Informa se está inscrito ou não |
 
-Os chat IDs inscritos agora passam primeiro pela store compartilhada da plataforma.
-`telegram_users.json` permanece apenas como espelho legado/compatibilidade local.
+Os chat IDs inscritos agora vivem na store compartilhada da plataforma.
+`telegram_users.json` só pode aparecer como artefato legado de bootstrap.
 
 A UI em `/labmonitor/canais` exibe a lista de usuários inscritos com botão de remoção.
 A lista atualiza automaticamente a cada 10 segundos via HTMX polling.
@@ -411,7 +410,7 @@ Implementado via `APIRouter(prefix="/labmonitor")` em `web/app.py`.
 
 1. Criar `labs/novolab.py` herdando `LabConnector` e implementando `snapshot()`
 2. Registrar em `labs/__init__.py`: `CONNECTORS["novolab"] = NovoLabConnector`
-3. Adicionar entrada em `config.json`:
+3. Persistir a entrada em `lab_monitor.runtime_config`:
    ```json
    {"id": "novolab", "name": "Nome Legível", "connector": "novolab", "enabled": true}
    ```
@@ -425,7 +424,7 @@ Nenhuma outra mudança é necessária — o loop, a UI e as notificações já s
 
 1. Criar `notifiers/novocanal.py` herdando `Notifier` e implementando `enviar(msg)`
 2. Registrar em `notifiers/__init__.py`: `NOTIFIERS["novocanal"] = NovoCanalNotifier`
-3. Adicionar entrada em `config.json`:
+3. Persistir a entrada em `lab_monitor.runtime_config`:
    ```json
    {"id": "novocanal", "type": "novocanal", "enabled": true}
    ```
@@ -446,7 +445,7 @@ O Nexio não tem URL pública estável por exame. O link abre o visualizador do 
 
 ## Limitações conhecidas (fase atual)
 
-- **Persistência fase 1 ainda é uma ponte:** `sqlite3` resolve o agora, mas não substitui a trilha futura de banco/plataforma mais robusta.
+- **Bootstrap legado ainda existe:** `config.json` e `telegram_users.json` podem servir como import inicial, mas o runtime oficial já depende do PostgreSQL como fonte de verdade.
 - **BitLab timeout:** o servidor `bitlabenterprise.com.br` pode apresentar timeouts intermitentes (connect timeout=15s). Erro capturado em `last_error` e exibido na UI de labs.
 - **Nexio:** o parsing é frágil (depende de posição de colunas HTML). Uma mudança de layout no Pathoweb quebra o conector.
 - **Sync incremental ainda é parcial:** o BitLab já usa contexto persistido para reduzir a janela de busca; o restante dos conectores ainda precisa amadurecer o mesmo comportamento.

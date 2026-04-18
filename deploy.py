@@ -17,14 +17,18 @@ def _cfg_get(section: str, key: str, env_name: str = "", default: str = "") -> s
 
 
 RAILWAY_TOKEN = _cfg_get("railway", "token", env_name="RAILWAY_TOKEN")
-SERVICE_ID    = _cfg_get("railway", "service_id", env_name="RAILWAY_SERVICE_ID", default="215d2612-2f33-475c-8a4f-3c8588089164")
-ENV_ID        = _cfg_get("railway", "env_id", env_name="RAILWAY_ENV_ID", default="f95eb850-1680-4d28-95ce-6dc77b5d7653")
+SERVICE_ID    = _cfg_get("railway", "service_id", env_name="RAILWAY_SERVICE_ID")
+ENV_ID        = _cfg_get("railway", "env_id", env_name="RAILWAY_ENV_ID")
 APP_URL       = _cfg_get("railway", "url", env_name="APP_URL", default="https://pinkblue-vet-production.up.railway.app")
 GH_TOKEN      = _cfg_get("github", "token", env_name="GH_TOKEN")
 GH_REPO       = "guigiese/pinkblue-vet"
 
 if not RAILWAY_TOKEN:
     raise RuntimeError("RAILWAY_TOKEN not available via environment or .secrets")
+if not SERVICE_ID:
+    raise RuntimeError("RAILWAY_SERVICE_ID not available via environment or .secrets")
+if not ENV_ID:
+    raise RuntimeError("RAILWAY_ENV_ID not available via environment or .secrets")
 if not GH_TOKEN:
     raise RuntimeError("GH_TOKEN not available via environment or .secrets")
 

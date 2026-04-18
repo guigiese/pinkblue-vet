@@ -10,7 +10,8 @@ class PlatformAuthTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         app.state.disable_auth = False
-        if not store.get_user_by_email("test.admin@pinkbluevet.local"):
+        admin = store.get_user_by_email("test.admin@pinkbluevet.local")
+        if not admin:
             store.create_user(
                 email="test.admin@pinkbluevet.local",
                 password="SenhaTemporaria123",
@@ -18,6 +19,11 @@ class PlatformAuthTests(unittest.TestCase):
                 nome="Admin Teste",
                 status="ativo",
             )
+            admin = store.get_user_by_email("test.admin@pinkbluevet.local")
+        if admin:
+            store.set_user_password(admin["id"], "SenhaTemporaria123", force_password_change=False)
+            store.set_user_role(admin["id"], "admin")
+            store.set_user_active(admin["id"], True)
 
     def setUp(self):
         self.client = TestClient(app)
@@ -36,6 +42,7 @@ class PlatformAuthTests(unittest.TestCase):
         self.assertIn("/login?next=/labmonitor/exames", response.headers["location"])
 
     def test_admin_login_unlocks_home_and_management_areas(self):
+        self.client.get("/logout")
         login_response = self.client.post(
             "/login",
             data={
@@ -57,7 +64,7 @@ class PlatformAuthTests(unittest.TestCase):
         admin = self.client.get("/admin/usuarios")
         self.assertEqual(admin.status_code, 200)
         self.assertIn("Usuários da plataforma", admin.text)
-        self.assertIn("Permissões por perfil", admin.text)
+        self.assertIn("Perfis de acesso", admin.text)
 
         plantao = self.client.get("/plantao/admin/")
         self.assertEqual(plantao.status_code, 200)
