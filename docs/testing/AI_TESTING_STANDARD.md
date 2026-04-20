@@ -152,6 +152,12 @@ Essa leitura deve se limitar a documentacao claramente ligada ao modulo em escop
 
 O mapeamento nao deve assumir que a documentacao do modulo esta atualizada.
 
+Alem dos itens acima, o mapeamento deve obrigatoriamente realizar duas verificacoes adicionais:
+
+**Consistencia de contratos entre camadas**: Para cada componente inspecionado, verificar se identificadores nomeados — IDs de conector, chaves de permissao, nomes de perfil, strings de roteamento — sao os mesmos no arquivo de configuracao, na camada de armazenamento, no roteador e nos templates. Qualquer divergencia deve ser registrada como item `CNT` no inventario (ver secao 9), mesmo que o sistema funcione aparentemente bem no caminho feliz.
+
+**Qualidade de experiencia do usuario**: Registrar sinais de problemas de usabilidade observados nos artefatos inspecionados — vocabulario inconsistente, campos aparentemente redundantes, trocas de tela evitaveis, affordances enganosas. Esses sinais devem ser registrados como itens `UXQ` no inventario para avaliacao durante a rodada.
+
 ## 7. Reuso de mapeamento
 
 Se ja existir mapeamento anterior, a IA deve informar isso ao usuario e oferecer tres caminhos:
@@ -208,6 +214,8 @@ Exemplos de grupos de identificadores:
 - `RST` para riscos ou restricoes
 - `KI` para known issues
 - `WA` para excecoes ou workarounds aceitos temporariamente
+- `CNT` para contratos entre camadas (consistencia de identificadores entre config, storage, router e template — verificado no mapeamento)
+- `UXQ` para qualidade de experiencia do usuario (campo sem necessidade aparente, acao que exige troca de tela evitavel, vocabulario inconsistente, affordance enganosa, aparencia que confunde, etc.)
 
 Os identificadores devem existir para facilitar a resposta do usuario e o rastreamento da execucao.
 
@@ -244,7 +252,9 @@ A IA deve sempre sugerir, quando fizer sentido, vetores de:
 - inconsistencia ou negativo;
 - limites e bordas;
 - revisao visual;
-- permissao.
+- permissao;
+- qualidade de experiencia do usuario (UXQ) — obrigatorio em qualquer modulo com telas interativas;
+- contratos entre camadas (CNT) — obrigatorio sempre que o modulo tiver conectores, permissoes, perfis ou identificadores nomeados compartilhados entre camadas.
 
 Essas sugestoes devem ser priorizadas especialmente em telas com interacoes mais propensas a problemas.
 
@@ -394,21 +404,29 @@ mas ausente ou divergente da documentacao lida do modulo, isso deve ser:
 - apontado no resultado da rodada;
 - sugerido como follow-up de documentacao.
 
-### 17.1. Cruzamento com regras de design e interacao
+### 17.1. Qualidade de experiencia do usuario (UXQ)
 
-Se houver manual de design, historico de discovery, log de feedback, criterios de UX ou padroes de interacao associados ao modulo em escopo, a IA deve usar esse material como referencia durante o mapeamento e a rodada.
+A IA deve avaliar a qualidade da experiencia do usuario durante o mapeamento e a rodada, independentemente de existir manual de design formal. Quando houver manual de design, historico de discovery, log de feedback ou criterios de UX associados ao modulo, esses materiais devem ser usados como referencia adicional — mas a ausencia deles nao cancela a avaliacao.
 
-Isso vale especialmente para:
+A avaliacao deve cobrir as seguintes dimensoes:
 
-- reversibilidade de acoes;
-- comportamento esperado de toggles;
-- padrao de CRUD;
-- empty states;
-- estados desabilitados;
-- consistencia de navegacao;
-- feedbacks de sucesso, erro e bloqueio.
+**Coerencia de vocabulario**: O mesmo conceito usa o mesmo nome em toda a interface? Nomes distintos para a mesma coisa (por exemplo, "papel", "perfil" e "funcao" se referindo ao mesmo conceito de nivel de acesso) devem ser registrados como achado UXQ.
 
-Se a tela divergir desses padroes, a divergencia deve ser registrada, mesmo que o fluxo tecnico ainda funcione.
+**Redundancia de campos ou etapas**: Ha campos cujo preenchimento nao agrega valor aparente, ou etapas que poderiam ser eliminadas sem perda de funcionalidade? Formularios com informacoes que o sistema ja conhece e poderia inferir automaticamente devem ser registrados.
+
+**Proximidade de acao**: O usuario e obrigado a navegar para outra tela para realizar algo que poderia ser feito na tela atual com ajuste minimo? Desvios de contexto desnecessarios devem ser registrados.
+
+**Affordance de controles**: Elementos que parecem clicaveis mas nao sao, botoes sem resposta visual, links que abrem comportamentos inesperados, ou controles cuja funcao nao e clara a partir da aparencia devem ser registrados.
+
+**Consistencia visual e de padroes**: Secoes distintas do modulo ou da plataforma que tratam o mesmo tipo de operacao com padroes visuais diferentes devem ser registradas. Isso inclui paginas que rompem o shell visual padrao da plataforma sem justificativa aparente.
+
+**Feedback de estado**: Acoes sem confirmacao visual clara, estados de carregamento silenciosos, mensagens de erro ou sucesso que desaparecem antes de serem lidas, ou ausencia de feedback apos uma acao esperada devem ser registrados.
+
+**Carga cognitiva**: Fluxos com mais decisoes ou passos do que o necessario, formularios com campos tecnicos desnecessariamente expostos ao usuario final, instrucoes confusas ou ausentes em pontos de decisao, e opcoes que so fazem sentido para quem ja conhece o sistema devem ser registrados.
+
+Achados UXQ devem ser classificados com a mesma escala de criticidade dos achados funcionais. Um problema de UX que impede a conclusao de uma tarefa e `critico`; um que confunde mas nao bloqueia e `media` ou `baixa`.
+
+A divergencia deve ser registrada mesmo que o fluxo tecnico ainda funcione corretamente.
 
 ### 17.2. Rastros de implementacoes anteriores
 

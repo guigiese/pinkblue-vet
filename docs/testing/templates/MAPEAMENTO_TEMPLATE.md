@@ -106,6 +106,20 @@ Use IDs curtos e claros.
 - `CEN-01`:
 - `CEN-02`:
 
+### 5.7. Contratos entre camadas
+
+Listar os identificadores nomeados verificados e registrar qualquer divergencia encontrada.
+
+- `CNT-01`: (ex.: ID de conector em config.json vs. chave em CONNECTORS dict vs. lab_id property)
+- `CNT-02`: (ex.: chave de permissao em ALL_PERMISSIONS vs. DEFAULT_ROLE_PERMISSIONS vs. template admin)
+
+### 5.8. Qualidade de experiencia do usuario
+
+Listar sinais de problemas de usabilidade observados nos artefatos inspecionados.
+
+- `UXQ-01`: (ex.: campo redundante, vocabulario inconsistente, acao que exige troca de tela evitavel)
+- `UXQ-02`:
+
 ## 6. Vetores de teste sugeridos
 
 Listar apenas sugestoes. Nao executar nada aqui.
@@ -129,6 +143,16 @@ Listar apenas sugestoes. Nao executar nada aqui.
 
 - `VIS-01`:
 - `VIS-02`:
+
+### 6.5. Contratos entre camadas
+
+- `CNT-01`:
+- `CNT-02`:
+
+### 6.6. Qualidade de experiencia do usuario
+
+- `UXQ-01`:
+- `UXQ-02`:
 
 ## 7. Sugestoes pre-prontas da IA
 
