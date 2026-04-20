@@ -18,7 +18,7 @@
   {% endif %}
 
   {# Aviso para auxiliares: esta seção é exclusiva para veterinários #}
-  {% if user.role == 'auxiliar' %}
+  {% if perfil.role == 'auxiliar' %}
   <div class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
     A fila de disponibilidade é exclusiva para veterinários plantonistas.
   </div>
@@ -43,13 +43,13 @@
     </div>
     {% else %}
     <div class="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 text-sm text-gray-500">
-      {% if user.role == 'auxiliar' %}Não aplicável para auxiliares.
+      {% if perfil.role == 'auxiliar' %}Não aplicável para auxiliares.
       {% else %}Você não está em nenhuma fila de disponibilidade.{% endif %}
     </div>
     {% endif %}
   </section>
 
-  {% if user.role != 'auxiliar' %}
+  {% if perfil.role != 'auxiliar' %}
   <section class="space-y-2">
     <h2 class="text-sm font-semibold text-gray-700">Datas com disponibilidade em aberto</h2>
     {% if disponibilidades_abertas %}
