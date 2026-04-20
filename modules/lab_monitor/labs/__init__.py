@@ -1,7 +1,7 @@
 from .bitlab import BitlabConnector
-from .nexio import NexioConnector
+from .pathoweb import PathoWebConnector
 
 CONNECTORS = {
-    "bitlab": BitlabConnector,
-    "nexio":  NexioConnector,
+    "bitlab":    BitlabConnector,
+    "pathoweb":  PathoWebConnector,
 }

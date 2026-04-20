@@ -1,5 +1,6 @@
 """
-Conector para Nexio Patologia (Pathoweb).
+Conector PathoWeb → laboratório Nexio Patologia.
+PathoWeb é a plataforma/portal (pathoweb.com.br); Nexio Patologia é o laboratório.
 Autenticação via sessão (Spring Security form login).
 """
 
@@ -130,7 +131,7 @@ def _extract_received_at(raw_text: str) -> str:
         return ""
 
 
-class NexioConnector(LabConnector):
+class PathoWebConnector(LabConnector):
 
     BASE  = "https://www.pathoweb.com.br"
     LOGIN = f"{BASE}/j_spring_security_check"
@@ -142,7 +143,7 @@ class NexioConnector(LabConnector):
 
     @property
     def lab_id(self):
-        return "nexio"
+        return "pathoweb"
 
     @property
     def lab_name(self):
@@ -331,7 +332,7 @@ class NexioConnector(LabConnector):
             try:
                 exames = self._buscar_exames(session, **busca_kwargs)
             except Exception as e:
-                print(f"  [Nexio backfill] busca {busca_kwargs} falhou: {e}")
+                print(f"  [PathoWeb backfill] busca {busca_kwargs} falhou: {e}")
                 continue
             for exame in exames:
                 exam_key = exame.get("numero") or exame.get("exame_id")
@@ -351,7 +352,7 @@ class NexioConnector(LabConnector):
         soup = BeautifulSoup(viewer.text, "html.parser")
         frame = soup.find(src=re.compile(r"/imagem/renderReport\?path="))
         if not frame or not frame.get("src"):
-            raise ValueError("Nao foi possivel localizar o PDF do laudo no viewer do Nexio.")
+            raise ValueError("Nao foi possivel localizar o PDF do laudo no viewer do PathoWeb.")
         report = session.get(f"{self.BASE}{frame['src']}", timeout=20)
         report.raise_for_status()
         return report.content
@@ -362,7 +363,7 @@ class NexioConnector(LabConnector):
             page.extract_text() or ""
             for page in PdfReader(io.BytesIO(raw_pdf)).pages
         )
-        return NexioConnector.parse_report_text(raw_text)
+        return PathoWebConnector.parse_report_text(raw_text)
 
     @staticmethod
     def parse_report_text(raw_text: str) -> dict:
@@ -441,7 +442,7 @@ class NexioConnector(LabConnector):
         try:
             session = self._login()
         except Exception as e:
-            print(f"  [Nexio metadata] login failed: {e}")
+            print(f"  [PathoWeb metadata] login failed: {e}")
             return
 
         for rid, portal_id in to_fetch:
@@ -458,12 +459,12 @@ class NexioConnector(LabConnector):
                             current_item["diagnosis_text"] = metadata["diagnosis_text"]
                             current_item["nome"] = _build_exam_display_name(rid, metadata["diagnosis_text"])
                     print(
-                        f"  [Nexio metadata] {rid} -> "
+                        f"  [PathoWeb metadata] {rid} -> "
                         f"species={atual[rid].get('species_sex') or '-'} "
                         f"breed={atual[rid].get('breed') or '-'}"
                     )
             except Exception as e:
-                print(f"  [Nexio metadata] {rid}: {e}")
+                print(f"  [PathoWeb metadata] {rid}: {e}")
             time.sleep(0.05)
 
     def snapshot(self) -> dict[str, dict]:

@@ -8,9 +8,9 @@
       "enabled": true
     },
     {
-      "id": "nexio",
+      "id": "pathoweb",
       "name": "Nexio Patologia",
-      "connector": "nexio",
+      "connector": "pathoweb",
       "enabled": true
     }
   ],

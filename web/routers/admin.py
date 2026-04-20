@@ -19,8 +19,9 @@ _PERM_LABELS_GLOBAL = {
     "manage_labmonitor_labs": "Lab Monitor — configurar laboratórios",
     "manage_labmonitor_settings": "Lab Monitor — configurações",
     # Plantão
-    "plantao_access": "Plantão — acesso (plantonista)",
-    "manage_plantao": "Plantão — gerenciar (todos os sub-itens)",
+    "plantao_access": "Plantão — acesso ao módulo",
+    "plantao_disponibilidade": "Plantão — fila de disponibilidade (somente veterinários)",
+    "manage_plantao": "Plantão — gerenciar (inclui todos os sub-itens abaixo)",
     "plantao_gerir_escalas": "Plantão — criar e editar escalas",
     "plantao_aprovar_candidaturas": "Plantão — aprovar/recusar candidaturas",
     "plantao_aprovar_cadastros": "Plantão — aprovar cadastros de plantonistas",
@@ -45,7 +46,7 @@ async def rejeitar_usuario(request: Request, user_id: int):
 
 
 @router.get("/admin/usuarios")
-async def users_admin(request: Request, saved: str = ""):
+async def users_admin(request: Request, saved: str = "", erro: str = ""):
     if not has_permission(request, "manage_users"):
         return RedirectResponse(url="/", status_code=303)
     from pb_platform.storage import ROLE_LABELS
@@ -60,6 +61,7 @@ async def users_admin(request: Request, saved: str = ""):
         role_labels=ROLE_LABELS,
         profiles=store.list_profiles(),
         save_state=saved,
+        erro=erro,
     )
 
 
@@ -68,11 +70,19 @@ async def create_platform_user(
     request: Request,
     email: str = Form(...),
     password: str = Form(...),
-    role: str = Form("viewer"),
+    profile_id: str = Form(""),
 ):
     if not has_permission(request, "manage_users"):
         return RedirectResponse(url="/", status_code=303)
-    store.create_user(email=email, password=password, role=role)
+    pid = int(profile_id) if profile_id and profile_id.isdigit() else None
+    profile = store.get_profile(pid) if pid else None
+    role = profile["base_role"] if profile else "viewer"
+    try:
+        user = store.create_user(email=email, password=password, role=role)
+        if pid:
+            store.assign_user_profile(user["id"], pid)
+    except ValueError as exc:
+        return RedirectResponse(url=f"/admin/usuarios?erro={exc}", status_code=303)
     return RedirectResponse(url="/admin/usuarios?saved=1", status_code=303)
 
 
@@ -128,7 +138,7 @@ async def update_role_permissions(
 async def profiles_page(request: Request, saved: str = "", erro: str = ""):
     if not has_permission(request, "manage_users"):
         return RedirectResponse(url="/", status_code=303)
-    from pb_platform.storage import ROLE_LABELS
+    from pb_platform.storage import ROLE_LABELS, ALL_PERMISSIONS
     return _render(
         request,
         "admin_profiles.html",
@@ -198,5 +208,8 @@ async def assign_user_profile(
     if not has_permission(request, "manage_users"):
         return RedirectResponse(url="/", status_code=303)
     pid = int(profile_id) if profile_id and profile_id.isdigit() else None
-    store.assign_user_profile(user_id, pid)
+    try:
+        store.assign_user_profile(user_id, pid)
+    except ValueError as exc:
+        return RedirectResponse(url=f"/admin/usuarios?erro={exc}", status_code=303)
     return RedirectResponse(url="/admin/usuarios?saved=1", status_code=303)

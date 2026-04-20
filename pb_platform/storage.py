@@ -27,6 +27,8 @@ ALL_PERMISSIONS = [
     "ops_tools",
     "manage_users",
     "plantao_access",
+    # Disponibilidade: apenas veterinários (não auxiliares) podem aderir à fila
+    "plantao_disponibilidade",
     "manage_plantao",
     # Sub-permissões granulares do Plantão (implicadas por manage_plantao)
     "plantao_gerir_escalas",
@@ -46,6 +48,7 @@ DEFAULT_ROLE_PERMISSIONS: dict[str, dict[str, bool]] = {
         "ops_tools": True,
         "manage_users": True,
         "plantao_access": True,
+        "plantao_disponibilidade": True,
         "manage_plantao": True,
         "plantao_gerir_escalas": True,
         "plantao_aprovar_candidaturas": True,
@@ -61,6 +64,7 @@ DEFAULT_ROLE_PERMISSIONS: dict[str, dict[str, bool]] = {
         "ops_tools": False,
         "manage_users": False,
         "plantao_access": False,
+        "plantao_disponibilidade": False,
         "manage_plantao": False,
         "plantao_gerir_escalas": False,
         "plantao_aprovar_candidaturas": False,
@@ -76,6 +80,8 @@ DEFAULT_ROLE_PERMISSIONS: dict[str, dict[str, bool]] = {
         "ops_tools": False,
         "manage_users": False,
         "plantao_access": True,
+        # Veterinários podem aderir à fila de disponibilidade; auxiliares não
+        "plantao_disponibilidade": True,
         "manage_plantao": False,
         "plantao_gerir_escalas": False,
         "plantao_aprovar_candidaturas": False,
@@ -91,6 +97,7 @@ DEFAULT_ROLE_PERMISSIONS: dict[str, dict[str, bool]] = {
         "ops_tools": False,
         "manage_users": False,
         "plantao_access": True,
+        "plantao_disponibilidade": False,
         "manage_plantao": False,
         "plantao_gerir_escalas": False,
         "plantao_aprovar_candidaturas": False,
@@ -106,6 +113,7 @@ DEFAULT_ROLE_PERMISSIONS: dict[str, dict[str, bool]] = {
         "ops_tools": False,
         "manage_users": False,
         "plantao_access": False,
+        "plantao_disponibilidade": False,
         "manage_plantao": False,
         "plantao_gerir_escalas": False,
         "plantao_aprovar_candidaturas": False,
@@ -431,24 +439,22 @@ class PlatformStore:
         self.save_json_setting("platform.role_permissions", matrix)
 
     def get_user_permissions(self, user: dict | None) -> dict[str, bool]:
-        """Resolve permissões com cascata: role-default → perfil → permissões individuais."""
+        """Resolve permissões: perfil atribuído (todos os tipos) > role padrão como fallback."""
         if not user:
             return {permission: False for permission in ALL_PERMISSIONS}
         role = (user.get("role") or "viewer").strip().lower()
-        # 1. Base: permissões do role padrão
         matrix = self.get_role_permissions()
         resolved = dict(matrix.get(role) or {})
-        # 2. Sobrescreve com permissões do perfil customizado (se houver)
         profile_id = user.get("profile_id")
         if profile_id:
             profile = self.get_profile(profile_id)
-            if profile and not profile["is_system"]:
+            if profile:
                 for perm, val in profile["permissions"].items():
                     resolved[perm] = bool(val)
         result = {permission: bool(resolved.get(permission, False)) for permission in ALL_PERMISSIONS}
-        # manage_plantao implica plantao_access e todas as sub-permissões granulares do módulo Plantão
         if result.get("manage_plantao"):
             result["plantao_access"] = True
+            result["plantao_disponibilidade"] = True
             for sub in ("plantao_gerir_escalas", "plantao_aprovar_candidaturas", "plantao_aprovar_cadastros", "plantao_ver_relatorios"):
                 result[sub] = True
         return result
@@ -835,33 +841,75 @@ class PlatformStore:
                 {"role": role, "updated_at": _utcnow(), "user_id": user_id},
             )
 
-    # ── Perfis customizáveis ─────────────────────────────────────────────────
+    # ── Perfis ───────────────────────────────────────────────────────────────
+
+    # Perfis padrão da plataforma. base_role define o papel interno para lógica de negócio.
+    _DEFAULT_PROFILES = [
+        ("admin",               "admin",       "Administrador completo da plataforma."),
+        ("Gestor",              "operator",    "Acesso total ao Lab Monitor e ao Plantão."),
+        ("Colaborador",         "viewer",      "Acesso à plataforma e visualização do Lab Monitor."),
+        ("Veterinário Externo", "veterinario", "Plantonista veterinário: acesso ao módulo Plantão e fila de disponibilidade."),
+        ("Auxiliar Externo",    "auxiliar",    "Plantonista auxiliar: acesso ao módulo Plantão (sem fila de disponibilidade)."),
+    ]
 
     def _seed_system_profiles(self) -> None:
-        """Garante que os perfis padrão existam como is_system=1."""
+        """Garante que os 5 perfis padrão existam e estejam com nomes e permissões corretos."""
         now = _utcnow()
-        for role, perms in DEFAULT_ROLE_PERMISSIONS.items():
-            label = ROLE_LABELS.get(role, role.capitalize())
+        for nome, base_role, descricao in self._DEFAULT_PROFILES:
+            perms = DEFAULT_ROLE_PERMISSIONS.get(base_role, {})
             with self._lock, self._engine.begin() as conn:
-                exists = conn.execute(
-                    text("SELECT id FROM platform_profiles WHERE base_role=:role AND is_system=1"),
-                    {"role": role},
+                row = conn.execute(
+                    text("SELECT id FROM platform_profiles WHERE nome=:nome"),
+                    {"nome": nome},
                 ).first()
-                if not exists:
+                if row:
                     conn.execute(
                         text(
-                            "INSERT INTO platform_profiles(nome, descricao, base_role, permissions_json, is_system, criado_em, alterado_em) "
-                            "VALUES (:nome, :descricao, :base_role, :permissions_json, 1, :criado_em, :alterado_em)"
+                            "UPDATE platform_profiles SET base_role=:base_role, permissions_json=:permissions_json, "
+                            "descricao=:descricao, is_system=1, alterado_em=:now WHERE id=:id"
                         ),
                         {
-                            "nome": label,
-                            "descricao": f"Perfil padrão de sistema: {label}",
-                            "base_role": role,
+                            "base_role": base_role,
                             "permissions_json": _json_dumps(perms),
-                            "criado_em": now,
-                            "alterado_em": now,
+                            "descricao": descricao,
+                            "now": now,
+                            "id": row[0],
                         },
                     )
+                else:
+                    # Check for old-style seeded profile by base_role and rename it
+                    old = conn.execute(
+                        text("SELECT id FROM platform_profiles WHERE base_role=:role AND is_system=1"),
+                        {"role": base_role},
+                    ).first()
+                    if old:
+                        conn.execute(
+                            text(
+                                "UPDATE platform_profiles SET nome=:nome, descricao=:descricao, "
+                                "permissions_json=:permissions_json, alterado_em=:now WHERE id=:id"
+                            ),
+                            {
+                                "nome": nome,
+                                "descricao": descricao,
+                                "permissions_json": _json_dumps(perms),
+                                "now": now,
+                                "id": old[0],
+                            },
+                        )
+                    else:
+                        conn.execute(
+                            text(
+                                "INSERT INTO platform_profiles(nome, descricao, base_role, permissions_json, is_system, criado_em, alterado_em) "
+                                "VALUES (:nome, :descricao, :base_role, :permissions_json, 1, :now, :now)"
+                            ),
+                            {
+                                "nome": nome,
+                                "descricao": descricao,
+                                "base_role": base_role,
+                                "permissions_json": _json_dumps(perms),
+                                "now": now,
+                            },
+                        )
 
     def list_profiles(self) -> list[dict]:
         with self._engine.connect() as conn:
@@ -919,8 +967,6 @@ class PlatformStore:
         profile = self.get_profile(profile_id)
         if not profile:
             raise ValueError("Perfil não encontrado.")
-        if profile["is_system"]:
-            raise ValueError("Perfis de sistema não podem ser editados.")
         with self._lock, self._engine.begin() as conn:
             conn.execute(
                 text(
@@ -936,14 +982,33 @@ class PlatformStore:
                 },
             )
 
+    def _count_active_admins_excluding(self, user_id: int | None = None) -> int:
+        with self._engine.connect() as conn:
+            row = conn.execute(
+                text(
+                    "SELECT COUNT(*) FROM users u "
+                    "JOIN platform_profiles p ON u.profile_id = p.id "
+                    "WHERE p.base_role='admin' AND u.status='ativo' "
+                    + ("AND u.id != :uid" if user_id is not None else "")
+                ),
+                {"uid": user_id} if user_id is not None else {},
+            ).first()
+        return int(row[0]) if row else 0
+
     def delete_profile(self, profile_id: int) -> None:
         profile = self.get_profile(profile_id)
         if not profile:
             return
-        if profile["is_system"]:
-            raise ValueError("Perfis de sistema não podem ser excluídos.")
+        if profile["base_role"] == "admin":
+            # Prevent deleting the admin profile if active admins would be left without one
+            with self._engine.connect() as conn:
+                users_with_profile = conn.execute(
+                    text("SELECT COUNT(*) FROM users WHERE profile_id=:id AND status='ativo'"),
+                    {"id": profile_id},
+                ).scalar() or 0
+            if users_with_profile > 0 and self._count_active_admins_excluding(None) <= users_with_profile:
+                raise ValueError("Não é possível excluir o perfil admin enquanto houver usuários ativos vinculados a ele.")
         with self._lock, self._engine.begin() as conn:
-            # Desvincula usuários deste perfil antes de deletar
             conn.execute(
                 text("UPDATE users SET profile_id=NULL WHERE profile_id=:id"),
                 {"id": profile_id},
@@ -954,11 +1019,30 @@ class PlatformStore:
             )
 
     def assign_user_profile(self, user_id: int, profile_id: int | None) -> None:
+        current = self.get_user_by_id(user_id)
+        new_base_role: str | None = None
+        if profile_id:
+            profile = self.get_profile(profile_id)
+            if not profile:
+                raise ValueError("Perfil não encontrado.")
+            new_base_role = profile["base_role"]
+        # Safety: ensure at least one other admin remains
+        if current and current.get("role") == "admin" and new_base_role != "admin":
+            other_admins = self._count_active_admins_excluding(user_id)
+            if other_admins == 0:
+                raise ValueError("Não é possível remover o perfil admin do último administrador ativo.")
         with self._lock, self._engine.begin() as conn:
-            conn.execute(
-                text("UPDATE users SET profile_id=:profile_id, updated_at=:now WHERE id=:user_id"),
-                {"profile_id": profile_id, "now": _utcnow(), "user_id": user_id},
-            )
+            params: dict = {"profile_id": profile_id, "now": _utcnow(), "user_id": user_id}
+            if new_base_role:
+                conn.execute(
+                    text("UPDATE users SET profile_id=:profile_id, role=:role, updated_at=:now WHERE id=:user_id"),
+                    {**params, "role": new_base_role},
+                )
+            else:
+                conn.execute(
+                    text("UPDATE users SET profile_id=:profile_id, updated_at=:now WHERE id=:user_id"),
+                    params,
+                )
 
     def create_session(self, user_id: int) -> str:
         raw = secrets.token_urlsafe(32)

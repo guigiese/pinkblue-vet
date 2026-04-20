@@ -39,16 +39,16 @@ STATUS_SHORT_LABELS: dict[str, str] = {
 
 # Fallback portal URLs (when no portal_id is available)
 PORTAL_URLS: dict[str, str] = {
-    "bitlab": "https://bitlabenterprise.com.br/bioanalises/resultados",
-    "nexio":  "https://www.pathoweb.com.br",
+    "bitlab":   "https://bitlabenterprise.com.br/bioanalises/resultados",
+    "pathoweb": "https://www.pathoweb.com.br",
 }
 
 # Deep link patterns per lab — {portal_id} placeholder
 # BitLab: SPA route /laudos/{id} — requires active browser session (JWT in localStorage)
-# Nexio: visualizarLaudoAjax — requires active session cookie
+# PathoWeb: visualizarLaudoAjax — requires active session cookie
 PORTAL_URL_PATTERN: dict[str, str] = {
-    "bitlab": "https://bitlabenterprise.com.br/bioanalises/laudos/{portal_id}",
-    "nexio":  "https://www.pathoweb.com.br/moduloProcedencia/visualizarLaudoAjax?id={portal_id}",
+    "bitlab":   "https://bitlabenterprise.com.br/bioanalises/laudos/{portal_id}",
+    "pathoweb": "https://www.pathoweb.com.br/moduloProcedencia/visualizarLaudoAjax?id={portal_id}",
 }
 
 # ── Status normalization ──────────────────────────────────────────────────────
@@ -477,10 +477,10 @@ class AppState:
 
             for record_id, record in snapshot.items():
                 itens = []
-                for item in record["itens"].values():
-                    if item["nome"] in EXCLUDE_EXAMES:
+                for item in record.get("itens", {}).values():
+                    if item.get("nome", "") in EXCLUDE_EXAMES:
                         continue
-                    item_status = normalize_status(item["status"])
+                    item_status = normalize_status(item.get("status", ""))
                     itens.append({
                         "nome":        item["nome"],
                         "status":      item_status,
@@ -760,12 +760,12 @@ class AppState:
             for record in snap.values():
                 itens = [
                     {
-                        "status": normalize_status(item["status"]),
+                        "status": normalize_status(item.get("status", "")),
                         "group_status": _item_group_status(item),
                         "liberado_em": item.get("liberado_em"),
                     }
-                    for item in record["itens"].values()
-                    if item["nome"] not in EXCLUDE_EXAMES
+                    for item in record.get("itens", {}).values()
+                    if item.get("nome", "") not in EXCLUDE_EXAMES
                 ]
                 if not itens:
                     continue

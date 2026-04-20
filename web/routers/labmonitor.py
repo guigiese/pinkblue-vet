@@ -361,7 +361,7 @@ async def partial_ultimos_liberados(request: Request):
 def _find_cached_resultado(item_id: str) -> tuple[list[dict] | None, str, str]:
     for snap in state.snapshots.values():
         for record in snap.values():
-            for item in record["itens"].values():
+            for item in record.get("itens", {}).values():
                 if item.get("item_id") == item_id:
                     if "resultado" in item or item.get("report_text"):
                         return (
@@ -375,7 +375,7 @@ def _find_cached_resultado(item_id: str) -> tuple[list[dict] | None, str, str]:
 def _find_result_record(item_id: str) -> tuple[str, dict] | tuple[None, None]:
     for lab_id, snap in state.snapshots.items():
         for record in snap.values():
-            for item in record["itens"].values():
+            for item in record.get("itens", {}).values():
                 if item.get("item_id") == item_id:
                     return lab_id, record
     return None, None
@@ -384,7 +384,7 @@ def _find_result_record(item_id: str) -> tuple[str, dict] | tuple[None, None]:
 def _find_result_item(item_id: str) -> dict | None:
     for snap in state.snapshots.values():
         for record in snap.values():
-            for item in record["itens"].values():
+            for item in record.get("itens", {}).values():
                 if item.get("item_id") == item_id:
                     return item
     return None
@@ -423,7 +423,7 @@ def _cache_resultado(
 
     for lab_id, snap in state.snapshots.items():
         for record in snap.values():
-            for item in record["itens"].values():
+            for item in record.get("itens", {}).values():
                 if item.get("item_id") == item_id:
                     item["resultado"] = rows
                     item["alerta"] = worst
