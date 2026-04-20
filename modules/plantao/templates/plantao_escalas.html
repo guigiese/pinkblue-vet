@@ -3,6 +3,7 @@
 {% block title %}Escalas · Plantão · {{ platform_name }}{% endblock %}
 
 {% block content %}
+<h1 class="sr-only">Escalas de Plantão</h1>
 <div class="space-y-5" x-data="escalas()" x-init="init()">
 
   {# ── Feedback ── #}
@@ -12,6 +13,12 @@
   {% if ok %}
   <div class="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
     {% if '_criadas' in ok %}{{ ok.replace('_criadas','') }} escala(s) criada(s) com sucesso.
+    {% elif ok == 'candidatura_enviada' %}Candidatura enviada! Aguarde a confirmação do gestor.
+    {% elif ok == 'cancelado' %}Candidatura cancelada com sucesso.
+    {% elif ok == 'troca_solicitada' %}Solicitação de troca enviada.
+    {% elif ok == 'substituicao_aberta' %}Posição aberta para substituição.
+    {% elif ok == 'troca_aceita' %}Troca aceita — candidaturas atualizadas.
+    {% elif ok == 'troca_recusada' %}Troca recusada.
     {% else %}Operação realizada com sucesso.{% endif %}
   </div>
   {% endif %}

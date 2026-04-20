@@ -44,7 +44,7 @@ DEFAULT_ROLE_PERMISSIONS: dict[str, dict[str, bool]] = {
         "manage_labmonitor_labs": True,
         "manage_labmonitor_settings": True,
         "ops_tools": True,
-        "manage_users": False,
+        "manage_users": True,
         "plantao_access": True,
         "manage_plantao": True,
         "plantao_gerir_escalas": True,

@@ -4,24 +4,35 @@
 
 {% block content %}
 <div class="space-y-6">
-  <h2 class="text-lg font-semibold text-gray-800">Lista de Disponibilidade</h2>
+  <h1 class="text-lg font-semibold text-gray-800">Lista de Disponibilidade</h1>
 
   {% if erro %}
-  <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{{ erro }}</div>
+  <div class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{{ erro }}</div>
   {% endif %}
   {% if ok %}
-  <div class="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">Operacao concluida.</div>
+  <div class="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+    {% if ok == 'aderiu' %}Adesão registrada com sucesso.
+    {% elif ok == 'cancelado' %}Disponibilidade cancelada.
+    {% else %}Operação concluída.{% endif %}
+  </div>
+  {% endif %}
+
+  {# Aviso para auxiliares: esta seção é exclusiva para veterinários #}
+  {% if user.role == 'auxiliar' %}
+  <div class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+    A fila de disponibilidade é exclusiva para veterinários plantonistas.
+  </div>
   {% endif %}
 
   <section class="space-y-2">
-    <h3 class="text-sm font-semibold text-gray-700">Minha posição na lista de disponibilidade</h3>
+    <h2 class="text-sm font-semibold text-gray-700">Minha posição na lista de disponibilidade</h2>
     {% if minhas_adesoes %}
     <div class="space-y-2">
       {% for a in minhas_adesoes %}
       <div class="bg-white border border-gray-200 rounded-xl p-3 flex items-center justify-between gap-3">
         <div class="text-sm">
-          <div class="font-medium text-gray-800">{{ a.data }} · {{ a.hora_inicio }}-{{ a.hora_fim }}</div>
-          <div class="text-gray-500">{{ a.local_nome }} · prioridade #{{ a.prioridade }}</div>
+          <div class="font-medium text-gray-800">{{ a.data }} · {{ a.hora_inicio }}–{{ a.hora_fim }}</div>
+          <div class="text-gray-500">{{ a.local_nome }} · posição #{{ a.prioridade }}</div>
         </div>
         <form method="post" action="/plantao/disponibilidade/{{ a.id }}/cancelar">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -31,19 +42,23 @@
       {% endfor %}
     </div>
     {% else %}
-    <div class="text-sm text-gray-500">Você ainda não aderiu a nenhuma disponibilidade.</div>
+    <div class="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 text-sm text-gray-500">
+      {% if user.role == 'auxiliar' %}Não aplicável para auxiliares.
+      {% else %}Você não está em nenhuma fila de disponibilidade.{% endif %}
+    </div>
     {% endif %}
   </section>
 
+  {% if user.role != 'auxiliar' %}
   <section class="space-y-2">
-    <h3 class="text-sm font-semibold text-gray-700">Datas com disponibilidade em aberto</h3>
+    <h2 class="text-sm font-semibold text-gray-700">Datas com disponibilidade em aberto</h2>
     {% if disponibilidades_abertas %}
     <div class="space-y-2">
       {% for d in disponibilidades_abertas %}
       <div class="bg-white border border-gray-200 rounded-xl p-3 flex items-center justify-between gap-3">
         <div class="text-sm">
-          <div class="font-medium text-gray-800">{{ d.data }} · {{ d.hora_inicio }}-{{ d.hora_fim }}</div>
-          <div class="text-gray-500">{{ d.local_nome }} · {{ d.status }}</div>
+          <div class="font-medium text-gray-800">{{ d.data }} · {{ d.hora_inicio }}–{{ d.hora_fim }}</div>
+          <div class="text-gray-500">{{ d.local_nome }}</div>
         </div>
         <form method="post" action="/plantao/disponibilidade/{{ d.id }}/aderir">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -53,8 +68,9 @@
       {% endfor %}
     </div>
     {% else %}
-    <div class="text-sm text-gray-500">Nenhuma disponibilidade em aberto neste período.</div>
+    <div class="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 text-sm text-gray-500">Nenhuma data de disponibilidade em aberto no momento.</div>
     {% endif %}
   </section>
+  {% endif %}
 </div>
 {% endblock %}

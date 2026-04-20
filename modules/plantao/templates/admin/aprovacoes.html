@@ -14,6 +14,12 @@
     {{ ok }} candidatura(s) processada(s) com sucesso.
   </div>
   {% endif %}
+  {% if aviso == 'sem_tarifa' %}
+  <div class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+    <strong>Atenção:</strong> Nenhuma tarifa encontrada para o tipo de perfil deste plantonista. O valor de honorário ficou em branco. Verifique as configurações de tarifas em
+    <a href="/plantao/admin/config" class="underline font-medium">Configurações → Tarifas</a>.
+  </div>
+  {% endif %}
 
   {# ── Fila de pendentes ── #}
   {% if pendentes %}

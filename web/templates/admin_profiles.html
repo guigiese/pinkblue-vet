@@ -4,7 +4,7 @@
 {% block shell_caption %}Administração da plataforma{% endblock %}
 {% block header %}Perfis de acesso{% endblock %}
 {% block subheader %}
-  Perfis customizados com conjuntos de permissões específicos. Perfis de sistema não podem ser editados.
+  Perfis definem quais partes da plataforma cada usuário pode acessar. O <strong>papel (role)</strong> define as permissões padrão; atribuir um <strong>perfil customizado</strong> sobrepõe essas permissões para casos especiais.
 {% endblock %}
 
 {% block sidebar %}
@@ -48,45 +48,65 @@
       </button>
     </div>
 
+    {# ── Perfis de sistema (read-only) ── #}
+    <div class="px-5 py-3 bg-gray-50 border-b border-gray-100">
+      <p class="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Perfis padrão do sistema</p>
+      <p class="text-[11px] text-gray-400 mt-0.5">Espelham as permissões padrão de cada papel. Não editáveis.</p>
+    </div>
     <div class="divide-y divide-gray-100">
-      {% for p in profiles %}
-      <div class="flex items-start gap-4 px-5 py-4">
-        {# Info do perfil #}
+      {% set has_system = [] %}
+      {% for p in profiles %}{% if p.is_system %}{% set _ = has_system.append(1) %}
+      <div class="flex items-start gap-4 px-5 py-3.5 bg-gray-50/50">
         <div class="min-w-0 flex-1">
           <div class="flex items-center gap-2 flex-wrap">
-            <span class="text-sm font-semibold text-gray-800">{{ p.nome }}</span>
-            {% if p.is_system %}
-            <span class="rounded-full bg-gray-200 px-2 py-0.5 text-[10px] font-semibold uppercase text-gray-500">Sistema</span>
-            {% else %}
-            <span class="rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-violet-600">Custom</span>
-            {% endif %}
+            <span class="text-sm font-medium text-gray-700">{{ p.nome }}</span>
+            <span class="text-[10px] text-gray-400">— {{ role_labels.get(p.base_role, p.base_role) }}</span>
           </div>
-          <p class="mt-0.5 text-xs text-gray-500">
-            Base: {{ role_labels.get(p.base_role, p.base_role) }}{% if p.descricao %} · {{ p.descricao }}{% endif %}
-          </p>
-          <div class="mt-2 flex flex-wrap gap-1">
+          <div class="mt-1.5 flex flex-wrap gap-1">
             {% for key, val in p.permissions.items() %}{% if val %}
-            <span class="rounded-full border border-gray-200 bg-white px-2 py-0.5 text-[10px] text-gray-600">
-              {{ all_permissions.get(key, key) }}
-            </span>
+            <span class="rounded-full bg-gray-200 px-2 py-0.5 text-[10px] text-gray-500">{{ all_permissions.get(key, key) }}</span>
             {% endif %}{% endfor %}
           </div>
         </div>
+      </div>
+      {% endif %}{% endfor %}
+      {% if not has_system %}
+      <div class="px-5 py-3 text-sm text-gray-400">—</div>
+      {% endif %}
+    </div>
 
-        {# Toggle + Editar (apenas perfis não-sistema) #}
+    {# ── Perfis customizados ── #}
+    <div class="px-5 py-3 bg-white border-t-2 border-t-gray-200 border-b border-b-gray-100">
+      <p class="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Perfis customizados</p>
+      <p class="text-[11px] text-gray-400 mt-0.5">Atribuídos individualmente para sobrepor as permissões padrão do papel.</p>
+    </div>
+    <div class="divide-y divide-gray-100">
+      {% set has_custom = [] %}
+      {% for p in profiles %}{% if not p.is_system %}{% set _ = has_custom.append(1) %}
+      <div class="flex items-start gap-4 px-5 py-4">
+        <div class="min-w-0 flex-1">
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="text-sm font-semibold text-gray-800">{{ p.nome }}</span>
+            <span class="rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-violet-600">Custom</span>
+            {% if p.descricao %}<span class="text-[11px] text-gray-400">{{ p.descricao }}</span>{% endif %}
+          </div>
+          <p class="mt-0.5 text-[11px] text-gray-400">Base: {{ role_labels.get(p.base_role, p.base_role) }}</p>
+          <div class="mt-1.5 flex flex-wrap gap-1">
+            {% for key, val in p.permissions.items() %}{% if val %}
+            <span class="rounded-full border border-violet-100 bg-violet-50 px-2 py-0.5 text-[10px] text-violet-700">{{ all_permissions.get(key, key) }}</span>
+            {% endif %}{% endfor %}
+          </div>
+        </div>
         <div class="flex shrink-0 items-center gap-3 mt-0.5">
-          {% if not p.is_system %}
           <button onclick="abrirPainelEditarPerfil({{ p.id }}, '{{ p.nome | e }}', '{{ p.descricao | e }}', {{ p.permissions | tojson | e }})"
                   class="rounded-xl border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50">
             Editar
           </button>
-          {% endif %}
         </div>
       </div>
-      {% endfor %}
-
-      {% if not profiles %}
-      <div class="px-5 py-8 text-center text-sm text-gray-400">Nenhum perfil cadastrado.</div>
+      {% endif %}{% endfor %}
+      {% if not has_custom %}
+      <div class="px-5 py-6 text-center text-sm text-gray-400">Nenhum perfil customizado ainda. Use "+ Novo perfil" para casos especiais.</div>
       {% endif %}
     </div>
   </section>
@@ -153,17 +173,26 @@
           <input type="text" name="descricao" placeholder="Propósito deste perfil"
                  class="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:border-violet-400 focus:outline-none">
         </div>
-        <div>
-          <label class="mb-2 block text-xs font-medium text-gray-600">Permissões</label>
-          <div class="grid gap-2 sm:grid-cols-2" id="novo-perms-grid">
-            {% for key, label in all_permissions.items() %}
-            <label class="flex cursor-pointer items-center gap-2 rounded-xl border border-gray-200 px-3 py-2 hover:bg-gray-50">
-              <input type="checkbox" name="perm_{{ key }}" value="on" id="novo-perm-{{ key }}"
-                     class="h-4 w-4 rounded border-gray-300 text-violet-600">
-              <span class="text-sm text-gray-700">{{ label }}</span>
-            </label>
-            {% endfor %}
+        <div id="novo-perms-grid">
+          {% set groups = [
+            ('Plataforma', ['platform_access','manage_users','ops_tools']),
+            ('Lab Monitor', ['labmonitor_access','manage_labmonitor','manage_labmonitor_labs','manage_labmonitor_settings']),
+            ('Plantão', ['plantao_access','manage_plantao','plantao_gerir_escalas','plantao_aprovar_candidaturas','plantao_aprovar_cadastros','plantao_ver_relatorios']),
+          ] %}
+          {% for group_name, keys in groups %}
+          <div class="mb-3">
+            <p class="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-gray-400">{{ group_name }}</p>
+            <div class="space-y-1">
+              {% for key in keys %}{% if key in all_permissions %}
+              <label class="flex cursor-pointer items-center gap-2 rounded-lg border border-gray-200 px-3 py-1.5 hover:bg-gray-50">
+                <input type="checkbox" name="perm_{{ key }}" value="on" id="novo-perm-{{ key }}"
+                       class="h-3.5 w-3.5 rounded border-gray-300 text-violet-600">
+                <span class="text-sm text-gray-700">{{ all_permissions[key] }}</span>
+              </label>
+              {% endif %}{% endfor %}
+            </div>
           </div>
+          {% endfor %}
         </div>
         <button type="submit"
                 class="w-full rounded-xl bg-violet-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-violet-700">
@@ -202,15 +231,25 @@
       </div>
       <div>
         <label class="mb-2 block text-xs font-medium text-gray-600">Permissões</label>
-        <div class="grid gap-2 sm:grid-cols-2">
-          {% for key, label in all_permissions.items() %}
-          <label class="flex cursor-pointer items-center gap-2 rounded-xl border border-gray-200 px-3 py-2 bg-white hover:bg-gray-50">
-            <input type="checkbox" name="perm_{{ key }}" value="on" id="edit-perm-{{ key }}"
-                   class="h-4 w-4 rounded border-gray-300 text-violet-600">
-            <span class="text-sm text-gray-700">{{ label }}</span>
-          </label>
-          {% endfor %}
+        {% set groups = [
+          ('Plataforma', ['platform_access','manage_users','ops_tools']),
+          ('Lab Monitor', ['labmonitor_access','manage_labmonitor','manage_labmonitor_labs','manage_labmonitor_settings']),
+          ('Plantão', ['plantao_access','manage_plantao','plantao_gerir_escalas','plantao_aprovar_candidaturas','plantao_aprovar_cadastros','plantao_ver_relatorios']),
+        ] %}
+        {% for group_name, keys in groups %}
+        <div class="mb-3">
+          <p class="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-gray-400">{{ group_name }}</p>
+          <div class="space-y-1">
+            {% for key in keys %}{% if key in all_permissions %}
+            <label class="flex cursor-pointer items-center gap-2 rounded-lg border border-gray-200 px-3 py-1.5 bg-white hover:bg-gray-50">
+              <input type="checkbox" name="perm_{{ key }}" value="on" id="edit-perm-{{ key }}"
+                     class="h-3.5 w-3.5 rounded border-gray-300 text-violet-600">
+              <span class="text-sm text-gray-700">{{ all_permissions[key] }}</span>
+            </label>
+            {% endif %}{% endfor %}
+          </div>
         </div>
+        {% endfor %}
       </div>
       <button type="submit"
               class="w-full rounded-xl bg-violet-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-violet-700">

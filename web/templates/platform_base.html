@@ -163,7 +163,7 @@
         const users = await res.json();
         const sel = document.getElementById('dev-user-select');
         sel.innerHTML = users.map(u =>
-          `<option value="${u.id}" ${u.id == {{ platform_user.id }} ? 'selected' : ''}>${u.email} · ${u.role}</option>`
+          `<option value="${u.id}" ${u.id == {{ platform_user.id }} ? 'selected' : ''}>${u.nome ? u.nome + ' · ' : ''}${u.role} (${u.email})</option>`
         ).join('');
       } catch (e) { console.warn('dev-switcher:', e); }
     })();

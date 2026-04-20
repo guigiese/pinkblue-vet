@@ -9,13 +9,22 @@ from web.shared import _render, _default_module_name
 router = APIRouter()
 
 _PERM_LABELS_GLOBAL = {
+    # Plataforma
     "platform_access": "Home da plataforma",
-    "labmonitor_access": "Lab Monitor",
-    "manage_labmonitor": "Gerenciar Lab Monitor",
+    "manage_users": "Administrar acessos (usuários e perfis)",
     "ops_tools": "Ops-map e sandboxes",
-    "manage_users": "Administrar acessos",
-    "plantao_access": "Módulo Plantão",
-    "manage_plantao": "Gerenciar Plantão",
+    # Lab Monitor
+    "labmonitor_access": "Lab Monitor — visualizar",
+    "manage_labmonitor": "Lab Monitor — gerenciar",
+    "manage_labmonitor_labs": "Lab Monitor — configurar laboratórios",
+    "manage_labmonitor_settings": "Lab Monitor — configurações",
+    # Plantão
+    "plantao_access": "Plantão — acesso (plantonista)",
+    "manage_plantao": "Plantão — gerenciar (todos os sub-itens)",
+    "plantao_gerir_escalas": "Plantão — criar e editar escalas",
+    "plantao_aprovar_candidaturas": "Plantão — aprovar/recusar candidaturas",
+    "plantao_aprovar_cadastros": "Plantão — aprovar cadastros de plantonistas",
+    "plantao_ver_relatorios": "Plantão — relatórios e audit log",
 }
 
 

@@ -468,7 +468,7 @@ def make_router(engine: Any) -> APIRouter:
             candidatar(engine, posicao_id, perfil["id"], ip=request.client.host if request.client else "")
         except ValueError as exc:
             return _redir_erro("/plantao/escalas", str(exc))
-        return RedirectResponse("/plantao/escalas?ok=1", status_code=303)
+        return RedirectResponse("/plantao/escalas?ok=candidatura_enviada", status_code=303)
 
     @router.post("/candidaturas/{candidatura_id}/cancelar")
     async def cancelar_candidatura_action(request: Request, candidatura_id: int):
@@ -491,8 +491,8 @@ def make_router(engine: Any) -> APIRouter:
                 ip=request.client.host if request.client else "",
             )
         except ValueError as exc:
-            return _redir_erro("/plantao/meus-turnos", str(exc))
-        return RedirectResponse("/plantao/meus-turnos?ok=1", status_code=303)
+            return _redir_erro("/plantao/escalas", str(exc))
+        return RedirectResponse("/plantao/escalas?ok=cancelado", status_code=303)
 
     @router.post("/trocas/solicitar")
     async def solicitar_troca_action(
@@ -517,8 +517,8 @@ def make_router(engine: Any) -> APIRouter:
                 ip=request.client.host if request.client else "",
             )
         except ValueError as exc:
-            return _redir_erro("/plantao/trocas", str(exc))
-        return RedirectResponse("/plantao/trocas?ok=1", status_code=303)
+            return _redir_erro("/plantao/escalas", str(exc))
+        return RedirectResponse("/plantao/escalas?ok=troca_solicitada", status_code=303)
 
     @router.post("/trocas/substituicao")
     async def abrir_substituicao_action(
@@ -541,8 +541,8 @@ def make_router(engine: Any) -> APIRouter:
                 ip=request.client.host if request.client else "",
             )
         except ValueError as exc:
-            return _redir_erro("/plantao/trocas", str(exc))
-        return RedirectResponse("/plantao/trocas?ok=1", status_code=303)
+            return _redir_erro("/plantao/escalas", str(exc))
+        return RedirectResponse("/plantao/escalas?ok=substituicao_aberta", status_code=303)
 
     @router.post("/trocas/{troca_id}/aceitar")
     async def aceitar_troca_action(request: Request, troca_id: int):
@@ -555,8 +555,8 @@ def make_router(engine: Any) -> APIRouter:
         try:
             aceitar_troca(engine, troca_id, perfil["id"], ip=request.client.host if request.client else "")
         except ValueError as exc:
-            return _redir_erro("/plantao/trocas", str(exc))
-        return RedirectResponse("/plantao/trocas?ok=1", status_code=303)
+            return _redir_erro("/plantao/escalas", str(exc))
+        return RedirectResponse("/plantao/escalas?ok=troca_aceita", status_code=303)
 
     @router.post("/trocas/{troca_id}/recusar")
     async def recusar_troca_action(request: Request, troca_id: int):
@@ -569,8 +569,8 @@ def make_router(engine: Any) -> APIRouter:
         try:
             recusar_troca(engine, troca_id, perfil["id"], ip=request.client.host if request.client else "")
         except ValueError as exc:
-            return _redir_erro("/plantao/trocas", str(exc))
-        return RedirectResponse("/plantao/trocas?ok=1", status_code=303)
+            return _redir_erro("/plantao/escalas", str(exc))
+        return RedirectResponse("/plantao/escalas?ok=troca_recusada", status_code=303)
 
     @router.post("/disponibilidade/{data_id}/aderir")
     async def aderir_disponibilidade_action(request: Request, data_id: int):
@@ -584,7 +584,7 @@ def make_router(engine: Any) -> APIRouter:
             aderir_disponibilidade(engine, data_id, perfil["id"], ip=request.client.host if request.client else "")
         except ValueError as exc:
             return _redir_erro("/plantao/disponibilidade", str(exc))
-        return RedirectResponse("/plantao/disponibilidade?ok=1", status_code=303)
+        return RedirectResponse("/plantao/disponibilidade?ok=aderiu", status_code=303)
 
     @router.post("/disponibilidade/{adesao_id}/cancelar")
     async def cancelar_disponibilidade_action(request: Request, adesao_id: int):
@@ -598,7 +598,7 @@ def make_router(engine: Any) -> APIRouter:
             cancelar_disponibilidade(engine, adesao_id, perfil["id"], ip=request.client.host if request.client else "")
         except ValueError as exc:
             return _redir_erro("/plantao/disponibilidade", str(exc))
-        return RedirectResponse("/plantao/disponibilidade?ok=1", status_code=303)
+        return RedirectResponse("/plantao/disponibilidade?ok=cancelado", status_code=303)
 
     @router.get("/notificacoes", response_class=HTMLResponse)
     async def notificacoes_page(request: Request):
@@ -946,6 +946,7 @@ def make_router(engine: Any) -> APIRouter:
             csrf_token=csrf,
             erro=request.query_params.get("erro", ""),
             ok=request.query_params.get("ok", ""),
+            aviso=request.query_params.get("aviso", ""),
         )
 
     @router.post("/admin/aprovacoes/lote")
@@ -987,6 +988,14 @@ def make_router(engine: Any) -> APIRouter:
             confirmar_candidatura(engine, candidatura_id, gestor["id"], ip=request.client.host if request.client else "")
         except ValueError as exc:
             return _redir_erro("/plantao/admin/aprovacoes", str(exc))
+        # Warn gestor if no tarifa was found (valor_base will be NULL)
+        with engine.connect() as conn:
+            row = conn.execute(
+                text("SELECT valor_base_calculado FROM plantao_candidaturas WHERE id=:id"),
+                {"id": candidatura_id},
+            ).fetchone()
+        if row and row[0] is None:
+            return RedirectResponse("/plantao/admin/aprovacoes?ok=1&aviso=sem_tarifa", status_code=303)
         return RedirectResponse("/plantao/admin/aprovacoes?ok=1", status_code=303)
 
     @router.post("/admin/aprovacoes/recusar/{candidatura_id}")
@@ -1479,10 +1488,16 @@ def make_router(engine: Any) -> APIRouter:
         from .actions import get_configuracao
         from .queries import get_disponibilidade_ativa
 
-        api_key = request.headers.get("X-Plantao-API-Key", "").strip()
-        esperado = get_configuracao(engine, "plantao_api_key", "").strip()
-        if not esperado or api_key != esperado:
-            return JSONResponse({"erro": "API key invalida."}, status_code=403)
+        # Allow session-based auth for users with manage_plantao, or API key for external callers
+        session_user = getattr(request.state, "user", None)
+        session_ok = bool(session_user and session_user.get("gestor_plantao"))
+
+        if not session_ok:
+            api_key = request.headers.get("X-Plantao-API-Key", "").strip()
+            esperado = get_configuracao(engine, "plantao_api_key", "").strip()
+            if not esperado or api_key != esperado:
+                return JSONResponse({"erro": "Autenticação necessária: faça login ou forneça X-Plantao-API-Key."}, status_code=403)
+
         lista = get_disponibilidade_ativa(engine, data, hora, local_id or None)
         return JSONResponse({"data": data, "hora": hora, "disponibilidade": lista})
 
