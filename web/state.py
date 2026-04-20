@@ -170,7 +170,8 @@ def _parse_datetime(raw: str | None) -> datetime | None:
     text = raw.strip()
     for candidate in (text, text.replace("Z", "+00:00")):
         try:
-            return datetime.fromisoformat(candidate)
+            dt = datetime.fromisoformat(candidate)
+            return dt.replace(tzinfo=None)
         except Exception:
             pass
     for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d/%m/%y", "%d/%m/%Y %H:%M", "%d/%m/%y %H:%M"):
