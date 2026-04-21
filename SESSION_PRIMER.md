@@ -144,6 +144,38 @@ git worktree list
 
 ---
 
+## Regra de reinicialização do servidor local
+
+Toda vez que um ajuste impactar o servidor local (qualquer mudança em código Python, templates, config, ou dependências):
+
+1. **Reiniciar o servidor**: fechar o terminal com `start_dev.bat` e reabrir, ou encerrar o processo uvicorn e iniciá-lo novamente.
+2. **Verificar saúde**: confirmar que o servidor subiu sem erro (`Application startup complete`).
+3. **Validar rotas afetadas**: acessar pelo menos as rotas impactadas pela mudança e confirmar HTTP 200.
+4. **Só então reportar**: informar ao usuário que está tudo operacional apenas após a verificação acima.
+
+**Nunca** informar "está funcionando" sem ter executado essa verificação.
+
+Em Windows, ao reiniciar pode existir um "ghost socket" no PID anterior retendo a porta 8000. Se isso ocorrer: fechar todos os terminais e reabrir `start_dev.bat`, ou testar em porta alternativa (`--port 8002`) para confirmar que o código está correto.
+
+---
+
+## Segregação de branches entre IAs
+
+Este repositório pode ter duas IAs editando simultaneamente:
+
+| IA | Prefixo de branch |
+|---|---|
+| **Claude Code** (esta IA) | `session/YYYYMMDD-XXXX` |
+| **Codex** | `claude/` |
+
+Regras:
+- **Nunca** trabalhar na mesma branch que outra IA.
+- Antes de iniciar trabalho, executar `git fetch --prune origin && git branch -r` e verificar se existe branch `claude/*` ativa que toque os mesmos arquivos.
+- Se houver conflito potencial, informar o usuário antes de editar e combinar escopo.
+- Branches `claude/*` já merged em `main` são seguras — ignorar.
+
+---
+
 ## Continuação após tarefa
 
 | Usuário diz | Comportamento |
